@@ -1,0 +1,78 @@
+<div class="profile-page">
+  <header class="profile-header">
+    <div class="profile-avatar">
+      {{ currentUser()?.nome?.charAt(0)?.toUpperCase() || 'U' }}
+    </div>
+    <div>
+      <p class="eyebrow">Meu usuário</p>
+      <h1>{{ currentUser()?.nome }}</h1>
+      <span>{{ currentUser()?.username }} · {{ rolesLabel() }}</span>
+    </div>
+  </header>
+
+  @if (feedback()) {
+    <div class="alert alert--success">{{ feedback() }}</div>
+  }
+  @if (error()) {
+    <div class="alert alert--error">{{ error() }}</div>
+  }
+
+  <section class="panel">
+    <div class="panel__header">
+      <h2>Informações cadastrais</h2>
+      <span>{{ currentUser()?.email }}</span>
+    </div>
+
+    <form class="profile-form" (ngSubmit)="salvar()">
+      <label>
+        <span>Nome</span>
+        <input name="nome" [(ngModel)]="form.nome" required />
+      </label>
+      <label>
+        <span>E-mail</span>
+        <input name="email" [(ngModel)]="form.email" type="email" required />
+      </label>
+      <label>
+        <span>Telefone</span>
+        <input name="telefone" [(ngModel)]="form.telefone" required />
+      </label>
+
+      <div class="section-title">Endereço</div>
+
+      <label>
+        <span>CEP</span>
+        <input name="cep" [(ngModel)]="form.cep" required />
+      </label>
+      <label>
+        <span>Logradouro</span>
+        <input name="logradouro" [(ngModel)]="form.logradouro" required />
+      </label>
+      <label>
+        <span>Número</span>
+        <input name="numero" [(ngModel)]="form.numero" required />
+      </label>
+      <label>
+        <span>Bairro</span>
+        <input name="bairro" [(ngModel)]="form.bairro" required />
+      </label>
+      <label>
+        <span>Cidade</span>
+        <input name="cidade" [(ngModel)]="form.cidade" required />
+      </label>
+      <label>
+        <span>Estado</span>
+        <input name="estado" [(ngModel)]="form.estado" maxlength="2" required />
+      </label>
+      <label class="wide">
+        <span>Complemento</span>
+        <input name="complemento" [(ngModel)]="form.complemento" />
+      </label>
+
+      <div class="form-actions">
+        <button tuiButton type="submit" appearance="primary" size="m" [disabled]="isLoading()">
+          Salvar alterações
+        </button>
+      </div>
+    </form>
+  </section>
+</div>

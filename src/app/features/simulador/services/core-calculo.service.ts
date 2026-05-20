@@ -1,0 +1,112 @@
+import { Injectable } from '@angular/core';
+import {
+  API_TEMP_DEPTHS_FT, API_TEMP_GRADS_F, API_TEMP_D1_F, API_TEMP_D2_F,
+  CEMENT_CLASSES, M_TO_FT, CementClassProps
+} from '../models/constantes';
+
+export interface SectionGeo {
+  startMD: number;
+  endMD: number;
+  startTVD: number;
+  endTVD: number;
+  lengthMD: number;
+  heightTVD: number;
+  mdToTvdRatio: number;
+  tvdAt: (md: number) => number;
+}
+
+export interface WellFinalGeo {
+  wellFinalMD: number;
+  wellFinalTVD: number;
+}
+
+export interface BHTResult {
+  bhst: number;
+  bhct: number;
+  formula: string;
+}
+
+@Injectable({ providedIn: 'root' })
+export class CoreCalculoService {
+
+  clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  lerp(a: number, b: number, t: number): number {
+    return a + (b - a) * t;
+  }
+
+  bblToFt3(bbl: number): number {
+    return bbl * 5.61458;
+  }
+
+  getCementClass(label: string): CementClassProps {
+    return CEMENT_CLASSES[label] ?? CEMENT_CLASSES['G'];
+  }
+
+  normalizeSectionValues(startMD: number, endMD: number, startTVD: number, endTVD: number): SectionGeo {
+    const s = Math.min(startMD, endMD);
+    const e = Math.max(startMD, endMD);
+    const sT = Math.min(startTVD, endTVD);
+    const eT = Math.max(startTVD, endTVD);
+    const lengthMD = Math.max(0, e - s);
+    const heightTVD = Math.max(0, eT - sT);
+    const ratio = lengthMD > 0 ? heightTVD / lengthMD : 1;
+    return {
+      startMD: s, endMD: e, startTVD: sT, endTVD: eT,
+      lengthMD, heightTVD,
+      mdToTvdRatio: ratio,
+      tvdAt: (md: number) => sT + (md - s) * ratio,
+    };
+  }
+
+  getWellFinalGeometry(section: SectionGeo, wellFinalMD: number, wellFinalTVD: number): WellFinalGeo {
+    const md = Number.isFinite(wellFinalMD) && wellFinalMD >= section.endMD ? wellFinalMD : section.endMD;
+    const tvd = Number.isFinite(wellFinalTVD) ? wellFinalTVD : section.tvdAt(md);
+    return { wellFinalMD: md, wellFinalTVD: tvd };
+  }
+
+  private clampForTable(value: number, list: number[]): number {
+    return this.clamp(value, list[0], list[list.length - 1]);
+  }
+
+  private bracketIndex(value: number, list: number[]): number {
+    if (value <= list[0]) return 0;
+    for (let i = 0; i < list.length - 1; i++) {
+      if (value >= list[i] && value <= list[i + 1]) return i;
+    }
+    return list.length - 2;
+  }
+
+  interpolateApiTemperatureF(depthFt: number, gradientF: number, table: number[][]): { value: number; depthClamped: boolean; gradientClamped: boolean; depthUsed: number; gradientUsed: number } {
+    const d = this.clampForTable(depthFt, API_TEMP_DEPTHS_FT);
+    const g = this.clampForTable(gradientF, API_TEMP_GRADS_F);
+    const di = this.bracketIndex(d, API_TEMP_DEPTHS_FT);
+    const gi = this.bracketIndex(g, API_TEMP_GRADS_F);
+    const d0 = API_TEMP_DEPTHS_FT[di], d1 = API_TEMP_DEPTHS_FT[di + 1];
+    const g0 = API_TEMP_GRADS_F[gi], g1 = API_TEMP_GRADS_F[gi + 1];
+    const td = d1 === d0 ? 0 : (d - d0) / (d1 - d0);
+    const tg = g1 === g0 ? 0 : (g - g0) / (g1 - g0);
+    const low = this.lerp(table[di][gi], table[di][gi + 1], tg);
+    const high = this.lerp(table[di + 1][gi], table[di + 1][gi + 1], tg);
+    return { value: this.lerp(low, high, td), depthUsed: d, gradientUsed: g, depthClamped: d !== depthFt, gradientClamped: g !== gradientF };
+  }
+
+  calcBHT(surfaceTemp: number, geoGradient: number, depthM: number, schedule: 'D1' | 'D2' = 'D2'): BHTResult {
+    const tSurf = Number.isFinite(surfaceTemp) ? surfaceTemp : 80.6;
+    const grad = Number.isFinite(geoGradient) ? geoGradient : 1.50;
+    const dM = Number.isFinite(depthM) ? depthM : 0;
+    const dRef = dM * M_TO_FT;
+    const bhst = tSurf + grad * dRef / 100;
+    let bhct = tSurf + 0.70 * (bhst - tSurf);
+    const table = schedule === 'D1' ? API_TEMP_D1_F : API_TEMP_D2_F;
+    const api = this.interpolateApiTemperatureF(dRef, grad, table);
+    bhct = api.value;
+    let formula = `BHST = ${tSurf.toFixed(1)} + ${grad.toFixed(2)} × ${dRef.toFixed(0)} / 100 = ${bhst.toFixed(1)} °F\nTemperatura de ensaio API ${schedule} = ${bhct.toFixed(1)} °F`;
+    if (api.depthClamped || api.gradientClamped) {
+      formula += `\nNota: tabela API limitada a 1000-22000 ft e 0.9-1.9 °F/100 ft; valor usado: ${api.depthUsed.toFixed(0)} ft / ${api.gradientUsed.toFixed(1)} °F/100 ft.`;
+    }
+    return { bhst: Math.round(bhst * 10) / 10, bhct: Math.round(bhct * 10) / 10, formula };
+  }
+}

@@ -1,0 +1,93 @@
+<section class="login-page">
+  <div class="login-page__hero">
+    <div class="hero-badge">
+      <tui-icon icon="@tui.shield"></tui-icon>
+      <span>Acesso seguro</span>
+    </div>
+
+    <p class="hero-kicker">Geopetro IO</p>
+    <h1 tuiTitle="l">Painel da Sonda</h1>
+    <p class="hero-text">
+      Entre com suas credenciais para acompanhar a operação, revisar indicadores e seguir para o
+      ambiente principal da plataforma.
+    </p>
+
+    <div class="hero-highlights">
+      <div class="highlight-card">
+        <strong>Monitoramento centralizado</strong>
+        <span>Leituras, operação e controle em um único fluxo.</span>
+      </div>
+      <div class="highlight-card">
+        <strong>Pronto para operação</strong>
+        <span>Layout enxuto para uso rápido em desktop e tablet.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-card">
+    <div class="login-card__header">
+      <p class="login-card__eyebrow">Login</p>
+      <h2 tuiTitle="m">Acessar sistema</h2>
+      <p class="login-card__description">Use seu usuário corporativo e a senha cadastrada.</p>
+    </div>
+
+    <form class="login-form" (ngSubmit)="submit()">
+      @if (authError()) {
+        <div class="login-error" role="alert" (click)="clearError()">
+          <tui-icon icon="@tui.alert-triangle" class="login-error__icon"></tui-icon>
+          <span>{{ authError() }}</span>
+        </div>
+      }
+
+      <tui-textfield>
+        <label tuiLabel>Usuário</label>
+        <input
+          tuiInput
+          type="text"
+          autocomplete="username"
+          [ngModel]="username()"
+          (ngModelChange)="username.set($event)"
+          name="username"
+          placeholder="Luis123"
+        />
+      </tui-textfield>
+
+      <tui-textfield>
+        <label tuiLabel>Senha</label>
+        <input
+          tuiInput
+          type="password"
+          autocomplete="current-password"
+          [ngModel]="password()"
+          (ngModelChange)="password.set($event)"
+          name="password"
+          placeholder="Digite sua senha"
+        />
+      </tui-textfield>
+
+      <div class="login-form__actions">
+        <label class="remember-me">
+          <input type="checkbox" />
+          <span>Lembrar acesso neste dispositivo</span>
+        </label>
+
+        <a href="/" class="forgot-link">Esqueci minha senha</a>
+      </div>
+
+      <button
+        tuiButton
+        appearance="primary"
+        size="l"
+        type="submit"
+        class="login-submit"
+        [disabled]="isLoading()"
+      >
+        @if (isLoading()) {
+          Entrando...
+        } @else {
+          Entrar
+        }
+      </button>
+    </form>
+  </div>
+</section>

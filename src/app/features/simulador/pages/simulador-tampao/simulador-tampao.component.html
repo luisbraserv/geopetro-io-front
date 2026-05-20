@@ -1,0 +1,492 @@
+﻿<div class="sim" [formGroup]="form">
+
+  <!-- ── Cabeçalho ── -->
+  <header class="page-head">
+    <div>
+      <p class="eyebrow">Simulador</p>
+      <h1>Tampão Balanceado</h1>
+      <p class="subtitle">Cálculo de volumes, pasta, reologia e pressão para tampão de cimento.</p>
+    </div>
+    <div class="head-actions">
+      <button tuiButton class="btn btn--ghost" type="button" (click)="abrirRelatorioReceita()">
+        <tui-icon icon="@tui.file-text"></tui-icon>
+        Gerar Relatório
+      </button>
+      <button tuiButton class="btn btn--ghost btn--danger" type="button" (click)="resetForm()">
+        <tui-icon icon="@tui.rotate-ccw"></tui-icon>
+        Limpar
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Tabs ── -->
+  <div class="sim-tabs">
+    @for (tab of tabs; track tab.id) {
+      <button tuiButton appearance="flat" class="sim-tab" [class.sim-tab--active]="activeTab === tab.id"
+        type="button" (click)="setTab(tab.id)">{{ tab.label }}</button>
+    }
+  </div>
+
+  <!-- ── Layout: sidebar + conteúdo ── -->
+  <div class="sim-body" [class.sim-body--collapsed]="!sidebarOpen">
+
+    <!-- ════ SIDEBAR RETRÁTIL ════ -->
+    <aside class="sim-sidebar" [class.sim-sidebar--hidden]="!sidebarOpen">
+      <tui-accordion [closeOthers]="false" size="s">
+
+        <!-- 1. Geometria -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec1Open">
+          <tui-icon icon="@tui.ruler"></tui-icon> 1. Geometria da seção
+        </button>
+        <tui-expand [expanded]="sec1Open">
+          <div class="acc-body">
+            <div class="g2">
+              <div><label>Início tampão (MD, m)</label><input type="number" step="1" formControlName="sectionStartMD"></div>
+              <div><label>Fim tampão (MD, m)</label><input type="number" step="1" formControlName="sectionEndMD"></div>
+              <div><label>TVD início (m)</label><input type="number" step="1" formControlName="sectionStartTVD"></div>
+              <div><label>TVD fim (m)</label><input type="number" step="1" formControlName="sectionEndTVD"></div>
+              <div><label>Final poço (MD, m)</label><input type="number" step="1" formControlName="wellFinalMD"></div>
+              <div><label>TVD final (m)</label><input type="number" step="1" formControlName="wellFinalTVD"></div>
+              <div class="col-span-2">
+                <label>Revestimento (API)</label>
+                <select (change)="onCasingSelect($any($event.target).value)">
+                  <option value="">— selecione —</option>
+                  @for (c of casingOptions; track $index) {
+                    <option [value]="$index" [selected]="c.idIn === form.value.holeID">
+                      {{ c.odIn }}" — {{ c.weightLbFt }} lb/ft &nbsp;(ID {{ c.idIn }}")
+                    </option>
+                  }
+                </select>
+              </div>
+              <div><label>ID poço / revest. (pol)</label><input type="number" step="0.001" formControlName="holeID"></div>
+              <div class="col-span-2">
+                <label>Tubing / Coluna (API)</label>
+                <select (change)="onTubingSelect($any($event.target).value)">
+                  <option value="">— selecione —</option>
+                  @for (t of tubingOptions; track $index) {
+                    <option [value]="$index" [selected]="t.odIn === form.value.pipeOD && t.idIn === form.value.pipeID">
+                      {{ t.odIn }}" — {{ t.weightLbFt }} lb/ft &nbsp;(ID {{ t.idIn }}")
+                    </option>
+                  }
+                </select>
+              </div>
+              <div><label>OD coluna (pol)</label><input type="number" step="0.001" formControlName="pipeOD"></div>
+              <div class="col-span-2"><label>ID coluna (pol)</label><input type="number" step="0.001" formControlName="pipeID"></div>
+              <div class="col-span-2"><label>Altura fl. atrás (m)</label><input type="number" step="0.1" formControlName="backSpacerHeight"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 2. Temperatura -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec2Open">
+          <tui-icon icon="@tui.thermometer"></tui-icon> 2. Temperatura
+        </button>
+        <tui-expand [expanded]="sec2Open">
+          <div class="acc-body">
+            <div class="g2">
+              <div><label>Temp. superfície (°F)</label><input type="number" step="0.1" formControlName="surfaceTemp"></div>
+              <div><label>Gradiente (°F/100 ft)</label><input type="number" step="0.01" formControlName="geoGradient"></div>
+              <div><label>BHST (°F)</label><input type="number" formControlName="bhst" class="field-readonly"></div>
+              <div><label>BHCT (°F)</label><input type="number" formControlName="bhct" class="field-readonly"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 3. Condições -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec3Open">
+          <tui-icon icon="@tui.gauge"></tui-icon> 3. Condições operacionais
+        </button>
+        <tui-expand [expanded]="sec3Open">
+          <div class="acc-body">
+            <div class="g2">
+              <div><label>Fl. deslocamento (ppg)</label><input type="number" step="0.1" formControlName="completionWeight"></div>
+              <div><label>Fl. atrás (ppg)</label><input type="number" step="0.1" formControlName="mudWeightBack"></div>
+              <div><label>Fl. frente (ppg)</label><input type="number" step="0.1" formControlName="mudWeightFront"></div>
+              <div><label>Grad. fratura (ppg)</label><input type="number" step="0.1" formControlName="fracGrad"></div>
+              <div><label>Grad. poro (ppg)</label><input type="number" step="0.1" formControlName="poreGrad"></div>
+              <div><label>Vazão (bbl/min)</label><input type="number" step="0.1" formControlName="pumpRate"></div>
+              <div><label>Pausa 1 — fl. frente (min)</label><input type="number" step="1" formControlName="pause1"></div>
+              <div><label>Pausa 2 — pasta (min)</label><input type="number" step="1" formControlName="pause2"></div>
+              <div class="col-span-2"><label>Pausa 3 — fl. atrás (min)</label><input type="number" step="1" formControlName="pause3"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 4. Pasta -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec4Open">
+          <tui-icon icon="@tui.flask-conical"></tui-icon> 4. Pasta de cimento
+        </button>
+        <tui-expand [expanded]="sec4Open">
+          <div class="acc-body">
+            <div class="g2">
+              <div><label>Densidade alvo (ppg)</label><input type="number" step="0.1" formControlName="density"></div>
+              <div>
+                <label>Classe do cimento</label>
+                <select formControlName="cementClass">
+                  @for (c of cimentoClasses; track c.value) { <option [value]="c.value">{{ c.label }}</option> }
+                </select>
+              </div>
+              <div><label>Água doce (%)</label><input type="number" step="0.1" formControlName="waterSplitFresh"></div>
+              <div><label>Água do mar (%)</label><input type="number" step="0.1" formControlName="waterSplitSea"></div>
+              <div><label>Sílica (% BWOC)</label><input type="number" step="0.1" formControlName="silica"></div>
+              <div><label>NaCl (% água)</label><input type="number" step="0.1" formControlName="nacl"></div>
+              <div><label>Rendimento (L/sk)</label><input type="text" class="field-readonly" [value]="slurry ? fmt(slurry.yieldLPerSk, 2) : '-'" readonly></div>
+              <div><label>FAC (gpc)</label><input type="text" class="field-readonly" [value]="slurry ? fmt(slurry.facGpc, 2) : '-'" readonly></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 5. Aditivos -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec5Open">
+          <tui-icon icon="@tui.beaker"></tui-icon> 5. Aditivos
+        </button>
+        <tui-expand [expanded]="sec5Open">
+          <div class="acc-body">
+            <div class="g2 aditivos-minerais">
+              <div><label>Sílica (% BWOC)</label><input type="number" step="0.1" formControlName="silica"></div>
+              <div><label>NaCl (% água)</label><input type="number" step="0.1" formControlName="nacl"></div>
+            </div>
+            <div class="aditivos-panel">
+              <div>
+                <strong>{{ additivos.length }} aditivo(s)</strong>
+                <span>Abra o modal para adicionar, remover ou atualizar todas as propriedades.</span>
+              </div>
+              <button tuiButton type="button" class="btn btn--ghost btn--sm" (click)="openAditivosModal()">
+                <tui-icon icon="@tui.plus"></tui-icon>
+                Gerenciar aditivos
+              </button>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 6. Reologia -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec6Open">
+          <tui-icon icon="@tui.activity"></tui-icon> 6. Reologia
+        </button>
+        <tui-expand [expanded]="sec6Open">
+          <div class="acc-body">
+            <div class="g3">
+              <div><label>θ300</label><input type="number" step="1" formControlName="theta300"></div>
+              <div><label>θ200</label><input type="number" step="1" formControlName="theta200"></div>
+              <div><label>θ100</label><input type="number" step="1" formControlName="theta100"></div>
+              <div><label>θ60</label><input type="number" step="1" formControlName="theta60"></div>
+              <div><label>θ30</label><input type="number" step="1" formControlName="theta30"></div>
+              <div><label>θ20</label><input type="number" step="1" formControlName="theta20"></div>
+              <div><label>θ10</label><input type="number" step="1" formControlName="theta10"></div>
+              <div><label>θ6</label><input type="number" step="1" formControlName="theta6"></div>
+              <div><label>θ3</label><input type="number" step="1" formControlName="theta3"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 7. Operacional -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec7Open">
+          <tui-icon icon="@tui.settings-2"></tui-icon> 7. Parâmetros operacionais
+        </button>
+        <tui-expand [expanded]="sec7Open">
+          <div class="acc-body">
+            <div class="g2">
+              <div><label>Centralização (%)</label><input type="number" step="1" formControlName="centralization"></div>
+              <div><label>Estabilidade fluxo</label><input type="number" step="0.01" formControlName="flowStability"></div>
+              <div><label>Fator surge/swab</label><input type="number" step="0.01" formControlName="surgeFactor"></div>
+              <div><label>Sensib. free-fall</label><input type="number" step="0.05" formControlName="freeFallSensitivity"></div>
+              <div class="col-span-2">
+                <label>Rugosidade</label>
+                <select formControlName="roughness">
+                  @for (r of roughnessOptions; track r.value) { <option [value]="r.value">{{ r.label }}</option> }
+                </select>
+              </div>
+              <div><label>Potência motor (HP)</label><input type="number" step="10" formControlName="motorHP"></div>
+              <div><label>Eficiência bomba (%)</label><input type="number" step="1" formControlName="pumpEff"></div>
+              <div><label>Pressão máx. sup. (psi)</label><input type="number" step="100" formControlName="maxSurfacePressure"></div>
+              <div><label>Vazão máx. (bbl/min)</label><input type="number" step="0.5" formControlName="maxPumpRate"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+      </tui-accordion>
+
+      <div style="padding:12px 0">
+        <button tuiButton class="btn btn--ghost btn--danger btn--sm" type="button" (click)="resetForm()">
+          <tui-icon icon="@tui.rotate-ccw"></tui-icon> Limpar campos
+        </button>
+      </div>
+
+    </aside>
+
+    <!-- ════ CONTEÚDO PRINCIPAL ════ -->
+    <main class="sim-main">
+
+      <!-- ══ Receita / Volumes ══ -->
+      @if (activeTab === 'recipe') {
+
+        <section class="metrics">
+          <div class="metric"><span>Altura tampão</span><strong>{{ fmt(plug?.plugHeight, 1) }} m</strong></div>
+          <div class="metric"><span>Vol. total pasta</span><strong>{{ fmt(plug?.volCementTotal) }} bbl</strong></div>
+          <div class="metric"><span>Alt. c/ tubing</span><strong>{{ fmt(plug?.cementHeightWithTubing, 1) }} m</strong></div>
+          <div class="metric"><span>Alt. s/ tubing</span><strong>{{ fmt(plug?.cementHeightWithoutTubing, 1) }} m</strong></div>
+          <div class="metric"><span>Sacos</span><strong>{{ recipe?.sacks ?? '-' }} sk</strong></div>
+          <div class="metric"><span>Fl. Frente</span><strong>{{ fmt(plug?.volWashTotal) }} bbl</strong></div>
+          <div class="metric"><span>Fl. Atrás</span><strong>{{ fmt(plug?.volBackSpacer) }} bbl</strong></div>
+          <div class="metric"><span>Deslocamento</span><strong>{{ fmt(plug?.volDisplacement) }} bbl</strong></div>
+          <div class="metric"><span>Densidade pasta</span><strong>{{ fmt(slurry?.density) }} ppg</strong></div>
+          <div class="metric"><span>Rendimento da pasta</span><strong>{{ fmt(recipe?.baseRecipe?.yieldFt3PerFt3Cement, 3) }} ft³/ft³</strong></div>
+          <div class="metric"><span>BHCT</span><strong>{{ fmt(slurry?.bhct, 1) }} °F</strong></div>
+          <div class="metric"><span>TT 50 Bc</span><strong>{{ tt ? fmtTime(tt.t50) : '-' }}</strong></div>
+        </section>
+
+        <div class="chip-row">
+          @for (d of recipeDiags; track $index) {
+            <span class="chip chip--{{ d.cls }}">{{ d.text }}</span>
+          }
+        </div>
+
+        @if (recipe) {
+          <section class="card">
+            <div class="card-head">
+              <div><h3>Receita da Pasta</h3><span>Cálculo base por 1 pé³ de cimento / 1 saco de 94 lb</span></div>
+            </div>
+            <section class="metrics" style="margin-bottom:12px">
+              <div class="metric"><span>Peso específico calculado</span><strong>{{ fmt(recipe.baseRecipe?.densityPpg) }} ppg</strong></div>
+              <div class="metric"><span>Rendimento</span><strong>{{ fmt(recipe.baseRecipe?.yieldFt3PerFt3Cement, 3) }} ft³/ft³</strong></div>
+              <div class="metric"><span>FAC</span><strong>{{ fmt(recipe.baseRecipe?.facGpc) }} gpc</strong></div>
+              <div class="metric"><span>FAM</span><strong>{{ fmt(recipe.baseRecipe?.famGpc) }} gpc</strong></div>
+              <div class="metric"><span>Vol. base</span><strong>{{ fmt(recipe.baseRecipe?.totalVolumeGal, 4) }} gal</strong></div>
+              <div class="metric"><span>Peso base</span><strong>{{ fmt(recipe.baseRecipe?.totalMassLb) }} lb</strong></div>
+            </section>
+            <table>
+              <thead><tr><th>Produto</th><th>Tipo</th><th>Concentração</th><th>Unidade</th><th>Peso base (lb)</th><th>Vol. abs. (gal/lb)</th><th>Vol. gerado (gal)</th></tr></thead>
+              <tbody>
+                @for (row of recipe.baseRecipe?.rows; track $index) {
+                  <tr><td>{{ row.productName }}</td><td>{{ row.type }}</td><td>{{ row.concentration }}</td><td>{{ row.concentrationUnit }}</td><td>{{ fmt(row.baseMassLb, 4) }}</td><td>{{ fmt(row.absoluteVolumeGalLb, 4) }}</td><td>{{ fmt(row.baseVolumeGal, 4) }}</td></tr>
+                }
+              </tbody>
+            </table>
+          </section>
+        }
+
+        <section class="card">
+          <div class="card-head"><h3>Sequência de bombeio</h3></div>
+          <table>
+            <thead><tr><th>Fluido</th><th>Volume (bbl)</th><th>Vazão (bpm)</th><th>Dens. (ppg)</th></tr></thead>
+            <tbody>
+              <tr><td>Fl. Frente</td><td>{{ fmt(plug?.volWashTotal) }}</td><td>{{ fmt(form.value.pumpRate, 1) }}</td><td>{{ fmt(form.value.mudWeightFront, 1) }}</td></tr>
+              <tr><td>Pasta de cimento</td><td>{{ fmt(plug?.volCementTotal) }}</td><td>{{ fmt(form.value.pumpRate, 1) }}</td><td>{{ fmt(slurry?.density) }}</td></tr>
+              <tr><td>Fl. Atrás</td><td>{{ fmt(plug?.volBackSpacer) }}</td><td>{{ fmt(form.value.pumpRate, 1) }}</td><td>{{ fmt(form.value.mudWeightBack, 1) }}</td></tr>
+              <tr><td>Deslocamento</td><td>{{ fmt(plug?.volDisplacement) }}</td><td>{{ fmt(form.value.pumpRate, 1) }}</td><td>{{ fmt(form.value.completionWeight, 1) }}</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h3>Cronograma operacional</h3><span>Tempo acumulado × TT 50 Bc</span></div>
+          <app-ops-chart [phases]="opsPhases" [ttRequiredMin]="tt ? tt.t50 * 60 : 0"></app-ops-chart>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h3>Receita por Volume</h3><span>Quantidades totais para o volume de pasta da operação</span></div>
+          <div class="g2" style="max-width:780px;margin-bottom:14px">
+            <div>
+              <label>Volume de pasta (bbl)</label>
+              <input type="number" step="0.1" [value]="manualVolumeBbl"
+                (input)="manualVolumeBbl = +$any($event.target).value; calcManualRecipe()">
+            </div>
+            <div>
+              <label>Rendimento da pasta (ft³/ft³)</label>
+              <input type="number" step="0.0001"
+                [value]="manualYieldFt3 ?? recipe?.baseRecipe?.yieldFt3PerFt3Cement ?? ''"
+                (input)="manualYieldFt3 = +$any($event.target).value || null; calcManualRecipe()">
+            </div>
+            <div>
+              <label>FAC (gpc) <span style="color:var(--tui-text-secondary);font-size:11px">— opcional</span></label>
+              <input type="number" step="0.01" min="0"
+                [value]="manualFacGpc ?? ''"
+                (input)="manualFacGpc = +$any($event.target).value || null; calcManualRecipe()"
+                [placeholder]="fmt(recipe?.baseRecipe?.facGpc) + ' gpc (auto)'">
+            </div>
+            <div>
+              <label>FAM (gpc) <span style="color:var(--tui-text-secondary);font-size:11px">— opcional</span></label>
+              <input type="number" step="0.01" min="0"
+                [value]="manualFamGpc ?? ''"
+                (input)="manualFamGpc = +$any($event.target).value || null; calcManualRecipe()"
+                [placeholder]="fmt(recipe?.baseRecipe?.famGpc) + ' gpc (auto)'">
+            </div>
+          </div>
+          @if (manualRecipeResult) {
+            <div class="metrics" style="margin-bottom:12px">
+              <div class="metric"><span>Volume pasta</span><strong>{{ fmt(manualRecipeResult.targetSlurryVolumeBbl) }} bbl</strong></div>
+              <div class="metric"><span>Volume pasta</span><strong>{{ fmt(manualRecipeResult.targetSlurryVolumeFt3) }} ft³</strong></div>
+              <div class="metric"><span>Rendimento usado</span><strong>{{ fmt(manualRecipeResult.yieldFt3PerFt3Cement, 3) }} ft³/ft³</strong></div>
+              <div class="metric"><span>FAC</span><strong>{{ fmt(manualRecipeResult.facGpc) }} gpc</strong></div>
+              <div class="metric"><span>FAM</span><strong>{{ fmt(manualRecipeResult.famGpc) }} gpc</strong></div>
+              <div class="metric"><span>Volume cimento</span><strong>{{ fmt(manualRecipeResult.cementVolumeFt3) }} ft³</strong></div>
+              <div class="metric"><span>Sacos 94 lb</span><strong>{{ fmt(manualRecipeResult.sacks94lb) }} sk</strong></div>
+              <div class="metric"><span>Água total</span><strong>{{ fmt(manualRecipeResult.totalMixWaterGal) }} gal</strong></div>
+            </div>
+            @if (manualRecipeResult.error) {
+              <div class="chip chip--danger">{{ manualRecipeResult.error }}</div>
+            }
+            <table>
+              <thead><tr><th>Produto</th><th>Concentração</th><th>Unidade</th><th>Qtd. base (lb)</th><th>Total (lb)</th><th>Total (kg)</th><th>Vol. (gal)</th><th>Vol. (bbl)</th><th>Obs.</th></tr></thead>
+              <tbody>
+                @for (row of manualRecipeResult.rows; track $index) {
+                  <tr><td>{{ row.productName }}</td><td>{{ row.concentration }}</td><td>{{ row.concentrationUnit }}</td><td>{{ fmt(row.baseMassLb, 4) }}</td><td>{{ fmt(row.scaledMassLb) }}</td><td>{{ fmt(row.scaledMassKg) }}</td><td>{{ fmt(row.scaledVolumeGal) }}</td><td>{{ fmt(row.scaledVolumeBbl, 4) }}</td><td>{{ row.operationalNote || '-' }}</td></tr>
+                }
+              </tbody>
+            </table>
+          }
+        </section>
+      }
+
+      <!-- ══ Reologia ══ -->
+      @if (activeTab === 'rheology') {
+        <section class="metrics">
+          <div class="metric"><span>TT 30 Bc</span><strong>{{ tt ? fmtTime(tt.t30) : '-' }}</strong></div>
+          <div class="metric"><span>TT 50 Bc</span><strong>{{ tt ? fmtTime(tt.t50) : '-' }}</strong></div>
+          <div class="metric"><span>TT 100 Bc</span><strong>{{ tt ? fmtTime(tt.t100) : '-' }}</strong></div>
+          <div class="metric"><span>Água livre est.</span><strong>{{ fmt(freeWater, 1) }} mL/250mL</strong></div>
+        </section>
+        <div class="chip-row">
+          @for (d of rheoDiags; track $index) {
+            <span class="chip chip--{{ d.cls }}">{{ d.text }}</span>
+          }
+        </div>
+        <section class="card">
+          <div class="card-head"><h3>Consistência × tempo</h3></div>
+          <app-thickening-chart [data]="tt"></app-thickening-chart>
+        </section>
+        <section class="card">
+          <div class="card-head"><h3>Resistência UCA × tempo</h3></div>
+          <app-uca-chart [data]="uca"></app-uca-chart>
+        </section>
+
+        @if (rheologyResult) {
+          <!-- Reologia estimada pelos aditivos -->
+          <section class="card rheo-card">
+            <div class="card-head">
+              <h3>Reologia estimada da pasta</h3>
+              <span class="rheo-disclaimer">Estimativa genérica — substituir por dados de laboratório quando disponível</span>
+            </div>
+            <div class="rheo-grid">
+              <div class="rheo-item"><span>PV</span><strong>{{ rheologyResult.rheology.plasticViscosityCp != null ? (rheologyResult.rheology.plasticViscosityCp | number:'1.0-0') + ' cP' : '-' }}</strong></div>
+              <div class="rheo-item"><span>YP</span><strong>{{ rheologyResult.rheology.yieldPointLbf100ft2 != null ? (rheologyResult.rheology.yieldPointLbf100ft2 | number:'1.0-0') + ' lbf/100ft²' : '-' }}</strong></div>
+              <div class="rheo-item"><span>Gel 10s</span><strong>{{ rheologyResult.rheology.gel10sLbf100ft2 != null ? (rheologyResult.rheology.gel10sLbf100ft2 | number:'1.0-0') + ' lbf/100ft²' : '-' }}</strong></div>
+              <div class="rheo-item"><span>Gel 10min</span><strong>{{ rheologyResult.rheology.gel10minLbf100ft2 != null ? (rheologyResult.rheology.gel10minLbf100ft2 | number:'1.0-0') + ' lbf/100ft²' : '-' }}</strong></div>
+              <div class="rheo-item"><span>Gel 30min</span><strong>{{ rheologyResult.rheology.gel30minLbf100ft2 != null ? (rheologyResult.rheology.gel30minLbf100ft2 | number:'1.0-0') + ' lbf/100ft²' : '-' }}</strong></div>
+              <div class="rheo-item"><span>Fator hidráulico</span><strong>{{ rheologyResult.rheologyPressureFactor | number:'1.2-2' }}×</strong></div>
+              @if (rheologyResult.rheology.fluidLossCc30min != null) {
+                <div class="rheo-item"><span>Filtrado est.</span><strong>{{ rheologyResult.rheology.fluidLossCc30min | number:'1.0-0' }} cc/30min</strong></div>
+              }
+            </div>
+            @if (rheologyResult.warnings.length > 0) {
+              <div class="chip-row" style="margin-top:8px">
+                @for (w of rheologyResult.warnings; track $index) {
+                  <span class="chip chip--warn">{{ w }}</span>
+                }
+              </div>
+            }
+            @if (rheologyResult.synergyApplied.length > 0) {
+              <div class="chip-row" style="margin-top:4px">
+                @for (s of rheologyResult.synergyApplied; track $index) {
+                  <span class="chip chip--info">{{ s }}</span>
+                }
+              </div>
+            }
+            @if (rheologyResult.riscoEspuma) {
+              <div class="chip-row" style="margin-top:4px">
+                <span class="chip chip--danger">Risco de espuma — adicionar antiespumante</span>
+              </div>
+            }
+          </section>
+        }
+      }
+
+      <!-- ══ Pressão ══ -->
+      @if (activeTab === 'pressure') {
+        <app-pressure-chart [data]="pressureProfile"></app-pressure-chart>
+      }
+
+      <!-- ══ Esquemático ══ -->
+      @if (activeTab === 'schematic') {
+
+        <!-- Distribuição de fluidos -->
+        <section class="card">
+          <div class="card-head"><h3>Distribuição de fluidos — Estado de bombeio</h3></div>
+          <div class="fluidos-grid">
+            <div class="fluido-card fluido-frente">
+              <div class="fluido-label">Fluido à frente</div>
+              <div class="fluido-vol">{{ fmt(plug?.frontPhysicalVolumeBbl) }} bbl</div>
+              <div class="fluido-h">{{ fmt(plug?.frontPhysicalHeight, 1) }} m</div>
+            </div>
+            <div class="fluido-card fluido-pasta">
+              <div class="fluido-label">Pasta cimento</div>
+              <div class="fluido-vol">{{ fmt(plug?.workVolumeBbl) }} bbl</div>
+              <div class="fluido-h">{{ fmt(plug?.cementPhysicalHeight, 1) }} m</div>
+            </div>
+            <div class="fluido-card fluido-atras">
+              <div class="fluido-label">Fluido atrás</div>
+              <div class="fluido-vol">{{ fmt(plug?.backPhysicalVolumeBbl) }} bbl</div>
+              <div class="fluido-h">{{ fmt(plug?.backPhysicalHeight, 1) }} m</div>
+            </div>
+            <div class="fluido-card fluido-desl">
+              <div class="fluido-label">Deslocamento</div>
+              <div class="fluido-vol">{{ fmt(plug?.operationalDisplacementVolumeBbl) }} bbl</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Dados de profundidade da pasta -->
+        <section class="metrics">
+          <div class="metric"><span>Cap. anular (bbl/m)</span><strong>{{ fmt(plug?.capAnn, 5) }}</strong></div>
+          <div class="metric"><span>Cap. tubulação (bbl/m)</span><strong>{{ fmt(plug?.capPipe, 5) }}</strong></div>
+          <div class="metric"><span>Vol. total pasta</span><strong>{{ fmt(plug?.workVolumeBbl) }} bbl</strong></div>
+          <div class="metric"><span>Alt. cem. c/ tubing</span><strong>{{ fmt(plug?.cementHeightWithTubing, 1) }} m</strong></div>
+          <div class="metric"><span>Alt. cem. s/ tubing</span><strong>{{ fmt(plug?.cementHeightWithoutTubing, 1) }} m</strong></div>
+          <div class="metric"><span>Alt. cem. física</span><strong>{{ fmt(plug?.cementPhysicalHeight, 1) }} m</strong></div>
+          <div class="metric"><span>Topo c/ tubing (MD)</span><strong>{{ fmt(plug?.topCementWithTubing, 1) }} m</strong></div>
+          <div class="metric"><span>Topo s/ tubing (MD)</span><strong>{{ fmt(plug?.topCementWithoutTubing, 1) }} m</strong></div>
+        </section>
+
+        <app-schematic-tampao [plug]="plug" [slurry]="slurry" [recipe]="recipe"></app-schematic-tampao>
+      }
+
+    </main>
+  </div>
+
+  <app-aditivo-modal
+    [open]="aditivosModalOpen"
+    [formArray]="additivos"
+    [catalogo]="catalogoAditivos"
+    (closed)="closeAditivosModal()"
+    (exportJson)="onExportJson()"
+    (importJson)="onImportJson($event)">
+  </app-aditivo-modal>
+
+  <!-- ── Dock flutuante ── -->
+  <div class="sidebar-dock">
+    <button class="sidebar-dock-btn" type="button" (click)="sidebarOpen = !sidebarOpen">
+      <tui-icon [icon]="sidebarOpen ? '@tui.panel-left-close' : '@tui.panel-left-open'"></tui-icon>
+      <span>{{ sidebarOpen ? 'Ocultar painel' : 'Exibir painel' }}</span>
+    </button>
+    <button class="sidebar-dock-btn sidebar-dock-btn--save" type="button" (click)="openStateModal()">
+      <tui-icon icon="@tui.bookmark"></tui-icon>
+      <span>Cenários</span>
+    </button>
+  </div>
+
+  <app-simulador-state-modal
+    [open]="stateModalOpen"
+    operacao="tampao"
+    (closed)="closeStateModal()"
+    (carregar$)="onCarregarEstado($event)"
+    #stateModal>
+  </app-simulador-state-modal>
+</div>
+
+<app-relatorio-viewer
+  [titulo]="relatorioTitulo"
+  [conteudo]="relatorioConteudo"
+  [visivel]="relatorioVisivel"
+  (closed)="relatorioVisivel = false">
+</app-relatorio-viewer>
+

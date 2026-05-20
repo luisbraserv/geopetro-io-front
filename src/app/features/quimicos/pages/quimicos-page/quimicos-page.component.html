@@ -1,0 +1,845 @@
+<div class="quimicos">
+  <header class="page-head">
+    <div>
+      <p class="eyebrow">Almoxarifado</p>
+      <h1>Químicos</h1>
+      <p class="subtitle">Cadastro, movimentação e previsão de consumo por lote.</p>
+    </div>
+
+    <div class="head-actions">
+      <label class="btn btn--ghost" for="quimicos-json">
+        <tui-icon icon="@tui.upload"></tui-icon>
+        Importar JSON
+      </label>
+      <input
+        id="quimicos-json"
+        class="sr-only"
+        type="file"
+        accept="application/json,.json"
+        (change)="importarJson($event)"
+      />
+      <button class="btn btn--ghost" type="button" (click)="exportarJson()">
+        <tui-icon icon="@tui.download"></tui-icon>
+        Exportar
+      </button>
+      <button class="btn btn--ghost" type="button" (click)="resetarJsonBase()">
+        <tui-icon icon="@tui.rotate-ccw"></tui-icon>
+        JSON base
+      </button>
+    </div>
+  </header>
+
+  @if (aviso()) {
+    <div class="quimicos-notice" role="status">{{ aviso() }}</div>
+  }
+
+  <section class="metrics">
+    <div class="metric">
+      <span>Total</span>
+      <strong>{{ resumoGeral().cadastrados }}</strong>
+    </div>
+    <div class="metric">
+      <span>Cimento</span>
+      <strong>{{ resumoGeral().cimentos }}</strong>
+    </div>
+    <div class="metric">
+      <span>Outros químicos</span>
+      <strong>{{ resumoGeral().outrosQuimicos }}</strong>
+    </div>
+    <div class="metric">
+      <span>A vencer 60d</span>
+      <strong>{{ quimicosPertoVencimento().length }}</strong>
+    </div>
+    <div class="metric">
+      <span>Estoque baixo</span>
+      <strong>{{ quimicosEstoqueBaixo().length }}</strong>
+    </div>
+    <div class="metric">
+      <span>Movimentações</span>
+      <strong>{{ resumoGeral().movimentos }}</strong>
+    </div>
+    <div class="metric">
+      <span>Consumo cimento 30d</span>
+      <strong>{{ formatarNumero(resumoGeral().consumoCimento30Dias) }}</strong>
+    </div>
+    <div class="metric">
+      <span>Consumo químicos 30d</span>
+      <strong>{{ formatarNumero(resumoGeral().consumoQuimicos30Dias) }}</strong>
+    </div>
+  </section>
+
+  <section class="alert-grid">
+    <div class="panel alert-panel">
+      <div class="panel-title">
+        <div>
+          <h2>Próximos do vencimento</h2>
+          <span>Validade em até 60 dias</span>
+        </div>
+      </div>
+      <div class="alert-list">
+        @for (quimico of quimicosPertoVencimento().slice(0, 5); track quimico.id) {
+          <button class="alert-item" type="button" (click)="selecionarAba('cadastro')">
+            <strong>{{ quimico.nome }}</strong>
+            <span>{{ quimico.lote || '-' }} · {{ quimico.regional }} · {{ validadeLabel(quimico) }}</span>
+          </button>
+        } @empty {
+          <p class="empty">Nenhum lote vencendo em 60 dias.</p>
+        }
+      </div>
+    </div>
+
+    <div class="panel alert-panel">
+      <div class="panel-title">
+        <div>
+          <h2>Estoque baixo</h2>
+          <span>Até 20% acima do estoque mínimo</span>
+        </div>
+      </div>
+      <div class="alert-list">
+        @for (quimico of quimicosEstoqueBaixo().slice(0, 5); track quimico.id) {
+          <button class="alert-item" type="button" (click)="selecionarAba('cadastro')">
+            <strong>{{ quimico.nome }}</strong>
+            <span>
+              {{ quimico.lote || '-' }} · saldo {{ formatarQuantidade(quimico.estoqueAtual, quimico.unidade) }}
+              / mín. {{ formatarQuantidade(quimico.estoqueMinimo, quimico.unidade) }}
+            </span>
+          </button>
+        } @empty {
+          <p class="empty">Nenhum estoque perto do mínimo.</p>
+        }
+      </div>
+    </div>
+  </section>
+
+  <nav class="tabs" aria-label="Módulo de químicos">
+    @for (aba of abas; track aba.id) {
+      <button
+        type="button"
+        class="tab"
+        [class.tab--active]="abaAtiva() === aba.id"
+        (click)="selecionarAba(aba.id)"
+      >
+        <tui-icon [icon]="aba.icon"></tui-icon>
+        {{ aba.label }}
+      </button>
+    }
+  </nav>
+
+  @if (abaAtiva() === 'cadastro') {
+    <section class="regional-stock">
+      @for (card of estoquePorRegional(); track card.regional) {
+        <button
+          type="button"
+          class="regional-card"
+          [class.regional-card--active]="filtroRegional() === card.regional"
+          (click)="filtroRegional.set(card.regional)"
+        >
+          <span class="regional-card__label">Regional</span>
+          <strong>{{ card.regional }}</strong>
+          <div class="regional-card__chemicals">
+            @for (quimico of card.quimicos; track quimico.id) {
+              <span class="regional-chemical" [class.regional-chemical--alert]="quimico.alerta !== 'ok'">
+                <span>
+                  <b>{{ quimico.nome }}</b>
+                  <small>{{ quimico.lote || '-' }} · {{ tipoQuimicoLabel(quimico.tipo) }}</small>
+                </span>
+                <strong>{{ formatarQuantidade(quimico.estoqueAtual, quimico.unidade) }}</strong>
+              </span>
+            }
+          </div>
+          @if (card.alertas > 0) {
+            <em>{{ card.alertas }} alerta(s)</em>
+          }
+        </button>
+      }
+    </section>
+
+    <section class="workspace">
+      <form class="panel form-grid" (ngSubmit)="salvarQuimico()">
+        <div class="panel-title">
+          <div>
+            <h2>{{ quimicoEditandoId() ?'Editar químico' : 'Novo químico' }}</h2>
+            <span>Lote, regional, validade e saldo inicial</span>
+          </div>
+          <button class="btn btn--primary" type="submit">
+            <tui-icon [icon]="quimicoEditandoId() ?'@tui.save' : '@tui.plus'"></tui-icon>
+            {{ quimicoEditandoId() ?'Salvar' : 'Cadastrar' }}
+          </button>
+        </div>
+
+        <label>
+          Nome
+          <input name="nome" [(ngModel)]="quimicoForm.nome" />
+        </label>
+        <label>
+          Fornecedor
+          <input name="fornecedor" [(ngModel)]="quimicoForm.fornecedor" />
+        </label>
+        <label>
+          Regional
+          <select name="regional" [(ngModel)]="quimicoForm.regional">
+            @for (regional of regionais; track regional) {
+              <option [ngValue]="regional">{{ regional }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Lote
+          <input name="lote" [(ngModel)]="quimicoForm.lote" />
+        </label>
+        <label>
+          Tipo
+          <select name="tipo" [(ngModel)]="quimicoForm.tipo">
+            @for (tipo of tiposQuimico; track tipo) {
+              <option [ngValue]="tipo">{{ tipoQuimicoLabel(tipo) }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Unidade
+          <select name="unidade" [(ngModel)]="quimicoForm.unidade">
+            @for (unidade of unidades; track unidade) {
+              <option [ngValue]="unidade">{{ unidade }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Estoque inicial
+          <input name="quantidadeInicial" type="number" min="0" step="0.01" [(ngModel)]="quimicoForm.quantidadeInicial" />
+        </label>
+        <label>
+          Estoque mínimo
+          <input name="estoqueMinimo" type="number" min="0" step="0.01" [(ngModel)]="quimicoForm.estoqueMinimo" />
+        </label>
+        <label>
+          Erro operacional (%)
+          <input name="erroPercentual" type="number" min="0" step="0.1" [(ngModel)]="quimicoForm.erroPercentual" />
+        </label>
+        <label>
+          Recebimento
+          <input name="dataRecebimento" type="date" [(ngModel)]="quimicoForm.dataRecebimento" />
+        </label>
+        <label>
+          Validade
+          <input name="dataValidade" type="date" [(ngModel)]="quimicoForm.dataValidade" />
+        </label>
+        <label>
+          Status
+          <select name="status" [(ngModel)]="quimicoForm.status">
+            @for (status of statusOptions; track status) {
+              <option [ngValue]="status">{{ statusLabel(status) }}</option>
+            }
+          </select>
+        </label>
+        <label class="span-2">
+          Observação
+          <textarea name="observacao" rows="3" [(ngModel)]="quimicoForm.observacao"></textarea>
+        </label>
+
+        @if (quimicoEditandoId()) {
+          <button class="btn btn--ghost align-end" type="button" (click)="cancelarEdicaoQuimico()">
+            Cancelar edição
+          </button>
+        }
+      </form>
+
+      <div class="panel">
+        <div class="panel-title panel-title--filters">
+          <div>
+            <h2>Estoque cadastrado</h2>
+            <span>{{ quimicosFiltrados().length }} itens encontrados</span>
+          </div>
+          <div class="filters">
+            <input
+              aria-label="Buscar químico"
+              placeholder="Buscar"
+              [ngModel]="filtroBusca()"
+              (ngModelChange)="filtroBusca.set($event)"
+              name="filtroBusca"
+            />
+            <select
+              aria-label="Filtrar regional"
+              [ngModel]="filtroRegional()"
+              (ngModelChange)="filtroRegional.set($event)"
+              name="filtroRegional"
+            >
+              <option value="Todas">Todas</option>
+              @for (regional of regionais; track regional) {
+                <option [value]="regional">{{ regional }}</option>
+              }
+            </select>
+            <select
+              aria-label="Filtrar tipo"
+              [ngModel]="filtroTipo()"
+              (ngModelChange)="filtroTipo.set($event)"
+              name="filtroTipo"
+            >
+              <option value="Todos">Todos</option>
+              @for (tipo of tiposQuimico; track tipo) {
+                <option [value]="tipo">{{ tipoQuimicoLabel(tipo) }}</option>
+              }
+            </select>
+            <select
+              aria-label="Filtrar status"
+              [ngModel]="filtroStatus()"
+              (ngModelChange)="filtroStatus.set($event)"
+              name="filtroStatus"
+            >
+              <option value="Todos">Todos</option>
+              @for (status of statusOptions; track status) {
+                <option [value]="status">{{ statusLabel(status) }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Químico</th>
+                <th>Tipo</th>
+                <th>Regional</th>
+                <th>Lote</th>
+                <th>Saldo</th>
+                <th>Validade</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (quimico of quimicosFiltrados(); track quimico.id) {
+                <tr>
+                  <td>
+                    <strong>{{ quimico.nome }}</strong>
+                    <span>{{ quimico.fornecedor || '-' }}</span>
+                  </td>
+                  <td>{{ tipoQuimicoLabel(quimico.tipo) }}</td>
+                  <td>{{ quimico.regional }}</td>
+                  <td>{{ quimico.lote || '-' }}</td>
+                  <td>
+                    <strong>{{ formatarQuantidade(quimico.estoqueAtual, quimico.unidade) }}</strong>
+                    <span>mín. {{ formatarQuantidade(quimico.estoqueMinimo, quimico.unidade) }}</span>
+                  </td>
+                  <td>{{ validadeLabel(quimico) }}</td>
+                  <td>
+                    <span
+                      class="chip"
+                      [class.chip--danger]="quimico.alerta === 'critico'"
+                      [class.chip--warn]="quimico.alerta === 'atencao'"
+                    >
+                      {{ statusLabel(quimico.status) }}
+                    </span>
+                  </td>
+                  <td class="row-actions">
+                    <button type="button" title="Editar" (click)="editarQuimico(quimico)">
+                      <tui-icon icon="@tui.pencil"></tui-icon>
+                    </button>
+                    <button type="button" title="Remover" (click)="removerQuimico(quimico)">
+                      <tui-icon icon="@tui.trash-2"></tui-icon>
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="8" class="empty">Nenhum químico encontrado.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  }
+
+  @if (abaAtiva() === 'operacoes') {
+    <section class="workspace">
+      <form class="panel form-grid" (ngSubmit)="salvarOperacao()">
+        <div class="panel-title">
+          <div>
+            <h2>Nova operação</h2>
+            <span>Sonda, poço e data usados nas movimentações</span>
+          </div>
+          <button class="btn btn--primary" type="submit">
+            <tui-icon icon="@tui.plus"></tui-icon>
+            Cadastrar
+          </button>
+        </div>
+
+        <label>
+          Sonda
+          <input name="sondaOperacao" [(ngModel)]="operacaoForm.sonda" />
+        </label>
+        <label>
+          Poço
+          <input name="pocoOperacao" [(ngModel)]="operacaoForm.poco" />
+        </label>
+        <label>
+          Data
+          <input name="dataOperacao" type="date" [(ngModel)]="operacaoForm.data" />
+        </label>
+        <label>
+          Tipo de trabalho
+          <select name="tipoTrabalhoOperacao" [(ngModel)]="operacaoForm.tipoTrabalho">
+            @for (tipo of tiposTrabalho; track tipo) {
+              <option [ngValue]="tipo">{{ tipoTrabalhoLabel(tipo) }}</option>
+            }
+          </select>
+        </label>
+      </form>
+
+      <div class="panel">
+        <div class="panel-title">
+          <div>
+            <h2>Operações cadastradas</h2>
+            <span>{{ operacoes().length }} operação(ões)</span>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Operação</th>
+                <th>Sonda</th>
+                <th>Poço</th>
+                <th>Trabalho</th>
+                <th>Data</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (operacao of operacoes(); track operacao.id) {
+                <tr
+                  class="operation-row"
+                  tabindex="0"
+                  (click)="abrirDetalheOperacao(operacao)"
+                  (keydown.enter)="abrirDetalheOperacao(operacao)"
+                  (keydown.space)="abrirDetalheOperacao(operacao)"
+                >
+                  <td><strong>{{ operacao.id }}</strong></td>
+                  <td>{{ operacao.sonda || '-' }}</td>
+                  <td>{{ operacao.poco || '-' }}</td>
+                  <td>{{ tipoTrabalhoLabel(operacao.tipoTrabalho) }}</td>
+                  <td>{{ formatarData(operacao.data) }}</td>
+                  <td class="row-actions">
+                    <button type="button" title="Remover" (click)="$event.stopPropagation(); removerOperacao(operacao)">
+                      <tui-icon icon="@tui.trash-2"></tui-icon>
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="empty">Nenhuma operação cadastrada.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  }
+
+  @if (operacaoDetalhe(); as detalhe) {
+    <div class="operation-modal-backdrop" role="presentation" (click)="fecharDetalheOperacao()">
+      <section
+        class="operation-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="operacao-detalhe-titulo"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="operation-modal__head">
+          <div>
+            <h2 id="operacao-detalhe-titulo">Operação {{ detalhe.operacao.id }}</h2>
+            <span>{{ detalhe.operacao.sonda || '-' }} · {{ detalhe.operacao.poco || '-' }} · {{ tipoTrabalhoLabel(detalhe.operacao.tipoTrabalho) }} · {{ formatarData(detalhe.operacao.data) }}</span>
+          </div>
+          <button type="button" title="Fechar" (click)="fecharDetalheOperacao()">
+            <tui-icon icon="@tui.x"></tui-icon>
+          </button>
+        </div>
+
+        <div class="operation-modal__metrics">
+          <div>
+            <span>Químicos</span>
+            <strong>{{ detalhe.quantidadeQuimicos }}</strong>
+          </div>
+          <div>
+            <span>Movimentações</span>
+            <strong>{{ detalhe.quantidadeMovimentacoes }}</strong>
+          </div>
+          <div>
+            <span>Trabalho</span>
+            <strong>{{ tipoTrabalhoLabel(detalhe.operacao.tipoTrabalho) }}</strong>
+          </div>
+        </div>
+
+        <div class="table-wrap operation-modal__table">
+          <table>
+            <thead>
+              <tr>
+                <th>Químico</th>
+                <th>Movimento</th>
+                <th>Quantidade</th>
+                <th>Localidade</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (mov of detalhe.movimentacoes; track mov.id) {
+                <tr>
+                  <td><strong>{{ mov.quimicoNome }}</strong></td>
+                  <td>{{ tipoMovimentacaoLabel(mov.tipo) }}</td>
+                  <td>{{ formatarQuantidade(mov.quantidade, mov.unidade) }}</td>
+                  <td>{{ mov.localidade || '-' }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4" class="empty">Nenhuma movimentação registrada para esta operação.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  }
+
+  @if (abaAtiva() === 'movimentacao') {
+    <section class="workspace">
+      <form class="panel form-grid" (ngSubmit)="salvarMovimentacao()">
+        <div class="panel-title">
+          <div>
+            <h2>Nova movimentação</h2>
+            <span>Entrada, uso, perda ou ajuste de saldo</span>
+          </div>
+          <button class="btn btn--primary" type="submit">
+            <tui-icon icon="@tui.plus"></tui-icon>
+            Registrar
+          </button>
+        </div>
+
+        <label class="span-2">
+          Químico
+          <select name="quimicoId" [(ngModel)]="movimentacaoForm.quimicoId">
+            <option value="">Selecione</option>
+            @for (quimico of quimicosEmEstoque(); track quimico.id) {
+              <option [value]="quimico.id">
+                {{ quimicoNomeComTipo(quimico) }} · {{ quimico.lote || 'sem lote' }} · {{ formatarQuantidade(quimico.estoqueAtual, quimico.unidade) }}
+              </option>
+            }
+          </select>
+        </label>
+        <label class="span-2">
+          Operação
+          <select name="operacaoId" [(ngModel)]="movimentacaoForm.operacaoId">
+            <option value="">Selecione</option>
+            @for (operacao of operacoes(); track operacao.id) {
+              <option [value]="operacao.id">{{ operacaoLabel(operacao) }} · {{ tipoTrabalhoLabel(operacao.tipoTrabalho) }} · {{ formatarData(operacao.data) }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Tipo
+          <select name="tipoMovimentacao" [(ngModel)]="movimentacaoForm.tipo">
+            @for (tipo of tiposMovimentacao; track tipo) {
+              <option [ngValue]="tipo">{{ tipoMovimentacaoLabel(tipo) }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Quantidade
+          <input name="quantidadeMovimentacao" type="number" step="0.01" [(ngModel)]="movimentacaoForm.quantidade" />
+        </label>
+        <label>
+          Contrato
+          <input name="contrato" [(ngModel)]="movimentacaoForm.contrato" />
+        </label>
+        <label>
+          Localidade
+          <input name="localidade" [(ngModel)]="movimentacaoForm.localidade" />
+        </label>
+        <label class="span-2">
+          Observação
+          <textarea name="observacaoMovimentacao" rows="3" [(ngModel)]="movimentacaoForm.observacao"></textarea>
+        </label>
+      </form>
+
+      <div class="panel">
+        <div class="panel-title">
+          <div>
+            <h2>Histórico</h2>
+            <span>{{ movimentacoes().length }} lançamentos</span>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Operação</th>
+                <th>Sonda</th>
+                <th>Químico</th>
+                <th>Movimento</th>
+                <th>Quantidade</th>
+                <th>Poço</th>
+                <th>Trabalho</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (mov of movimentacoes(); track mov.id) {
+                <tr>
+                  <td>{{ formatarData(mov.data) }}</td>
+                  <td>{{ mov.operacaoLabel }}</td>
+                  <td>{{ mov.sonda || '-' }}</td>
+                  <td>
+                    <strong>{{ mov.quimicoNome }}</strong>
+                    <span>{{ mov.localidade || '-' }}</span>
+                  </td>
+                  <td>{{ tipoMovimentacaoLabel(mov.tipo) }}</td>
+                  <td>{{ formatarQuantidade(mov.quantidade, mov.unidade) }}</td>
+                  <td>{{ mov.poco || '-' }}</td>
+                  <td>{{ tipoTrabalhoLabel(mov.tipoTrabalho) }}</td>
+                  <td class="row-actions">
+                    <button type="button" title="Remover" (click)="removerMovimentacao(mov)">
+                      <tui-icon icon="@tui.trash-2"></tui-icon>
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="9" class="empty">Nenhuma movimentação lançada.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  }
+
+  @if (abaAtiva() === 'graficos') {
+    <section class="charts">
+      <div class="panel chart-panel chart-panel--cement">
+        <div class="panel-title">
+          <div>
+            <h2>Cimento em estoque</h2>
+            <span>Escala separada dos aditivos</span>
+          </div>
+        </div>
+        <div class="bars bars--cement">
+          @for (bar of estoqueCimento(); track bar.label) {
+            <div class="bar-row">
+              <span>{{ bar.label }}</span>
+              <div class="bar-track"><i [style.width.%]="bar.percentual"></i></div>
+              <strong>{{ formatarNumero(bar.value) }}</strong>
+            </div>
+          } @empty {
+            <p class="empty">Sem cimento cadastrado.</p>
+          }
+        </div>
+      </div>
+
+      <div class="panel chart-panel chart-panel--cement">
+        <div class="panel-title">
+          <div>
+            <h2>Consumo de cimento</h2>
+            <span>Uso acumulado por trabalho</span>
+          </div>
+        </div>
+        <div class="bars bars--cement">
+          @for (bar of consumoCimentoPorTrabalho(); track bar.label) {
+            <div class="bar-row">
+              <span>{{ bar.label }}</span>
+              <div class="bar-track"><i [style.width.%]="bar.percentual"></i></div>
+              <strong>{{ formatarNumero(bar.value) }}</strong>
+            </div>
+          } @empty {
+            <p class="empty">Sem consumo de cimento para exibir.</p>
+          }
+        </div>
+      </div>
+
+      <div class="panel chart-panel chart-panel--cement">
+        <div class="panel-title">
+          <div>
+            <h2>Cimento mensal</h2>
+            <span>Últimos 6 meses</span>
+          </div>
+        </div>
+        <div class="month-chart month-chart--cement">
+          @for (bar of consumoMensalCimento(); track bar.label) {
+            <div class="month">
+              <div class="month__bar" [style.height.%]="bar.percentual"></div>
+              <strong>{{ formatarNumero(bar.value) }}</strong>
+              <span>{{ bar.label }}</span>
+            </div>
+          } @empty {
+            <p class="empty">Sem histórico mensal de cimento.</p>
+          }
+        </div>
+      </div>
+
+      <div class="panel chart-panel">
+        <div class="panel-title">
+          <div>
+            <h2>Outros químicos em estoque</h2>
+            <span>Sem cimento na escala</span>
+          </div>
+        </div>
+        <div class="bars">
+          @for (bar of estoquePorTipo(); track bar.label) {
+            <div class="bar-row">
+              <span>{{ tipoQuimicoLabel(bar.label) }}</span>
+              <div class="bar-track"><i [style.width.%]="bar.percentual"></i></div>
+              <strong>{{ formatarNumero(bar.value) }}</strong>
+            </div>
+          } @empty {
+            <p class="empty">Sem saldo para exibir.</p>
+          }
+        </div>
+      </div>
+
+      <div class="panel chart-panel">
+        <div class="panel-title">
+          <div>
+            <h2>Consumo de outros químicos</h2>
+            <span>Uso acumulado sem cimento</span>
+          </div>
+        </div>
+        <div class="bars bars--accent">
+          @for (bar of consumoPorTrabalho(); track bar.label) {
+            <div class="bar-row">
+              <span>{{ bar.label }}</span>
+              <div class="bar-track"><i [style.width.%]="bar.percentual"></i></div>
+              <strong>{{ formatarNumero(bar.value) }}</strong>
+            </div>
+          } @empty {
+            <p class="empty">Sem consumo para exibir.</p>
+          }
+        </div>
+      </div>
+
+      <div class="panel chart-panel">
+        <div class="panel-title">
+          <div>
+            <h2>Outros químicos mensal</h2>
+            <span>Últimos 6 meses sem cimento</span>
+          </div>
+        </div>
+        <div class="month-chart">
+          @for (bar of consumoMensal(); track bar.label) {
+            <div class="month">
+              <div class="month__bar" [style.height.%]="bar.percentual"></div>
+              <strong>{{ formatarNumero(bar.value) }}</strong>
+              <span>{{ bar.label }}</span>
+            </div>
+          } @empty {
+            <p class="empty">Sem histórico mensal.</p>
+          }
+        </div>
+      </div>
+
+      <div class="panel forecast-panel forecast-panel--cement">
+        <div class="panel-title">
+          <div>
+            <h2>Previsão de cimento</h2>
+            <span>Média por operação em escala própria</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cimento</th>
+                <th>Saldo</th>
+                <th>Média/op.</th>
+                <th>Com erro</th>
+                <th>Ops. estimadas</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (previsao of previsoesCimento(); track previsao.quimico.id) {
+                <tr>
+                  <td>
+                    <strong>{{ previsao.quimico.nome }}</strong>
+                    <span>{{ previsao.quimico.lote || '-' }} · {{ tipoQuimicoLabel(previsao.quimico.tipo) }}</span>
+                  </td>
+                  <td>{{ formatarQuantidade(previsao.quimico.estoqueAtual, previsao.quimico.unidade) }}</td>
+                  <td>{{ formatarQuantidade(previsao.mediaUsoPorOperacao, previsao.quimico.unidade) }}</td>
+                  <td>{{ formatarQuantidade(previsao.consumoComErro, previsao.quimico.unidade) }}</td>
+                  <td>{{ operacoesLabel(previsao.operacoesEstimadas) }}</td>
+                  <td>
+                    <span
+                      class="chip"
+                      [class.chip--danger]="previsao.status === 'critico'"
+                      [class.chip--warn]="previsao.status === 'atencao' || previsao.status === 'sem_historico'"
+                    >
+                      {{ previsaoStatusLabel(previsao) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="empty">Sem cimento cadastrado.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel forecast-panel">
+        <div class="panel-title">
+          <div>
+            <h2>Previsão de outros químicos</h2>
+            <span>Média por operação com erro operacional aplicado, sem cimento</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Químico</th>
+                <th>Saldo</th>
+                <th>Média/op.</th>
+                <th>Com erro</th>
+                <th>Ops. estimadas</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (previsao of previsoesQuimicos(); track previsao.quimico.id) {
+                <tr>
+                  <td>
+                    <strong>{{ previsao.quimico.nome }}</strong>
+                    <span>{{ previsao.quimico.lote || '-' }} · {{ tipoQuimicoLabel(previsao.quimico.tipo) }}</span>
+                  </td>
+                  <td>{{ formatarQuantidade(previsao.quimico.estoqueAtual, previsao.quimico.unidade) }}</td>
+                  <td>{{ formatarQuantidade(previsao.mediaUsoPorOperacao, previsao.quimico.unidade) }}</td>
+                  <td>{{ formatarQuantidade(previsao.consumoComErro, previsao.quimico.unidade) }}</td>
+                  <td>{{ operacoesLabel(previsao.operacoesEstimadas) }}</td>
+                  <td>
+                    <span
+                      class="chip"
+                      [class.chip--danger]="previsao.status === 'critico'"
+                      [class.chip--warn]="previsao.status === 'atencao' || previsao.status === 'sem_historico'"
+                    >
+                      {{ previsaoStatusLabel(previsao) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="empty">Sem químicos cadastrados.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  }
+</div>

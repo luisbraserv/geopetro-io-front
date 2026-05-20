@@ -1,0 +1,324 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, 'Segoe UI', sans-serif;
+  --color-primary: #4291e1;
+  --color-primary-muted: #577ca1;
+  --color-accent: #e0a541;
+  --color-warning: #e0a541;
+  --color-surface-dark: #4d5761;
+  --color-surface-warm: #8b7857;
+  --color-surface-deep: #36332e;
+  --color-surface-muted: #eef2f6;
+  --color-card: rgba(248, 247, 243, 0.97);
+  --color-card-border: rgba(77, 87, 97, 0.16);
+  --color-text-strong: #36332e;
+  --color-text-body: #5f6770;
+  --color-text-on-dark: #f7f4ee;
+  --color-text-on-dark-muted: rgba(247, 244, 238, 0.76);
+  --color-focus: #4291e1;
+  --app-background:
+    radial-gradient(circle at top left, rgba(66, 145, 225, 0.22), transparent 30%),
+    radial-gradient(circle at top right, rgba(224, 165, 65, 0.22), transparent 34%),
+    radial-gradient(circle at bottom left, rgba(87, 124, 161, 0.2), transparent 28%),
+    linear-gradient(135deg, var(--color-surface-dark) 0%, var(--color-surface-deep) 48%, var(--color-surface-warm) 100%);
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--app-background);
+  color: var(--color-text-strong);
+}
+
+body {
+  min-height: 100dvh;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2937;
+  caret-color: var(--color-focus);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(66, 145, 225, 0.72);
+  outline: 3px solid rgba(66, 145, 225, 0.16);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+app-root {
+  display: block;
+  min-height: 100dvh;
+  background: var(--app-background);
+}
+
+.quimicos-notice {
+  position: fixed !important;
+  inset: auto auto 24px 50% !important;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: block;
+  box-sizing: border-box;
+  inline-size: max-content !important;
+  block-size: auto !important;
+  min-block-size: 0 !important;
+  max-inline-size: calc(100vw - 32px);
+  max-block-size: none !important;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(224, 165, 65, 0.28);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.operation-row {
+  cursor: pointer;
+}
+
+.operation-row:focus-visible td {
+  background: #eef6ff;
+  outline: 2px solid rgba(66, 145, 225, 0.42);
+  outline-offset: -2px;
+}
+
+.operation-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.operation-modal {
+  width: min(860px, 100%);
+  max-height: min(720px, calc(100vh - 40px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+}
+
+.operation-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.operation-modal__head span {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-text-body);
+  font-size: 13px;
+}
+
+.operation-modal__head button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--color-text-body);
+  cursor: pointer;
+}
+
+.operation-modal__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.operation-modal__metrics div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #edf0f3;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.operation-modal__metrics span {
+  display: block;
+  color: var(--color-text-body);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.operation-modal__metrics strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-strong);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.operation-modal__table {
+  overflow: auto;
+}
+
+.operation-modal__table table {
+  min-width: 650px;
+}
+
+.aditivos-minerais {
+  margin-bottom: 12px;
+}
+
+.aditivos-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.aditivos-panel strong,
+.aditivos-panel span {
+  display: block;
+}
+
+.aditivos-panel strong {
+  color: var(--color-text-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.aditivos-panel span {
+  margin-top: 2px;
+  color: var(--color-text-body);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.sim-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.sim-modal {
+  width: min(1040px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-card-border);
+  border-radius: 8px;
+  background: var(--color-card);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.26);
+}
+
+.sim-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border-bottom: 1px solid var(--color-card-border);
+}
+
+.sim-modal__head h2 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: 20px;
+}
+
+.sim-modal__head span {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-text-body);
+  font-size: 13px;
+}
+
+.sim-modal__quick {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--color-card-border);
+}
+
+.sim-modal__body {
+  overflow: auto;
+  padding: 14px 18px 18px;
+}
+
+.aditivo-editor-row {
+  display: grid;
+  grid-template-columns: 120px minmax(170px, 1fr) 150px 110px 120px 70px 34px;
+  gap: 8px;
+  align-items: end;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(77, 87, 97, 0.12);
+}
+
+.empty-state {
+  padding: 18px;
+  border: 1px dashed var(--color-card-border);
+  border-radius: 8px;
+  color: var(--color-text-body);
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .operation-modal__metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .aditivos-panel,
+  .sim-modal__head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .aditivo-editor-row {
+    grid-template-columns: 1fr;
+  }
+}

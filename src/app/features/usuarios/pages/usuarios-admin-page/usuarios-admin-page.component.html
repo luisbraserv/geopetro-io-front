@@ -1,0 +1,143 @@
+<div class="usuarios-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Administração</p>
+      <h1>Usuários</h1>
+    </div>
+    <button tuiButton type="button" appearance="secondary" size="m" (click)="listarUsuarios()">
+      <tui-icon icon="@tui.refresh-cw"></tui-icon>
+      Atualizar
+    </button>
+  </header>
+
+  @if (feedback()) {
+    <div class="alert alert--success">{{ feedback() }}</div>
+  }
+  @if (error()) {
+    <div class="alert alert--error">{{ error() }}</div>
+  }
+
+  <section class="panel">
+    <div class="panel__header">
+      <h2>Cadastrar usuário</h2>
+      <div class="segmented">
+        <button type="button" [class.active]="tipo() === 'INTERNO'" (click)="tipo.set('INTERNO')">Interno</button>
+        <button type="button" [class.active]="tipo() === 'CLIENTE'" (click)="tipo.set('CLIENTE')">Cliente</button>
+      </div>
+    </div>
+
+    <form class="user-form" (ngSubmit)="salvar()">
+      <label>
+        <span>Username</span>
+        <input name="username" [(ngModel)]="form.username" maxlength="60" required />
+      </label>
+      <label>
+        <span>Senha</span>
+        <input name="password" [(ngModel)]="form.password" type="password" maxlength="20" required />
+      </label>
+      <label>
+        <span>Nome</span>
+        <input name="nome" [(ngModel)]="form.nome" required />
+      </label>
+      <label>
+        <span>E-mail</span>
+        <input name="email" [(ngModel)]="form.email" type="email" required />
+      </label>
+      <label>
+        <span>Telefone</span>
+        <input name="telefone" [(ngModel)]="form.telefone" placeholder="(27) 99999-9999" required />
+      </label>
+
+      @if (tipo() === 'INTERNO') {
+        <label>
+          <span>Matrícula</span>
+          <input name="matricula" [(ngModel)]="form.matricula" type="number" required />
+        </label>
+        <label>
+          <span>Setor</span>
+          <input name="setor" [(ngModel)]="form.setor" required />
+        </label>
+      } @else {
+        <label>
+          <span>ID Cliente</span>
+          <input name="id" [(ngModel)]="form.id" type="number" required />
+        </label>
+        <label>
+          <span>Empresa</span>
+          <input name="empresa" [(ngModel)]="form.empresa" required />
+        </label>
+      }
+
+      <label>
+        <span>CEP</span>
+        <input name="cep" [(ngModel)]="form.cep" required />
+      </label>
+      <label>
+        <span>Logradouro</span>
+        <input name="logradouro" [(ngModel)]="form.logradouro" required />
+      </label>
+      <label>
+        <span>Número</span>
+        <input name="numero" [(ngModel)]="form.numero" required />
+      </label>
+      <label>
+        <span>Bairro</span>
+        <input name="bairro" [(ngModel)]="form.bairro" required />
+      </label>
+      <label>
+        <span>Cidade</span>
+        <input name="cidade" [(ngModel)]="form.cidade" required />
+      </label>
+      <label>
+        <span>Estado</span>
+        <input name="estado" [(ngModel)]="form.estado" maxlength="2" required />
+      </label>
+      <label class="wide">
+        <span>Complemento</span>
+        <input name="complemento" [(ngModel)]="form.complemento" />
+      </label>
+
+      <div class="form-actions">
+        <button tuiButton type="submit" appearance="primary" size="m" [disabled]="isLoading()">
+          Cadastrar usuário
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel__header">
+      <h2>Usuários cadastrados</h2>
+      <span>{{ usuarios().length }} registro(s)</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Nome</th>
+            <th>E-mail</th>
+            <th>Roles</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (usuario of usuarios(); track usuario.username) {
+            <tr>
+              <td>{{ usuario.username }}</td>
+              <td>{{ usuario.nome }}</td>
+              <td>{{ usuario.email }}</td>
+              <td>{{ usuario.roles.join(', ') }}</td>
+              <td>{{ usuario.status }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5">Nenhum usuário encontrado.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
