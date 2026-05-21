@@ -21,8 +21,8 @@
     <div class="panel__header">
       <h2>Cadastrar usuário</h2>
       <div class="segmented">
-        <button type="button" [class.active]="tipo() === 'INTERNO'" (click)="tipo.set('INTERNO')">Interno</button>
-        <button type="button" [class.active]="tipo() === 'CLIENTE'" (click)="tipo.set('CLIENTE')">Cliente</button>
+        <button type="button" [class.active]="tipo() === 'INTERNO'" (click)="selecionarTipo('INTERNO')">Interno</button>
+        <button type="button" [class.active]="tipo() === 'CLIENTE'" (click)="selecionarTipo('CLIENTE')">Cliente</button>
       </div>
     </div>
 
@@ -67,6 +67,27 @@
           <input name="empresa" [(ngModel)]="form.empresa" required />
         </label>
       }
+
+      <div class="roles-field wide">
+        <span>Roles</span>
+        <div class="roles-grid">
+          <label class="role-option role-option--locked">
+            <input type="checkbox" [checked]="true" disabled />
+            <span>{{ roleLabel(roleBase()) }}</span>
+          </label>
+
+          @for (role of rolesAdicionais; track role) {
+            <label class="role-option">
+              <input
+                type="checkbox"
+                [checked]="roleSelecionada(role)"
+                (change)="alternarRole(role, $any($event.target).checked)"
+              />
+              <span>{{ roleLabel(role) }}</span>
+            </label>
+          }
+        </div>
+      </div>
 
       <label>
         <span>CEP</span>

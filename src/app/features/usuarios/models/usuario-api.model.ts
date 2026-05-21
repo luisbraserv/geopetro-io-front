@@ -42,6 +42,7 @@ export interface CriarUsuarioClientePayload extends UsuarioContatoPayload {
   empresa: string;
   username: string;
   password: string;
+  roles: UserRole[];
 }
 
 export interface CriarUsuarioInternoPayload extends UsuarioContatoPayload {
@@ -49,4 +50,5 @@ export interface CriarUsuarioInternoPayload extends UsuarioContatoPayload {
   setor: string;
   username: string;
   password: string;
+  roles: UserRole[];
 }

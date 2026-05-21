@@ -3,6 +3,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiIcon } from '@taiga-ui/core';
 
+import { UserRole } from '../../../auth/models/user.model';
 import {
   CriarUsuarioClientePayload,
   CriarUsuarioInternoPayload,
@@ -26,6 +27,7 @@ export class UsuariosAdminPageComponent {
   protected readonly isLoading = signal(false);
   protected readonly feedback = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
+  protected readonly rolesAdicionais: UserRole[] = ['ADMIN', 'CIMENTACAO'];
 
   protected readonly form = {
     id: 1,
@@ -44,10 +46,48 @@ export class UsuariosAdminPageComponent {
     estado: '',
     numero: '',
     complemento: '',
+    roles: [] as UserRole[],
   };
 
   constructor() {
     this.listarUsuarios();
+  }
+
+  protected selecionarTipo(tipo: TipoUsuario): void {
+    this.tipo.set(tipo);
+  }
+
+  protected roleBase(): UserRole {
+    return this.tipo();
+  }
+
+  protected roleSelecionada(role: UserRole): boolean {
+    return this.form.roles.includes(role);
+  }
+
+  protected alternarRole(role: UserRole, checked: boolean): void {
+    if (checked && !this.form.roles.includes(role)) {
+      this.form.roles = [...this.form.roles, role];
+      return;
+    }
+
+    if (!checked) {
+      this.form.roles = this.form.roles.filter((item) => item !== role);
+    }
+  }
+
+  protected roleLabel(role: UserRole): string {
+    const labels: Record<UserRole, string> = {
+      ADMIN: 'Administrador',
+      USER: 'Usuário',
+      OPERADOR: 'Operador',
+      ENGENHARIA: 'Engenharia',
+      CLIENTE: 'Cliente',
+      INTERNO: 'Interno',
+      CIMENTACAO: 'Cimentação',
+    };
+
+    return labels[role] ?? role;
   }
 
   protected salvar(): void {
@@ -93,6 +133,7 @@ export class UsuariosAdminPageComponent {
       empresa: this.form.empresa,
       username: this.form.username,
       password: this.form.password,
+      roles: this.rolesSelecionadas(),
     };
   }
 
@@ -103,6 +144,7 @@ export class UsuariosAdminPageComponent {
       setor: this.form.setor,
       username: this.form.username,
       password: this.form.password,
+      roles: this.rolesSelecionadas(),
     };
   }
 
@@ -121,6 +163,10 @@ export class UsuariosAdminPageComponent {
     };
   }
 
+  private rolesSelecionadas(): UserRole[] {
+    return Array.from(new Set<UserRole>([this.roleBase(), ...this.form.roles]));
+  }
+
   private limparFormulario(): void {
     Object.assign(this.form, {
       username: '',
@@ -137,6 +183,7 @@ export class UsuariosAdminPageComponent {
       estado: '',
       numero: '',
       complemento: '',
+      roles: [],
     });
   }
 }

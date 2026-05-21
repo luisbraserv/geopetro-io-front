@@ -73,6 +73,48 @@ label {
   font-weight: 600;
 }
 
+.roles-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.roles-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.role-option {
+  min-height: 2.35rem;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+}
+
+.role-option input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--color-primary);
+}
+
+.role-option--locked {
+  background: #eef6ff;
+  border-color: rgba(66, 145, 225, 0.34);
+  color: #1d4ed8;
+  cursor: default;
+}
+
 input {
   height: 2.45rem;
   border: 1px solid #cbd5e1;
