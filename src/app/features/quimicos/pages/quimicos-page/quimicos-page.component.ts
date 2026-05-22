@@ -313,11 +313,9 @@ export class QuimicosPageComponent {
     const idEditando = this.quimicoEditandoId();
 
     if (idEditando) {
-      this.store.atualizarQuimico(idEditando, draft);
-      this.mostrarAviso('Cadastro atualizado.');
+      void this.store.atualizarQuimico(idEditando, draft).then(() => this.mostrarAviso('Cadastro atualizado.'));
     } else {
-      this.store.adicionarQuimico(draft);
-      this.mostrarAviso('Químico cadastrado.');
+      void this.store.adicionarQuimico(draft).then(() => this.mostrarAviso('Químico cadastrado.'));
     }
 
     this.cancelarEdicaoQuimico();
@@ -361,9 +359,10 @@ export class QuimicosPageComponent {
       return;
     }
 
-    this.store.adicionarOperacao(draft);
-    this.operacaoForm = this.criarOperacaoForm();
-    this.mostrarAviso('Operação cadastrada.');
+    void this.store.adicionarOperacao(draft).then(() => {
+      this.operacaoForm = this.criarOperacaoForm();
+      this.mostrarAviso('Operação cadastrada.');
+    });
   }
 
   protected removerOperacao(operacao: OperacaoSonda): void {
@@ -374,8 +373,7 @@ export class QuimicosPageComponent {
       return;
     }
 
-    this.store.removerOperacao(operacao.id);
-    this.mostrarAviso('Operação removida.');
+    void this.store.removerOperacao(operacao.id).then(() => this.mostrarAviso('Operação removida.'));
   }
 
   protected abrirDetalheOperacao(operacao: OperacaoSonda): void {
@@ -395,8 +393,7 @@ export class QuimicosPageComponent {
       return;
     }
 
-    this.store.removerQuimico(quimico.id);
-    this.mostrarAviso('Químico removido.');
+    void this.store.removerQuimico(quimico.id).then(() => this.mostrarAviso('Químico removido.'));
   }
 
   protected salvarMovimentacao(): void {
@@ -420,12 +417,12 @@ export class QuimicosPageComponent {
       return;
     }
 
-    this.store.adicionarMovimentacao({
+    void this.store.adicionarMovimentacao({
       ...this.movimentacaoForm,
       operacaoId: operacao.id,
       quimicoId,
       quantidade:
-        this.movimentacaoForm.tipo === 'ajuste' ?quantidade : Math.abs(quantidade),
+        this.movimentacaoForm.tipo === 'ajuste' ? quantidade : Math.abs(quantidade),
       data: operacao.data,
       poco: operacao.poco,
       tipoTrabalho: operacao.tipoTrabalho,
@@ -433,14 +430,14 @@ export class QuimicosPageComponent {
       localidade: this.movimentacaoForm.localidade.trim(),
       observacao: this.movimentacaoForm.observacao.trim(),
       profundidade: null,
+    }).then(() => {
+      this.movimentacaoForm = this.criarMovimentacaoForm(quimicoId);
+      this.mostrarAviso('Movimentação registrada.');
     });
-    this.movimentacaoForm = this.criarMovimentacaoForm(quimicoId);
-    this.mostrarAviso('Movimentação registrada.');
   }
 
   protected removerMovimentacao(movimentacao: MovimentacaoView): void {
-    this.store.removerMovimentacao(movimentacao.id);
-    this.mostrarAviso('Movimentação removida.');
+    void this.store.removerMovimentacao(movimentacao.id).then(() => this.mostrarAviso('Movimentação removida.'));
   }
 
   protected exportarJson(): void {
@@ -479,14 +476,8 @@ export class QuimicosPageComponent {
   }
 
   protected async resetarJsonBase(): Promise<void> {
-    const confirmado = window.confirm('Restaurar o JSON inicial e substituir os dados locais?');
-
-    if (!confirmado) {
-      return;
-    }
-
-    await this.store.resetarParaJsonBase();
-    this.mostrarAviso('JSON inicial restaurado.');
+    await this.store.carregarTudo();
+    this.mostrarAviso('Dados recarregados da API.');
   }
 
   protected statusLabel(status: StatusQuimico): string {

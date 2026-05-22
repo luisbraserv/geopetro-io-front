@@ -1,4 +1,6 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 
 import {
   MovimentacaoQuimico,
@@ -6,7 +8,6 @@ import {
   Quimico,
   QuimicoPrevisao,
   QuimicoResumo,
-  QuimicosDatabase,
   Regional,
   StatusQuimico,
   TipoMovimentacao,
@@ -14,564 +15,289 @@ import {
   TipoTrabalho,
   UnidadeQuimico,
 } from '../models/quimico.model';
+import { environment } from '../../../../environments/environment';
 
-const DATA_SOURCE_ID = 'planilha-quimicos-2026-05-08-import-2026-05-13';
-const STORAGE_KEY = 'geopetro-io-quimicos-catalogo-braserv-v1';
-const SEED_URL = '/data/quimicos.json';
 const DIAS_ALERTA_VALIDADE = 60;
 const FATOR_ALERTA_ESTOQUE_MINIMO = 1.2;
-
-const REGIONAIS: readonly Regional[] = ['AL', 'SE', 'RN', 'BA', 'ES', 'AM', 'OUTRA'];
-const TIPOS_QUIMICO: readonly TipoQuimico[] = [
-  'Acelerador',
-  'Anti Espumante',
-  'Controlador',
-  'Dispersante',
-  'Estabilizador',
-  'Extensor',
-  'Retardante',
-  'Cimento',
-  'Cimento + Silica',
-  'Outro',
-];
-const UNIDADES: readonly UnidadeQuimico[] = ['kg', 'L', 'saco', 'un'];
-const STATUS: readonly StatusQuimico[] = ['EM_ESTOQUE', 'CRITICO', 'FINALIZADO'];
-const TIPOS_MOVIMENTACAO: readonly TipoMovimentacao[] = ['entrada', 'uso', 'perda', 'ajuste'];
-const TIPOS_TRABALHO: readonly TipoTrabalho[] = [
-  'Squeeze',
-  'Tampao',
-  'Teste de Injetividade',
-  'Cimentacao Primaria',
-  'Outro',
-];
-
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function emptyDatabase(): QuimicosDatabase {
-  return {
-    schemaVersion: 1,
-    dataSource: DATA_SOURCE_ID,
-    atualizadoEm: nowIso(),
-    quimicos: [],
-    operacoes: [],
-    movimentacoes: [],
-  };
-}
-
-function asString(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ?value : fallback;
-}
-
-function asNumber(value: unknown, fallback = 0): number {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ?numeric : fallback;
-}
-
-function normalizeEnum<T extends string>(
-  value: unknown,
-  allowed: readonly T[],
-  fallback: T,
-): T {
-  return allowed.includes(value as T) ?(value as T) : fallback;
-}
-
-function normalizeQuimico(raw: unknown): Quimico {
-  const item = raw as Partial<Quimico>;
-  const timestamp = asString(item.criadoEm, nowIso());
-
-  return {
-    id: asString(item.id, createId('qui')),
-    nome: asString(item.nome, 'Quimico sem nome'),
-    fornecedor: asString(item.fornecedor),
-    regional: normalizeEnum(item.regional, REGIONAIS, 'AL'),
-    lote: asString(item.lote),
-    tipo: normalizeEnum(item.tipo, TIPOS_QUIMICO, 'Outro'),
-    unidade: normalizeEnum(item.unidade, UNIDADES, 'kg'),
-    quantidadeInicial: asNumber(item.quantidadeInicial),
-    estoqueMinimo: asNumber(item.estoqueMinimo),
-    erroPercentual: Math.max(0, asNumber(item.erroPercentual)),
-    dataRecebimento: asString(item.dataRecebimento),
-    dataValidade: asString(item.dataValidade),
-    status: normalizeEnum(item.status, STATUS, 'EM_ESTOQUE'),
-    observacao: asString(item.observacao),
-    criadoEm: timestamp,
-    atualizadoEm: asString(item.atualizadoEm, timestamp),
-  };
-}
-
-function normalizeMovimentacao(raw: unknown): MovimentacaoQuimico {
-  const item = raw as Partial<MovimentacaoQuimico>;
-
-  return {
-    id: asString(item.id, createId('mov')),
-    operacaoId: asString(item.operacaoId),
-    quimicoId: asString(item.quimicoId),
-    tipo: normalizeEnum(item.tipo, TIPOS_MOVIMENTACAO, 'uso'),
-    quantidade: asNumber(item.quantidade),
-    data: asString(item.data, todayIso()),
-    poco: asString(item.poco),
-    tipoTrabalho: normalizeEnum(item.tipoTrabalho, TIPOS_TRABALHO, 'Outro'),
-    profundidade: item.profundidade === null ? null : asNumber(item.profundidade, 0),
-    contrato: asString(item.contrato),
-    localidade: asString(item.localidade),
-    observacao: asString(item.observacao),
-    criadoEm: asString(item.criadoEm, nowIso()),
-  };
-}
-
-function normalizeOperacao(raw: unknown, tipoTrabalhoFallback: TipoTrabalho = 'Outro'): OperacaoSonda {
-  const item = raw as Partial<OperacaoSonda>;
-  const timestamp = asString(item.criadoEm, nowIso());
-
-  return {
-    id: asString(item.id, createId('ope')),
-    sonda: asString(item.sonda),
-    poco: asString(item.poco),
-    data: asString(item.data, todayIso()),
-    tipoTrabalho: normalizeEnum(item.tipoTrabalho, TIPOS_TRABALHO, tipoTrabalhoFallback),
-    criadoEm: timestamp,
-    atualizadoEm: asString(item.atualizadoEm, timestamp),
-  };
-}
-
-function operacoesFromMovimentacoes(movimentacoes: MovimentacaoQuimico[]): OperacaoSonda[] {
-  const grouped = new Map<string, OperacaoSonda>();
-
-  movimentacoes.forEach((movimentacao) => {
-    const id = movimentacao.operacaoId.trim();
-
-    if (!id || grouped.has(id)) {
-      return;
-    }
-
-    grouped.set(id, {
-      id,
-      sonda: '',
-      poco: movimentacao.poco,
-      data: movimentacao.data || todayIso(),
-      tipoTrabalho: movimentacao.tipoTrabalho,
-      criadoEm: movimentacao.criadoEm,
-      atualizadoEm: movimentacao.criadoEm,
-    });
-  });
-
-  return Array.from(grouped.values()).sort((a, b) => b.data.localeCompare(a.data));
-}
-
-function normalizeDatabase(raw: unknown): QuimicosDatabase {
-  const input = raw as Partial<QuimicosDatabase>;
-  const quimicos = Array.isArray(input.quimicos)
-    ?input.quimicos.map((item) => normalizeQuimico(item))
-    : [];
-  const quimicoIds = new Set(quimicos.map((item) => item.id));
-  const movimentacoes = Array.isArray(input.movimentacoes)
-    ?input.movimentacoes
-        .map((item) => normalizeMovimentacao(item))
-        .filter((item) => quimicoIds.has(item.quimicoId))
-    : [];
-  const tipoTrabalhoPorOperacao = new Map<string, TipoTrabalho>();
-  movimentacoes.forEach((movimentacao) => {
-    if (movimentacao.operacaoId && !tipoTrabalhoPorOperacao.has(movimentacao.operacaoId)) {
-      tipoTrabalhoPorOperacao.set(movimentacao.operacaoId, movimentacao.tipoTrabalho);
-    }
-  });
-  const operacoesImportadas = Array.isArray(input.operacoes)
-    ? input.operacoes.map((item) =>
-        normalizeOperacao(
-          item,
-          tipoTrabalhoPorOperacao.get(asString((item as Partial<OperacaoSonda>).id)) ?? 'Outro',
-        ),
-      )
-    : [];
-  const operacoes = operacoesImportadas.length
-    ? operacoesImportadas
-    : operacoesFromMovimentacoes(movimentacoes);
-
-  return {
-    schemaVersion: 1,
-    dataSource: asString(input.dataSource, DATA_SOURCE_ID),
-    atualizadoEm: asString(input.atualizadoEm, nowIso()),
-    quimicos,
-    operacoes,
-    movimentacoes,
-  };
-}
-
-function createId(prefix: string): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return `${prefix}-${crypto.randomUUID()}`;
-  }
-
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function signedQuantity(movimentacao: MovimentacaoQuimico): number {
-  if (movimentacao.tipo === 'entrada') {
-    return Math.abs(movimentacao.quantidade);
-  }
-
-  if (movimentacao.tipo === 'uso' || movimentacao.tipo === 'perda') {
-    return -Math.abs(movimentacao.quantidade);
-  }
-
-  return movimentacao.quantidade;
-}
-
-function daysUntil(date: string): number | null {
-  if (!date) {
-    return null;
-  }
-
-  const target = new Date(`${date}T00:00:00`);
-
-  if (Number.isNaN(target.getTime())) {
-    return null;
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  return Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
-}
 
 export function isCimentoTipo(tipo: TipoQuimico): boolean {
   return tipo === 'Cimento' || tipo === 'Cimento + Silica';
 }
 
-@Injectable({
-  providedIn: 'root',
-})
-export class QuimicosStoreService {
-  private readonly database = signal<QuimicosDatabase>(emptyDatabase());
+// ── Mapeamento entre IDs numéricos da API e strings usadas internamente ──
+function toApiQuimico(input: Omit<Quimico, 'id' | 'criadoEm' | 'atualizadoEm'>) {
+  return {
+    nome: input.nome,
+    fornecedor: input.fornecedor,
+    regional: input.regional,
+    lote: input.lote,
+    tipo: input.tipo,
+    unidade: input.unidade,
+    quantidadeInicial: input.quantidadeInicial,
+    estoqueMinimo: input.estoqueMinimo,
+    erroPercentual: input.erroPercentual,
+    dataRecebimento: input.dataRecebimento || null,
+    dataValidade: input.dataValidade || null,
+    status: input.status,
+    observacao: input.observacao,
+  };
+}
 
-  readonly quimicos = computed(() => this.database().quimicos);
-  readonly operacoes = computed(() => this.database().operacoes);
-  readonly movimentacoes = computed(() => this.database().movimentacoes);
+function fromApiQuimico(raw: Record<string, unknown>): Quimico {
+  return {
+    id: String(raw['id']),
+    nome: String(raw['nome'] ?? ''),
+    fornecedor: String(raw['fornecedor'] ?? ''),
+    regional: (raw['regional'] as Regional) ?? 'AL',
+    lote: String(raw['lote'] ?? ''),
+    tipo: (raw['tipo'] as TipoQuimico) ?? 'Outro',
+    unidade: (raw['unidade'] as UnidadeQuimico) ?? 'kg',
+    quantidadeInicial: Number(raw['quantidadeInicial'] ?? 0),
+    estoqueMinimo: Number(raw['estoqueMinimo'] ?? 0),
+    erroPercentual: Number(raw['erroPercentual'] ?? 0),
+    dataRecebimento: String(raw['dataRecebimento'] ?? ''),
+    dataValidade: String(raw['dataValidade'] ?? ''),
+    status: (raw['status'] as StatusQuimico) ?? 'EM_ESTOQUE',
+    observacao: String(raw['observacao'] ?? ''),
+    criadoEm: String(raw['criadoEm'] ?? ''),
+    atualizadoEm: String(raw['atualizadoEm'] ?? ''),
+  };
+}
+
+function fromApiOperacao(raw: Record<string, unknown>): OperacaoSonda {
+  return {
+    id: String(raw['id']),
+    sonda: String(raw['sonda'] ?? ''),
+    poco: String(raw['poco'] ?? ''),
+    data: String(raw['data'] ?? ''),
+    tipoTrabalho: (raw['tipoTrabalho'] as TipoTrabalho) ?? 'Outro',
+    criadoEm: String(raw['criadoEm'] ?? ''),
+    atualizadoEm: String(raw['atualizadoEm'] ?? ''),
+  };
+}
+
+function fromApiMovimentacao(raw: Record<string, unknown>): MovimentacaoQuimico {
+  return {
+    id: String(raw['id']),
+    quimicoId: String(raw['quimicoId']),
+    operacaoId: String(raw['operacaoId']),
+    tipo: (raw['tipo'] as TipoMovimentacao) ?? 'uso',
+    quantidade: Number(raw['quantidade'] ?? 0),
+    data: String(raw['data'] ?? ''),
+    poco: String(raw['poco'] ?? ''),
+    tipoTrabalho: (raw['tipoTrabalho'] as TipoTrabalho) ?? 'Outro',
+    profundidade: raw['profundidade'] != null ? Number(raw['profundidade']) : null,
+    contrato: String(raw['contrato'] ?? ''),
+    localidade: String(raw['localidade'] ?? ''),
+    observacao: String(raw['observacao'] ?? ''),
+    criadoEm: String(raw['criadoEm'] ?? ''),
+  };
+}
+
+function daysUntil(date: string): number | null {
+  if (!date) return null;
+  const target = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+function signedQuantity(mov: MovimentacaoQuimico): number {
+  if (mov.tipo === 'entrada') return Math.abs(mov.quantidade);
+  if (mov.tipo === 'uso' || mov.tipo === 'perda') return -Math.abs(mov.quantidade);
+  return mov.quantidade;
+}
+
+@Injectable({ providedIn: 'root' })
+export class QuimicosStoreService {
+  private readonly http = inject(HttpClient);
+  private readonly base = environment.apiUrl;
+
+  private readonly _quimicos = signal<Quimico[]>([]);
+  private readonly _operacoes = signal<OperacaoSonda[]>([]);
+  private readonly _movimentacoes = signal<MovimentacaoQuimico[]>([]);
+  private readonly _carregando = signal(false);
+
+  readonly quimicos = this._quimicos.asReadonly();
+  readonly operacoes = this._operacoes.asReadonly();
+  readonly movimentacoes = this._movimentacoes.asReadonly();
+  readonly carregando = this._carregando.asReadonly();
 
   readonly resumos = computed<QuimicoResumo[]>(() =>
-    this.quimicos().map((quimico) => this.criarResumo(quimico)),
+    this._quimicos().map((q) => this.criarResumo(q)),
   );
 
   readonly previsoes = computed<QuimicoPrevisao[]>(() =>
-    this.resumos().map((quimico) => this.criarPrevisao(quimico)),
+    this.resumos().map((q) => this.criarPrevisao(q)),
   );
 
   readonly quimicosPertoVencimento = computed(() =>
     this.resumos()
-      .filter((quimico) => this.estaAtivo(quimico) && this.estaPertoVencimento(quimico))
+      .filter((q) => this.estaAtivo(q) && this.estaPertoVencimento(q))
       .sort((a, b) => (a.diasParaVencer ?? 999) - (b.diasParaVencer ?? 999)),
   );
 
   readonly quimicosEstoqueBaixo = computed(() =>
     this.resumos()
-      .filter((quimico) => this.estaAtivo(quimico) && this.estaPertoEstoqueMinimo(quimico))
+      .filter((q) => this.estaAtivo(q) && this.estaPertoEstoqueMinimo(q))
       .sort((a, b) => this.percentualSobreMinimo(a) - this.percentualSobreMinimo(b)),
   );
 
   constructor() {
-    const cached = this.readStorage();
+    void this.carregarTudo();
+  }
 
-    if (cached) {
-      this.database.set(cached);
-    } else {
-      void this.loadSeed();
+  async carregarTudo(): Promise<void> {
+    this._carregando.set(true);
+    try {
+      const [quimicos, operacoes, movimentacoes] = await Promise.all([
+        firstValueFrom(this.http.get<Record<string, unknown>[]>(`${this.base}/api/quimicos`)),
+        firstValueFrom(this.http.get<Record<string, unknown>[]>(`${this.base}/api/operacoes-sonda`)),
+        firstValueFrom(this.http.get<Record<string, unknown>[]>(`${this.base}/api/movimentacoes-quimico`)),
+      ]);
+      this._quimicos.set(quimicos.map(fromApiQuimico));
+      this._operacoes.set(operacoes.map(fromApiOperacao));
+      this._movimentacoes.set(movimentacoes.map(fromApiMovimentacao));
+    } finally {
+      this._carregando.set(false);
     }
   }
 
-  snapshot(): QuimicosDatabase {
-    return structuredClone(this.database());
+  async adicionarQuimico(input: Omit<Quimico, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<void> {
+    const criado = await firstValueFrom(
+      this.http.post<Record<string, unknown>>(`${this.base}/api/quimicos`, toApiQuimico(input)),
+    );
+    this._quimicos.update((lista) => [fromApiQuimico(criado), ...lista]);
   }
 
-  adicionarQuimico(
-    input: Omit<Quimico, 'id' | 'criadoEm' | 'atualizadoEm'>,
-  ): void {
-    const timestamp = nowIso();
-    const quimico: Quimico = {
-      ...input,
-      id: createId('qui'),
-      criadoEm: timestamp,
-      atualizadoEm: timestamp,
-    };
-
-    this.commit({
-      ...this.database(),
-      quimicos: [quimico, ...this.quimicos()],
-    });
+  async atualizarQuimico(id: string, input: Omit<Quimico, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<void> {
+    const atualizado = await firstValueFrom(
+      this.http.put<Record<string, unknown>>(`${this.base}/api/quimicos/${id}`, toApiQuimico(input)),
+    );
+    this._quimicos.update((lista) =>
+      lista.map((q) => (q.id === id ? fromApiQuimico(atualizado) : q)),
+    );
   }
 
-  atualizarQuimico(
-    id: string,
-    input: Omit<Quimico, 'id' | 'criadoEm' | 'atualizadoEm'>,
-  ): void {
-    this.commit({
-      ...this.database(),
-      quimicos: this.quimicos().map((quimico) =>
-        quimico.id === id
-          ?{
-              ...quimico,
-              ...input,
-              atualizadoEm: nowIso(),
-            }
-          : quimico,
-      ),
-    });
+  async removerQuimico(id: string): Promise<void> {
+    await firstValueFrom(this.http.delete(`${this.base}/api/quimicos/${id}`));
+    this._quimicos.update((lista) => lista.filter((q) => q.id !== id));
+    this._movimentacoes.update((lista) => lista.filter((m) => m.quimicoId !== id));
   }
 
-  removerQuimico(id: string): void {
-    this.commit({
-      ...this.database(),
-      quimicos: this.quimicos().filter((quimico) => quimico.id !== id),
-      movimentacoes: this.movimentacoes().filter((item) => item.quimicoId !== id),
-    });
+  async adicionarOperacao(input: Omit<OperacaoSonda, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<void> {
+    const criada = await firstValueFrom(
+      this.http.post<Record<string, unknown>>(`${this.base}/api/operacoes-sonda`, {
+        sonda: input.sonda,
+        poco: input.poco,
+        data: input.data,
+        tipoTrabalho: input.tipoTrabalho,
+      }),
+    );
+    this._operacoes.update((lista) => [fromApiOperacao(criada), ...lista]);
   }
 
-  adicionarOperacao(
-    input: Omit<OperacaoSonda, 'id' | 'criadoEm' | 'atualizadoEm'>,
-  ): void {
-    const timestamp = nowIso();
-    const operacao: OperacaoSonda = {
-      ...input,
-      id: this.proximoOperacaoId(),
-      criadoEm: timestamp,
-      atualizadoEm: timestamp,
-    };
-
-    this.commit({
-      ...this.database(),
-      operacoes: [operacao, ...this.operacoes()],
-    });
+  async removerOperacao(id: string): Promise<void> {
+    await firstValueFrom(this.http.delete(`${this.base}/api/operacoes-sonda/${id}`));
+    this._operacoes.update((lista) => lista.filter((o) => o.id !== id));
   }
 
-  removerOperacao(id: string): void {
-    this.commit({
-      ...this.database(),
-      operacoes: this.operacoes().filter((item) => item.id !== id),
-    });
+  async adicionarMovimentacao(input: Omit<MovimentacaoQuimico, 'id' | 'criadoEm'>): Promise<void> {
+    const criada = await firstValueFrom(
+      this.http.post<Record<string, unknown>>(`${this.base}/api/movimentacoes-quimico`, {
+        quimicoId: Number(input.quimicoId),
+        operacaoId: Number(input.operacaoId),
+        tipo: input.tipo,
+        quantidade: input.quantidade,
+        data: input.data,
+        poco: input.poco,
+        tipoTrabalho: input.tipoTrabalho,
+        profundidade: input.profundidade,
+        contrato: input.contrato,
+        localidade: input.localidade,
+        observacao: input.observacao,
+      }),
+    );
+    this._movimentacoes.update((lista) => [fromApiMovimentacao(criada), ...lista]);
   }
 
-  adicionarMovimentacao(
-    input: Omit<MovimentacaoQuimico, 'id' | 'criadoEm'>,
-  ): void {
-    const movimentacao: MovimentacaoQuimico = {
-      ...input,
-      id: createId('mov'),
-      criadoEm: nowIso(),
-    };
-
-    this.commit({
-      ...this.database(),
-      movimentacoes: [movimentacao, ...this.movimentacoes()],
-    });
-  }
-
-  removerMovimentacao(id: string): void {
-    this.commit({
-      ...this.database(),
-      movimentacoes: this.movimentacoes().filter((item) => item.id !== id),
-    });
-  }
-
-  importarDatabase(raw: unknown): void {
-    this.commit(normalizeDatabase(raw));
-  }
-
-  async resetarParaJsonBase(): Promise<void> {
-    await this.loadSeed(true);
+  async removerMovimentacao(id: string): Promise<void> {
+    await firstValueFrom(this.http.delete(`${this.base}/api/movimentacoes-quimico/${id}`));
+    this._movimentacoes.update((lista) => lista.filter((m) => m.id !== id));
   }
 
   estoqueAtual(quimicoId: string): number {
-    const quimico = this.quimicos().find((item) => item.id === quimicoId);
-    const saldoMovimentacoes = this.movimentacoes()
-      .filter((item) => item.quimicoId === quimicoId)
-      .reduce((total, item) => total + signedQuantity(item), 0);
-
-    return (quimico?.quantidadeInicial ?? 0) + saldoMovimentacoes;
+    const quimico = this._quimicos().find((q) => q.id === quimicoId);
+    const saldo = this._movimentacoes()
+      .filter((m) => m.quimicoId === quimicoId)
+      .reduce((total, m) => total + signedQuantity(m), 0);
+    return (quimico?.quantidadeInicial ?? 0) + saldo;
   }
 
+  // mantido para compatibilidade — não usa mais JSON local
+  snapshot() { return { quimicos: this._quimicos(), operacoes: this._operacoes(), movimentacoes: this._movimentacoes() }; }
+  importarDatabase(_raw: unknown): void { void this.carregarTudo(); }
+  async resetarParaJsonBase(): Promise<void> { await this.carregarTudo(); }
+
   private criarResumo(quimico: Quimico): QuimicoResumo {
-    const movimentacoes = this.movimentacoes().filter(
-      (item) => item.quimicoId === quimico.id,
-    );
-    const quantidadeUtilizada = movimentacoes
-      .filter((item) => item.tipo === 'uso' || item.tipo === 'perda')
-      .reduce((total, item) => total + Math.abs(item.quantidade), 0);
-    const quantidadeEntrada = movimentacoes
-      .filter((item) => item.tipo === 'entrada')
-      .reduce((total, item) => total + Math.abs(item.quantidade), 0);
+    const movs = this._movimentacoes().filter((m) => m.quimicoId === quimico.id);
+    const quantidadeUtilizada = movs
+      .filter((m) => m.tipo === 'uso' || m.tipo === 'perda')
+      .reduce((t, m) => t + Math.abs(m.quantidade), 0);
+    const quantidadeEntrada = movs
+      .filter((m) => m.tipo === 'entrada')
+      .reduce((t, m) => t + Math.abs(m.quantidade), 0);
     const estoqueAtual = this.estoqueAtual(quimico.id);
     const estoqueOperacional = estoqueAtual - quantidadeUtilizada * (quimico.erroPercentual / 100);
     const diasParaVencer = daysUntil(quimico.dataValidade);
-    const baseResumo = {
-      ...quimico,
-      estoqueAtual,
-      quantidadeUtilizada,
-      quantidadeEntrada,
-      estoqueOperacional,
-      diasParaVencer,
-    };
-    const alerta =
+    const base = { ...quimico, estoqueAtual, quantidadeUtilizada, quantidadeEntrada, estoqueOperacional, diasParaVencer };
+    const alerta: 'ok' | 'atencao' | 'critico' =
       quimico.status === 'FINALIZADO' || estoqueAtual <= 0 || estoqueAtual <= quimico.estoqueMinimo
-        ?'critico'
-        : this.estaPertoVencimento(baseResumo) || this.estaPertoEstoqueMinimo(baseResumo)
-          ?'atencao'
+        ? 'critico'
+        : this.estaPertoVencimento(base) || this.estaPertoEstoqueMinimo(base)
+          ? 'atencao'
           : 'ok';
-
-    return {
-      ...baseResumo,
-      alerta,
-    };
+    return { ...base, alerta };
   }
 
   private criarPrevisao(quimico: QuimicoResumo): QuimicoPrevisao {
-    const usos = this.movimentacoes().filter(
-      (item) => item.quimicoId === quimico.id && item.tipo === 'uso',
-    );
+    const usos = this._movimentacoes().filter((m) => m.quimicoId === quimico.id && m.tipo === 'uso');
     const mediaUsoPorOperacao = usos.length
-      ?usos.reduce((total, item) => total + Math.abs(item.quantidade), 0) / usos.length
+      ? usos.reduce((t, m) => t + Math.abs(m.quantidade), 0) / usos.length
       : 0;
     const consumoComErro = mediaUsoPorOperacao * (1 + quimico.erroPercentual / 100);
-    const operacoesEstimadas =
-      consumoComErro > 0 ?quimico.estoqueAtual / consumoComErro : null;
-    const limite30Dias = new Date();
-    limite30Dias.setDate(limite30Dias.getDate() - 30);
+    const operacoesEstimadas = consumoComErro > 0 ? quimico.estoqueAtual / consumoComErro : null;
+    const limite30 = new Date();
+    limite30.setDate(limite30.getDate() - 30);
     const consumoUltimos30Dias = usos
-      .filter((item) => new Date(`${item.data}T00:00:00`) >= limite30Dias)
-      .reduce((total, item) => total + Math.abs(item.quantidade), 0);
-    const status =
+      .filter((m) => new Date(`${m.data}T00:00:00`) >= limite30)
+      .reduce((t, m) => t + Math.abs(m.quantidade), 0);
+    const status: QuimicoPrevisao['status'] =
       usos.length === 0
-        ?'sem_historico'
+        ? 'sem_historico'
         : quimico.alerta === 'critico' || (operacoesEstimadas !== null && operacoesEstimadas < 1)
-          ?'critico'
+          ? 'critico'
           : operacoesEstimadas !== null && operacoesEstimadas < 3
-            ?'atencao'
+            ? 'atencao'
             : 'ok';
-
-    return {
-      quimico,
-      mediaUsoPorOperacao,
-      consumoComErro,
-      operacoesEstimadas,
-      consumoUltimos30Dias,
-      status,
-    };
+    return { quimico, mediaUsoPorOperacao, consumoComErro, operacoesEstimadas, consumoUltimos30Dias, status };
   }
 
-  private async loadSeed(forceCommit = false): Promise<void> {
-    try {
-      if (typeof fetch === 'undefined') {
-        return;
-      }
-
-      const response = await fetch(SEED_URL, { cache: 'no-store' });
-
-      if (!response.ok) {
-        return;
-      }
-
-      const seed = normalizeDatabase(await response.json());
-
-      if (forceCommit || this.quimicos().length === 0) {
-        this.commit(seed);
-      }
-    } catch {
-      if (forceCommit) {
-        this.commit(emptyDatabase());
-      }
-    }
+  private estaPertoVencimento(q: Pick<QuimicoResumo, 'diasParaVencer'>): boolean {
+    return q.diasParaVencer !== null && q.diasParaVencer >= 0 && q.diasParaVencer <= DIAS_ALERTA_VALIDADE;
   }
 
-  private commit(next: QuimicosDatabase): void {
-    const normalized = normalizeDatabase({
-      ...next,
-      atualizadoEm: nowIso(),
-    });
-
-    this.database.set(normalized);
-    this.writeStorage(normalized);
+  private estaPertoEstoqueMinimo(q: Pick<QuimicoResumo, 'estoqueAtual' | 'estoqueMinimo'>): boolean {
+    if (q.estoqueMinimo <= 0) return false;
+    return q.estoqueAtual <= q.estoqueMinimo * FATOR_ALERTA_ESTOQUE_MINIMO;
   }
 
-  private readStorage(): QuimicosDatabase | null {
-    try {
-      const storage = this.storage();
-      const raw = storage?.getItem(STORAGE_KEY);
-      if (!raw) {
-        return null;
-      }
-
-      const parsed = JSON.parse(raw) as Partial<QuimicosDatabase>;
-
-      if (parsed.dataSource !== DATA_SOURCE_ID) {
-        return null;
-      }
-
-      return normalizeDatabase(parsed);
-    } catch {
-      return null;
-    }
+  private percentualSobreMinimo(q: Pick<QuimicoResumo, 'estoqueAtual' | 'estoqueMinimo'>): number {
+    return q.estoqueMinimo > 0 ? q.estoqueAtual / q.estoqueMinimo : Number.POSITIVE_INFINITY;
   }
 
-  private writeStorage(database: QuimicosDatabase): void {
-    try {
-      this.storage()?.setItem(STORAGE_KEY, JSON.stringify(database, null, 2));
-    } catch {
-      // Sem escrita local: a tela continua funcionando e permite exportar JSON.
-    }
-  }
-
-  private storage(): Storage | null {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-
-    return window.localStorage;
-  }
-
-  private estaPertoVencimento(
-    quimico: Pick<QuimicoResumo, 'diasParaVencer'>,
-  ): boolean {
-    return (
-      quimico.diasParaVencer !== null &&
-      quimico.diasParaVencer >= 0 &&
-      quimico.diasParaVencer <= DIAS_ALERTA_VALIDADE
-    );
-  }
-
-  private estaPertoEstoqueMinimo(
-    quimico: Pick<QuimicoResumo, 'estoqueAtual' | 'estoqueMinimo'>,
-  ): boolean {
-    if (quimico.estoqueMinimo <= 0) {
-      return false;
-    }
-
-    return quimico.estoqueAtual <= quimico.estoqueMinimo * FATOR_ALERTA_ESTOQUE_MINIMO;
-  }
-
-  private percentualSobreMinimo(
-    quimico: Pick<QuimicoResumo, 'estoqueAtual' | 'estoqueMinimo'>,
-  ): number {
-    return quimico.estoqueMinimo > 0
-      ?quimico.estoqueAtual / quimico.estoqueMinimo
-      : Number.POSITIVE_INFINITY;
-  }
-
-  private estaAtivo(quimico: Pick<QuimicoResumo, 'status'>): boolean {
-    return quimico.status === 'EM_ESTOQUE' || quimico.status === 'CRITICO';
-  }
-
-  private proximoOperacaoId(): string {
-    const maiorSequencial = this.operacoes().reduce((maior, operacao) => {
-      const match = /^OP-(\d+)$/.exec(operacao.id);
-      const sequencial = match ?Number(match[1]) : 0;
-
-      return Math.max(maior, sequencial);
-    }, 0);
-
-    return `OP-${String(maiorSequencial + 1).padStart(3, '0')}`;
+  private estaAtivo(q: Pick<QuimicoResumo, 'status'>): boolean {
+    return q.status === 'EM_ESTOQUE' || q.status === 'CRITICO';
   }
 }
