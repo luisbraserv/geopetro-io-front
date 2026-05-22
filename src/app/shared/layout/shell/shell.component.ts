@@ -24,6 +24,37 @@ interface NavGroup {
 type NavEntry = NavLeaf | NavGroup;
 
 const MOBILE_BREAKPOINT = 768;
+const ALL_NAV_ENTRIES: NavEntry[] = [
+  {
+    kind: 'leaf',
+    label: 'Dashboard',
+    icon: '@tui.layout-dashboard',
+    route: '/app/dashboard',
+  },
+  {
+    kind: 'group',
+    label: 'Cimentação',
+    icon: '@tui.layers',
+    children: [
+      { kind: 'leaf', label: 'Simulador', icon: '@tui.flask-conical', route: '/app/simulador' },
+      { kind: 'leaf', label: 'Químicos', icon: '@tui.package', route: '/app/quimicos' },
+    ],
+  },
+  {
+    kind: 'group',
+    label: 'Gerenciamento',
+    icon: '@tui.folder-kanban',
+    children: [
+      {
+        kind: 'leaf',
+        label: 'Gerenciamento de Processo',
+        icon: '@tui.list-checks',
+        route: '/app/gerenciamento/processos',
+      },
+    ],
+  },
+  { kind: 'leaf', label: 'Cadastros', icon: '@tui.clipboard-list', route: '/app/cadastros' },
+];
 
 @Component({
   selector: 'app-shell',
@@ -47,31 +78,25 @@ export class ShellComponent {
     return this.sidebarCollapsed() ? '@tui.chevron-right' : '@tui.chevron-left';
   });
 
-  protected readonly navEntries: NavEntry[] = [
-    {
-      kind: 'leaf',
-      label: 'Dashboard',
-      icon: '@tui.layout-dashboard',
-      route: '/app/dashboard',
-    },
-    {
-      kind: 'group',
-      label: 'Cimentação',
-      icon: '@tui.layers',
-      children: [
-        { kind: 'leaf', label: 'Simulador', icon: '@tui.flask-conical', route: '/app/simulador' },
-        { kind: 'leaf', label: 'Químicos', icon: '@tui.package', route: '/app/quimicos' },
-      ],
-    },
-    {
-      kind: 'group',
-      label: 'Administração',
-      icon: '@tui.settings',
-      children: [
-        { kind: 'leaf', label: 'Usuário', icon: '@tui.users', route: '/app/administracao/usuarios' },
-      ],
-    },
-  ];
+  protected readonly navEntries = computed(() => {
+    const roles = this.currentUser()?.roles ?? [];
+
+    return ALL_NAV_ENTRIES.filter((entry) => {
+      if (entry.kind !== 'group') {
+        return entry.label === 'Cadastros' ? roles.includes('ADMIN') || roles.includes('INTERNO') : true;
+      }
+
+      if (entry.label === 'Administração') {
+        return roles.includes('ADMIN');
+      }
+
+      if (entry.label === 'Cimentação') {
+        return roles.includes('CIMENTACAO');
+      }
+
+      return true;
+    });
+  });
 
   protected asGroup(e: NavEntry): NavGroup { return e as NavGroup; }
   protected asLeaf(e: NavEntry): NavLeaf { return e as NavLeaf; }

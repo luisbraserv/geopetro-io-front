@@ -1,12 +1,16 @@
 :host {
   display: block;
   min-height: 100%;
-  background: transparent;
+  background: #ffffff;
 }
 
 .quimicos {
-  max-width: 1440px;
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+  box-sizing: border-box;
   padding: 28px;
+  background: #ffffff;
   color: var(--color-text-strong);
 }
 
@@ -91,14 +95,26 @@ h2 {
 }
 
 .btn--primary {
-  background: var(--color-primary);
-  color: #fff;
+  background: var(--color-primary) !important;
+  color: #fff !important;
+  border-color: var(--color-primary) !important;
+}
+
+.btn--primary:hover {
+  background: var(--color-primary-hover) !important;
+  border-color: var(--color-primary-hover) !important;
 }
 
 .btn--ghost {
-  background: #fff;
-  border-color: var(--color-card-border);
-  color: var(--color-text-strong);
+  background: #fff !important;
+  border-color: var(--color-card-border) !important;
+  color: var(--color-text-strong) !important;
+}
+
+.btn--ghost:hover {
+  background: var(--color-primary-soft) !important;
+  border-color: rgba(82, 140, 156, 0.34) !important;
+  color: var(--color-primary-hover) !important;
 }
 
 .align-end {
@@ -125,7 +141,7 @@ h2 {
   background: #fff;
   border: 1px solid var(--color-card-border);
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
 }
 
 .metric {
@@ -151,21 +167,21 @@ h2 {
 }
 
 .alert-panel:nth-child(1) {
-  border-color: #fed7aa;
-  background: #fff7ed;
+  border-color: rgba(156, 129, 83, 0.28);
+  background: #fffdfa;
 }
 
 .alert-panel:nth-child(2) {
-  border-color: #bfdbfe;
-  background: #eff6ff;
+  border-color: rgba(82, 140, 156, 0.24);
+  background: #fbfefe;
 }
 
 .alert-panel:nth-child(1) h2 {
-  color: #c2410c;
+  color: var(--color-secondary);
 }
 
 .alert-panel:nth-child(2) h2 {
-  color: #1d4ed8;
+  color: var(--color-primary-hover);
 }
 
 .alert-list {
@@ -175,20 +191,20 @@ h2 {
 
 .alert-item {
   width: 100%;
-  border: 1px solid #edf0f3;
+  border: 1px solid var(--color-card-border);
   border-radius: 8px;
-  background: #fff;
+  background: #fff !important;
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
-  color: inherit;
+  color: var(--color-text-strong) !important;
   font: inherit;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .alert-item:hover {
-  border-color: rgba(66, 145, 225, 0.52);
-  background: #ffffff;
+  border-color: rgba(82, 140, 156, 0.42);
+  background: var(--color-primary-soft) !important;
 }
 
 .alert-item strong,
@@ -212,7 +228,7 @@ h2 {
   width: fit-content;
   border: 1px solid var(--color-card-border);
   border-radius: 8px;
-  background: #eef2f6;
+  background: var(--color-surface-muted);
   margin-bottom: 16px;
 }
 
@@ -222,16 +238,16 @@ h2 {
   gap: 8px;
   min-height: 36px;
   padding: 0 14px;
-  background: transparent;
-  color: var(--color-text-body);
+  background: transparent !important;
+  color: var(--color-text-body) !important;
   font-weight: 750;
 }
 
 .tab--active {
-  background: #fff;
-  color: var(--color-primary);
-  border-color: rgba(66, 145, 225, 0.24);
-  box-shadow: 0 2px 8px rgba(66, 145, 225, 0.12);
+  background: #fff !important;
+  color: var(--color-primary-hover) !important;
+  border-color: rgba(82, 140, 156, 0.28) !important;
+  box-shadow: 0 2px 8px rgba(82, 140, 156, 0.12);
 }
 
 .workspace {
@@ -299,7 +315,7 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(66, 145, 225, 0.13);
+  box-shadow: 0 0 0 3px rgba(82, 140, 156, 0.14);
 }
 
 textarea {
@@ -343,7 +359,7 @@ th {
   color: var(--color-text-body);
   font-size: 12px;
   font-weight: 800;
-  background: #f8fafc;
+  background: var(--color-surface-muted);
 }
 
 tbody tr:nth-child(odd) td {
@@ -351,11 +367,11 @@ tbody tr:nth-child(odd) td {
 }
 
 tbody tr:nth-child(even) td {
-  background: #f8fafc;
+  background: #fbfcfc;
 }
 
 tbody tr:hover td {
-  background: #eef6ff;
+  background: var(--color-primary-soft);
 }
 
 td strong {
@@ -400,14 +416,14 @@ td span {
   height: 32px;
   display: grid;
   place-items: center;
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: var(--color-text-body);
+  background: #ffffff !important;
+  border-color: var(--color-card-border) !important;
+  color: var(--color-text-body) !important;
 }
 
 .row-actions button:hover {
-  background: #eef6ff;
-  color: var(--color-primary);
+  background: var(--color-primary-soft) !important;
+  color: var(--color-primary-hover) !important;
 }
 
 .regional-stock {
@@ -420,19 +436,19 @@ td span {
 .regional-card {
   border: 1px solid var(--color-card-border);
   border-radius: 8px;
-  background: #fff;
+  background: #fff !important;
   padding: 14px;
   text-align: left;
-  color: inherit;
+  color: var(--color-text-strong) !important;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .regional-card:hover,
 .regional-card--active {
-  border-color: rgba(66, 145, 225, 0.44);
-  background: #f8fbff;
+  border-color: rgba(82, 140, 156, 0.44);
+  background: var(--color-primary-soft) !important;
 }
 
 .regional-card > strong {
@@ -465,8 +481,8 @@ td span {
   align-items: center;
   padding: 7px 8px;
   border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid #edf0f3;
+  background: #ffffff;
+  border: 1px solid var(--color-card-border);
 }
 
 .regional-chemical--alert {
@@ -512,7 +528,7 @@ td span {
 
 .chart-panel--cement,
 .forecast-panel--cement {
-  border-color: rgba(139, 120, 87, 0.28);
+  border-color: rgba(156, 129, 83, 0.28);
   background: #fffdf8;
 }
 
@@ -550,16 +566,16 @@ td span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #4291e1, #19a974);
+  background: linear-gradient(90deg, var(--color-primary), #6a9ca8);
 }
 
 .bars--accent .bar-track i {
-  background: linear-gradient(90deg, #e0a541, #ef6f4d);
+  background: linear-gradient(90deg, var(--color-secondary), var(--color-accent));
 }
 
 .bars--cement .bar-track i,
 .month-chart--cement .month__bar {
-  background: linear-gradient(90deg, #8b7857, #e0a541);
+  background: linear-gradient(90deg, var(--color-secondary), var(--color-accent));
 }
 
 .month-chart {
@@ -585,7 +601,7 @@ td span {
   width: 100%;
   min-height: 4px;
   border-radius: 8px 8px 0 0;
-  background: linear-gradient(180deg, #577ca1, #4291e1);
+  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-hover));
 }
 
 .month strong {

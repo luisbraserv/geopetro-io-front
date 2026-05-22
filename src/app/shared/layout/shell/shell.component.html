@@ -26,7 +26,7 @@
     </div>
 
     <nav class="sidebar__nav">
-      @for (entry of navEntries; track entry.label) {
+      @for (entry of navEntries(); track entry.label) {
 
         @if (entry.kind === 'leaf') {
           <!-- Item direto -->

@@ -5,6 +5,8 @@ import { Observable, catchError, throwError } from 'rxjs';
 import { parseApiError } from '../../../core/http/api-error';
 import { environment } from '../../../../environments/environment';
 import {
+  AtualizarUsuarioPayload,
+  AlterarSenhaPayload,
   CriarUsuarioClientePayload,
   CriarUsuarioInternoPayload,
   UsuarioContatoPayload,
@@ -44,9 +46,21 @@ export class UsuariosService {
       .pipe(catchError((error) => this.handleError(error)));
   }
 
+  atualizarUsuario(username: string, payload: AtualizarUsuarioPayload): Observable<UsuarioResponse> {
+    return this.http
+      .patch<UsuarioResponse>(`${this.apiUrl}/usuarios/${encodeURIComponent(username)}`, payload)
+      .pipe(catchError((error) => this.handleError(error)));
+  }
+
   atualizarMeuUsuario(payload: UsuarioContatoPayload): Observable<UsuarioResponse> {
     return this.http
       .patch<UsuarioResponse>(`${this.apiUrl}/usuarios/me`, payload)
+      .pipe(catchError((error) => this.handleError(error)));
+  }
+
+  alterarMinhaSenha(payload: AlterarSenhaPayload): Observable<UsuarioResponse> {
+    return this.http
+      .patch<UsuarioResponse>(`${this.apiUrl}/usuarios/me/senha`, payload)
       .pipe(catchError((error) => this.handleError(error)));
   }
 

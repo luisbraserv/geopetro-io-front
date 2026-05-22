@@ -11,6 +11,7 @@ import {
   LoginFailure,
   LoginSuccess,
   Logout,
+  SessionExpired,
   UpdateAuthenticatedUser,
 } from './auth.actions';
 
@@ -130,6 +131,18 @@ export class AuthState {
       isAuthenticated: false,
       isLoading: false,
       error: null,
+    });
+    this.router.navigate(['/login']);
+  }
+
+  @Action(SessionExpired)
+  sessionExpired(ctx: StateContext<AuthStateModel>): void {
+    ctx.patchState({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: 'Necessário refazer login',
     });
     this.router.navigate(['/login']);
   }

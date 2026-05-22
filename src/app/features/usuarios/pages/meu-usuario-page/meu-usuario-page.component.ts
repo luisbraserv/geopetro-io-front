@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { TuiButton } from '@taiga-ui/core';
 import { Store } from '@ngxs/store';
 
+import { ToastService } from '../../../../shared/toast/toast.service';
 import { AuthState } from '../../../auth/state/auth.state';
 import { UpdateAuthenticatedUser } from '../../../auth/state/auth.actions';
 import { UsuariosService } from '../../services/usuarios.service';
@@ -17,9 +18,11 @@ import { UsuariosService } from '../../services/usuarios.service';
 export class MeuUsuarioPageComponent {
   private readonly store = inject(Store);
   private readonly usuariosService = inject(UsuariosService);
+  private readonly toast = inject(ToastService);
 
   protected readonly currentUser = this.store.selectSignal(AuthState.currentUser);
   protected readonly isLoading = signal(false);
+  protected readonly isPasswordLoading = signal(false);
   protected readonly feedback = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
 
@@ -36,6 +39,12 @@ export class MeuUsuarioPageComponent {
     estado: '',
     numero: '',
     complemento: '',
+  };
+
+  protected readonly passwordForm = {
+    senhaAtual: '',
+    novaSenha: '',
+    confirmacaoSenha: '',
   };
 
   constructor() {
@@ -68,13 +77,46 @@ export class MeuUsuarioPageComponent {
             }),
           );
         }
-        this.feedback.set('Dados atualizados com sucesso.');
+        this.toast.success('Dados atualizados com sucesso.');
         this.isLoading.set(false);
       },
       error: (error: Error) => {
-        this.error.set(error.message);
+        const message = error?.message || 'Não foi possível concluir a operação.';
+        this.error.set(message);
+        this.toast.error(message);
         this.isLoading.set(false);
       },
     });
+  }
+
+  protected alterarSenha(): void {
+    this.error.set(null);
+
+    if (!this.passwordForm.senhaAtual || !this.passwordForm.novaSenha || !this.passwordForm.confirmacaoSenha) {
+      this.toast.warning('Preencha todos os campos de senha.');
+      return;
+    }
+
+    if (this.passwordForm.novaSenha !== this.passwordForm.confirmacaoSenha) {
+      this.toast.warning('A nova senha e a confirmação não conferem.');
+      return;
+    }
+
+    this.isPasswordLoading.set(true);
+    this.usuariosService.alterarMinhaSenha(this.passwordForm).subscribe({
+      next: () => {
+        this.toast.success('Senha alterada com sucesso.');
+        this.limparSenha();
+        this.isPasswordLoading.set(false);
+      },
+      error: (error: Error) => {
+        this.toast.error(error?.message || 'Não foi possível alterar a senha.');
+        this.isPasswordLoading.set(false);
+      },
+    });
+  }
+
+  private limparSenha(): void {
+    Object.assign(this.passwordForm, { senhaAtual: '', novaSenha: '', confirmacaoSenha: '' });
   }
 }

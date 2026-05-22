@@ -21,4 +21,8 @@ export interface AuthenticatedUser {
   telefone: string;
   role: UserRole;
   roles: UserRole[];
+  setorId?: number | null;
+  setorNome?: string | null;
+  setorIds?: number[];
+  setorNomes?: string[];
 }

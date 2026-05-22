@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiIcon } from '@taiga-ui/core';
 
+import { ToastService } from '../../../../shared/toast/toast.service';
 import {
   MovimentacaoQuimico,
   OperacaoSonda,
@@ -72,6 +73,7 @@ const NUMBER_FORMATTER = new Intl.NumberFormat('pt-BR', {
 })
 export class QuimicosPageComponent {
   private readonly store = inject(QuimicosStoreService);
+  private readonly toast = inject(ToastService);
 
   protected readonly abas: Array<{ id: AbaQuimicos; label: string; icon: string }> = [
     { id: 'cadastro', label: 'Cadastro', icon: '@tui.flask-conical' },
@@ -735,6 +737,7 @@ export class QuimicosPageComponent {
 
   private mostrarAviso(mensagem: string): void {
     this.aviso.set(mensagem);
+    this.toast.info(mensagem);
     window.setTimeout(() => this.aviso.set(null), 3200);
   }
 

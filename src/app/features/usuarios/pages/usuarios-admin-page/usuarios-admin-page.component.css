@@ -52,6 +52,11 @@ h2 {
   cursor: pointer;
 }
 
+.segmented button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
 .segmented .active {
   background: #1f6feb;
   color: white;
@@ -115,7 +120,8 @@ label {
   cursor: default;
 }
 
-input {
+input,
+select {
   height: 2.45rem;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
@@ -129,7 +135,8 @@ input::placeholder {
   color: #94a3b8;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: rgba(66, 145, 225, 0.72);
   outline: 3px solid rgba(66, 145, 225, 0.16);
 }
@@ -137,6 +144,7 @@ input:focus {
 .wide,
 .form-actions {
   grid-column: 1 / -1;
+  justify-content: flex-end;
 }
 
 .alert {
@@ -182,6 +190,10 @@ th {
 
 td {
   color: #334155;
+}
+
+td button {
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {

@@ -27,3 +27,7 @@ export class Logout {
 export class ClearAuthError {
   static readonly type = '[Auth] Clear Error';
 }
+
+export class SessionExpired {
+  static readonly type = '[Auth] Session Expired';
+}

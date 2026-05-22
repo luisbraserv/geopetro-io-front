@@ -11,6 +11,16 @@ import { SimuladorTampaoComponent } from './features/simulador/pages/simulador-t
 import { QuimicosPageComponent } from './features/quimicos/pages/quimicos-page/quimicos-page.component';
 import { UsuariosAdminPageComponent } from './features/usuarios/pages/usuarios-admin-page/usuarios-admin-page.component';
 import { MeuUsuarioPageComponent } from './features/usuarios/pages/meu-usuario-page/meu-usuario-page.component';
+import { PaginaNaoEncontradaComponent } from './shared/pages/pagina-nao-encontrada/pagina-nao-encontrada.component';
+import { CadastrosPageComponent } from './features/cadastros/pages/cadastros-page/cadastros-page.component';
+import { EmpresasPageComponent } from './features/cadastros/pages/empresas-page/empresas-page.component';
+import { SetoresPageComponent } from './features/cadastros/pages/setores-page/setores-page.component';
+import { UnidadesSondasPageComponent } from './features/cadastros/pages/unidades-sondas-page/unidades-sondas-page.component';
+import { ProjetosPageComponent } from './features/cadastros/pages/projetos-page/projetos-page.component';
+import { ProcessosPageComponent } from './features/gerenciamento/pages/processos-page/processos-page.component';
+import { ProcessoDetailPageComponent } from './features/gerenciamento/pages/processo-detail-page/processo-detail-page.component';
+import { ProcessosArquivadosPageComponent } from './features/gerenciamento/pages/processos-arquivados-page/processos-arquivados-page.component';
+import { ProcessosResumoPageComponent } from './features/gerenciamento/pages/processos-resumo-page/processos-resumo-page.component';
 
 
 export const routes: Routes = [
@@ -46,6 +56,8 @@ export const routes: Routes = [
       },
       {
         path: 'simulador',
+        canActivate: [authGuard],
+        data: { roles: ['CIMENTACAO'] },
         children: [
           { path: '', component: SimuladorIndexComponent },
           { path: 'squeeze', component: SimuladorSqueezeComponent },
@@ -55,21 +67,92 @@ export const routes: Routes = [
       {
         path: 'quimicos',
         component: QuimicosPageComponent,
+        canActivate: [authGuard],
+        data: { roles: ['CIMENTACAO'] },
       },
       {
         path: 'administracao/usuarios',
-        component: UsuariosAdminPageComponent,
+        redirectTo: 'cadastros/usuarios',
+        pathMatch: 'full',
+      },
+      {
+        path: 'cadastros',
+        component: CadastrosPageComponent,
+        canActivate: [authGuard],
+        children: [
+          {
+            path: '',
+            redirectTo: 'projetos',
+            pathMatch: 'full',
+          },
+          {
+            path: 'usuarios',
+            component: UsuariosAdminPageComponent,
+            canActivate: [authGuard],
+            data: { roles: ['ADMIN'] },
+          },
+          {
+            path: 'empresas',
+            component: EmpresasPageComponent,
+            canActivate: [authGuard],
+            data: { roles: ['ADMIN'] },
+          },
+          {
+            path: 'setores',
+            component: SetoresPageComponent,
+            canActivate: [authGuard],
+            data: { roles: ['ADMIN'] },
+          },
+          {
+            path: 'unidades-sondas',
+            component: UnidadesSondasPageComponent,
+            canActivate: [authGuard],
+            data: { roles: ['ADMIN'] },
+          },
+          {
+            path: 'projetos',
+            component: ProjetosPageComponent,
+            canActivate: [authGuard],
+            data: { roles: ['ADMIN', 'INTERNO'] },
+          },
+        ],
+      },
+      {
+        path: 'gerenciamento/processos',
+        component: ProcessosPageComponent,
+      },
+      {
+        path: 'gerenciamento/processos/arquivados',
+        component: ProcessosArquivadosPageComponent,
+      },
+      {
+        path: 'gerenciamento/processos/:id',
+        component: ProcessoDetailPageComponent,
       },
       {
         path: 'meu-usuario',
         component: MeuUsuarioPageComponent,
       },
+      {
+        path: '**',
+        component: PaginaNaoEncontradaComponent,
+      },
     ],
+  },
+
+  {
+    path: 'resumo-processos',
+    component: ProcessosResumoPageComponent,
+    canActivate: [authGuard],
+  },
+  {
+    path: '404',
+    component: PaginaNaoEncontradaComponent,
   },
 
   // Fallback
   {
     path: '**',
-    redirectTo: '/login',
+    component: PaginaNaoEncontradaComponent,
   },
 ];

@@ -10,13 +10,6 @@
     </div>
   </header>
 
-  @if (feedback()) {
-    <div class="alert alert--success">{{ feedback() }}</div>
-  }
-  @if (error()) {
-    <div class="alert alert--error">{{ error() }}</div>
-  }
-
   <section class="panel">
     <div class="panel__header">
       <h2>Informações cadastrais</h2>
@@ -71,6 +64,34 @@
       <div class="form-actions">
         <button tuiButton type="submit" appearance="primary" size="m" [disabled]="isLoading()">
           Salvar alterações
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel__header">
+      <h2>Segurança</h2>
+      <span>Altere sua senha de acesso.</span>
+    </div>
+
+    <form class="profile-form" (ngSubmit)="alterarSenha()">
+      <label>
+        <span>Senha atual</span>
+        <input name="senhaAtual" [(ngModel)]="passwordForm.senhaAtual" type="password" autocomplete="current-password" required />
+      </label>
+      <label>
+        <span>Nova senha</span>
+        <input name="novaSenha" [(ngModel)]="passwordForm.novaSenha" type="password" autocomplete="new-password" required />
+      </label>
+      <label>
+        <span>Repita a nova senha</span>
+        <input name="confirmacaoSenha" [(ngModel)]="passwordForm.confirmacaoSenha" type="password" autocomplete="new-password" required />
+      </label>
+
+      <div class="form-actions">
+        <button tuiButton type="submit" appearance="primary" size="m" [disabled]="isPasswordLoading()">
+          Alterar senha
         </button>
       </div>
     </form>

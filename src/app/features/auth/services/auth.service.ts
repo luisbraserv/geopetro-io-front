@@ -14,6 +14,10 @@ interface AuthResponse {
   endereco: string | null;
   telefone: string;
   roles: UserRole[];
+  setorId?: number | null;
+  setorNome?: string | null;
+  setorIds?: number[];
+  setorNomes?: string[];
 }
 
 export class AuthException extends Error {
@@ -39,6 +43,8 @@ export class AuthService {
           ...response,
           role: response.roles[0] ?? 'USER',
           roles: response.roles ?? [],
+          setorIds: response.setorIds?.length ? response.setorIds : response.setorId ? [response.setorId] : [],
+          setorNomes: response.setorNomes?.length ? response.setorNomes : response.setorNome ? [response.setorNome] : [],
         })),
         catchError((error) =>
           throwError(() => new AuthException(parseApiError(error))),
