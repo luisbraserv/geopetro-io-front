@@ -120,12 +120,16 @@ type GrupoUnidadeProcessos = {
               <span><strong>Setor</strong>{{ processo.setorNome }}</span>
               <span><strong>Projeto</strong>{{ processo.projetoNome || '-' }}</span>
               <span><strong>Responsável</strong>{{ processo.responsavelNome || processo.responsavelUsername || 'Sem responsável' }}</span>
+              <span><strong>Previsao</strong>{{ formatarDataHora(processo.dataPrevisaoConclusao) }}</span>
               <span><strong>Atualizado</strong>{{ formatarDataHora(processo.atualizadoEm) }}</span>
             </div>
             <div class="process-card__actions" (click)="$event.stopPropagation()">
               <span class="priority" [ngClass]="prioridadeClass(processo.prioridade)">
                 <tui-icon *ngIf="processo.prioridade === 'ALTA' || processo.prioridade === 'CRITICA'" icon="@tui.triangle-alert"></tui-icon>
                 {{ prioridadeLabel(processo.prioridade) }}
+              </span>
+              <span class="deadline-badge" [ngClass]="prazoClass(processo)">
+                {{ prazoLabel(processo) }}
               </span>
               <button tuiButton type="button" size="s" appearance="secondary" (click)="abrirProcesso(processo)">
                 <tui-icon icon="@tui.pencil"></tui-icon>
@@ -154,6 +158,8 @@ type GrupoUnidadeProcessos = {
                 <span>{{ prioridadeLabel(processo.prioridade) }}</span>
               </div>
               <div><strong>Centro de custo</strong><span>{{ processo.centroCusto || '-' }}</span></div>
+              <div><strong>Previsao de conclusao</strong><span>{{ formatarDataHora(processo.dataPrevisaoConclusao) }}</span></div>
+              <div><strong>Conclusao real</strong><span>{{ formatarDataHora(processo.dataFim) }}</span></div>
             </div>
 
             <div class="notes-head">
@@ -261,6 +267,7 @@ type GrupoUnidadeProcessos = {
             <label>Prioridade<select name="prioridade" [(ngModel)]="form.prioridade"><option *ngFor="let prioridade of prioridadeOptions" [value]="prioridade">{{ prioridadeLabel(prioridade) }}</option></select></label>
             <label>Centro de custo<input name="centroCusto" [(ngModel)]="form.centroCusto" /></label>
             <label>Data início<input name="dataInicio" type="datetime-local" [(ngModel)]="form.dataInicio" /></label>
+            <label>Previsao de conclusao<input name="dataPrevisaoConclusao" type="datetime-local" [(ngModel)]="form.dataPrevisaoConclusao" /></label>
             <label>Data fim<input name="dataFim" type="datetime-local" [(ngModel)]="form.dataFim" /></label>
             <label class="wide">Descrição<textarea name="descricao" rows="4" [(ngModel)]="form.descricao"></textarea></label>
             <div class="modal-actions wide">
@@ -352,7 +359,7 @@ type GrupoUnidadeProcessos = {
     .process-card__meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; } .process-card__meta span, .detail-grid div { display: grid; gap: .18rem; min-width: 0; }
     .process-card__meta strong, .detail-grid strong { color: var(--color-text-body); font-size: .72rem; text-transform: uppercase; } .process-card__meta span { color: var(--color-text-strong); font-weight: 700; }
     .process-card__actions { display: grid; gap: .45rem; align-content: start; justify-items: stretch; }
-    .process-card__actions .priority { justify-self: start; }
+    .process-card__actions .priority, .process-card__actions .deadline-badge { justify-self: start; }
     .process-card__actions button[tuiButton] { width: 100%; min-width: 0; }
     .note-actions, .modal-actions, .detail-actions { display: flex; gap: .45rem; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
     .process-card__details { display: grid; gap: 1rem; padding: 1rem; border-top: 1px solid var(--color-card-border); background: #f8fafc; }
@@ -367,6 +374,10 @@ type GrupoUnidadeProcessos = {
     .priority tui-icon { font-size: .9rem; color: currentColor; }
     .priority-high { min-height: 30px; padding: 0 .75rem; background: #fff4e5; color: #9a4b08; border: 1px solid rgba(181, 71, 8, .28); box-shadow: 0 3px 10px rgba(181, 71, 8, .12); }
     .priority-critical { min-height: 32px; padding: 0 .8rem; background: #fee4e2; color: #b42318; border: 1px solid rgba(180, 35, 24, .35); box-shadow: 0 4px 12px rgba(180, 35, 24, .18); text-transform: uppercase; }
+    .deadline-badge { display: inline-flex; width: fit-content; align-items: center; min-height: 26px; padding: 0 .65rem; border-radius: 999px; font-size: .72rem; font-weight: 900; white-space: nowrap; border: 1px solid transparent; }
+    .deadline-ok { background: #ecfdf3; color: #027a48; border-color: #abefc6; }
+    .deadline-today { background: #fffaeb; color: #b54708; border-color: #fedf89; }
+    .deadline-late { background: #fef3f2; color: #b42318; border-color: #fecdca; }
     .detail-priority-high { border-color: rgba(181, 71, 8, .32) !important; background: #fff8ed !important; }
     .detail-priority-critical { border-color: rgba(180, 35, 24, .36) !important; background: #fff4f2 !important; }
     .detail-priority-high span { color: #9a4b08; font-weight: 900; }
@@ -718,6 +729,16 @@ export class ProcessosPageComponent {
   protected formatarDataHora(data?: string | null): string { return data ? new Date(data).toLocaleString('pt-BR') : '-'; }
   protected descricaoCompleta(texto?: string | null): string { return texto || 'Sem descrição informada.'; }
 
+  protected prazoLabel(processo: Processo): string {
+    const status = this.prazoStatus(processo);
+    return status === 'late' ? 'Atrasado' : status === 'today' ? 'Termina hoje' : 'Em dia';
+  }
+
+  protected prazoClass(processo: Processo): string {
+    const status = this.prazoStatus(processo);
+    return status === 'late' ? 'deadline-late' : status === 'today' ? 'deadline-today' : 'deadline-ok';
+  }
+
   protected carregarAnotacoes(processoId: number): void {
     this.anotacaoService.listarPorProcesso(processoId).subscribe({
       next: (anotacoes) => this.anotacoesPorProcesso.update((atual) => ({ ...atual, [processoId]: anotacoes })),
@@ -736,8 +757,30 @@ export class ProcessosPageComponent {
     return !texto;
   }
 
+  private prazoStatus(processo: Processo): 'ok' | 'today' | 'late' {
+    if (!this.processoContaPrazo(processo)) return 'ok';
+    const data = processo.dataPrevisaoConclusao?.slice(0, 10);
+    if (!data) return 'ok';
+    const hoje = this.hojeIso();
+    if (data < hoje) return 'late';
+    if (data === hoje) return 'today';
+    return 'ok';
+  }
+
+  private processoContaPrazo(processo: Processo): boolean {
+    return !['CONCLUIDO', 'CANCELADO', 'ARQUIVADO'].includes(processo.statusProcesso);
+  }
+
+  private hojeIso(): string {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoje.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+  }
+
   private vazio(): ProcessoPayload {
-    return { titulo: '', descricao: '', statusProcesso: 'ABERTO', prioridade: 'MEDIA', setorId: 0, unidadeSondaId: 0, projetoId: null, responsavelUsername: null, centroCusto: '', dataInicio: '', dataFim: '' };
+    return { titulo: '', descricao: '', statusProcesso: 'ABERTO', prioridade: 'MEDIA', setorId: 0, unidadeSondaId: 0, projetoId: null, responsavelUsername: null, centroCusto: '', dataInicio: '', dataPrevisaoConclusao: '', dataFim: '' };
   }
 
   private payloadDeProcesso(processo: Processo): ProcessoPayload {
@@ -752,6 +795,7 @@ export class ProcessosPageComponent {
       responsavelUsername: processo.responsavelUsername ?? null,
       centroCusto: processo.centroCusto ?? '',
       dataInicio: processo.dataInicio ? processo.dataInicio.slice(0, 16) : '',
+      dataPrevisaoConclusao: processo.dataPrevisaoConclusao ? processo.dataPrevisaoConclusao.slice(0, 16) : '',
       dataFim: processo.dataFim ? processo.dataFim.slice(0, 16) : '',
     };
   }

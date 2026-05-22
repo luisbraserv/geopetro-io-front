@@ -8,6 +8,7 @@ export interface Processo {
   statusProcesso: StatusProcesso;
   centroCusto?: string | null;
   dataInicio?: string | null;
+  dataPrevisaoConclusao?: string | null;
   dataFim?: string | null;
   prioridade: Prioridade;
   setorId: number;
@@ -30,6 +31,7 @@ export interface ProcessoPayload {
   statusProcesso: StatusProcesso;
   centroCusto?: string | null;
   dataInicio?: string | null;
+  dataPrevisaoConclusao?: string | null;
   dataFim?: string | null;
   prioridade: Prioridade;
   setorId: number;

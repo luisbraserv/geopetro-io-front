@@ -49,6 +49,7 @@ import { ProcessoService } from '../../services/processo.service';
               </span>
               <span class="info" *ngIf="processo.centroCusto"><strong>CC:</strong> {{ processo.centroCusto }}</span>
               <span class="info" *ngIf="processo.dataInicio"><strong>Início:</strong> {{ formatarData(processo.dataInicio) }}</span>
+              <span class="info" *ngIf="processo.dataPrevisaoConclusao"><strong>Previsao:</strong> {{ formatarData(processo.dataPrevisaoConclusao) }}</span>
               <span class="info" *ngIf="processo.dataFim"><strong>Fim:</strong> {{ formatarData(processo.dataFim) }}</span>
             </div>
 

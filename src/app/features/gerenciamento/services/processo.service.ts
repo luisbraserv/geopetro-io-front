@@ -55,6 +55,7 @@ export class ProcessoService {
     return {
       ...payload,
       dataInicio: payload.dataInicio || null,
+      dataPrevisaoConclusao: payload.dataPrevisaoConclusao || null,
       dataFim: payload.dataFim || null,
     };
   }

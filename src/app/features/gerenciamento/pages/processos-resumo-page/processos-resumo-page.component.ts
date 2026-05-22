@@ -73,7 +73,7 @@ type GrupoUnidade = {
               <div><dt>Projeto</dt><dd>{{ p.projetoNome || '-' }}</dd></div>
               <div><dt>Responsável</dt><dd>{{ p.responsavelNome || p.responsavelUsername || '-' }}</dd></div>
               <div><dt>Centro de custo</dt><dd>{{ p.centroCusto || '-' }}</dd></div>
-              <div><dt>Atualizado</dt><dd>{{ fmt(p.atualizadoEm) }}</dd></div>
+              <div><dt>Previsao</dt><dd>{{ fmt(p.dataPrevisaoConclusao) }}</dd></div>
             </dl>
             <p class="r-desc">{{ p.descricao || 'Sem descrição informada.' }}</p>
             <div class="r-notes" *ngIf="anotacoes()[p.id]?.length">
@@ -307,4 +307,3 @@ export class ProcessosResumoPageComponent implements OnInit {
     return data ? new Date(data).toLocaleString('pt-BR') : '-';
   }
 }
-

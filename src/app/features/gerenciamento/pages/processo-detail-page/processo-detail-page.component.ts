@@ -36,6 +36,7 @@ import { ProcessoService } from '../../services/processo.service';
         <article><span>Setor</span><strong>{{ item.setorNome }}</strong></article>
         <article><span>Projeto</span><strong>{{ item.projetoNome || '-' }}</strong></article>
         <article><span>Centro de custo</span><strong>{{ item.centroCusto || '-' }}</strong></article>
+        <article><span>Previsao de conclusao</span><strong>{{ formatarData(item.dataPrevisaoConclusao) }}</strong></article>
       </div>
 
       <section class="panel">
@@ -138,6 +139,7 @@ export class ProcessoDetailPageComponent {
       statusProcesso: this.statusRapido,
       centroCusto: item.centroCusto ?? '',
       dataInicio: item.dataInicio ? item.dataInicio.slice(0, 16) : '',
+      dataPrevisaoConclusao: item.dataPrevisaoConclusao ? item.dataPrevisaoConclusao.slice(0, 16) : '',
       dataFim: item.dataFim ? item.dataFim.slice(0, 16) : '',
       prioridade: item.prioridade,
       setorId: item.setorId,

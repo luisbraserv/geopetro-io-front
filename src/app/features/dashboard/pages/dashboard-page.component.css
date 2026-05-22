@@ -10,7 +10,6 @@
   gap: 2rem;
 }
 
-/* ── Header ─────────────────────────────────────────────── */
 .dashboard__header {
   display: flex;
   align-items: flex-start;
@@ -19,7 +18,8 @@
   flex-wrap: wrap;
 }
 
-.dashboard__eyebrow {
+.dashboard__eyebrow,
+.dashboard__section-header p {
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -33,7 +33,7 @@
   font-size: clamp(1.75rem, 4vw, 2.75rem);
   font-weight: 800;
   color: var(--color-text-strong);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .dashboard__status {
@@ -60,13 +60,12 @@
   flex-shrink: 0;
 }
 
-/* ── Welcome card ────────────────────────────────────────── */
 .dashboard__welcome {
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 1.25rem 1.5rem;
-  border-radius: 1.25rem;
+  border-radius: 8px;
   background: var(--color-surface-muted);
   border: 1px solid var(--color-card-border);
 }
@@ -89,10 +88,160 @@
   color: var(--color-text-body);
 }
 
-.dashboard__alerts {
+.dashboard__cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.dash-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 104px;
+  padding: 1.25rem 1.5rem;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid var(--color-card-border);
+  box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
+  color: var(--color-text-strong);
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease,
+              box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.dash-card:hover {
+  background: #f0f6fd;
+  border-color: rgba(66, 145, 225, 0.35);
+  box-shadow: 0 4px 16px rgba(66, 145, 225, 0.14);
+  transform: translateY(-2px);
+}
+
+.dash-card__icon {
+  font-size: 1.75rem;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.dash-card__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.dash-card__content strong {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text-strong);
+}
+
+.dash-card__content span {
+  font-size: 0.85rem;
+  color: var(--color-text-body);
+}
+
+.dash-card__arrow {
+  color: var(--color-primary);
+  font-size: 1rem;
+  opacity: 0.6;
+  transition: opacity .15s, transform .15s;
+}
+
+.dash-card:hover .dash-card__arrow {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+.dashboard__sections-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.dashboard__section {
+  display: grid;
+  grid-column: span 6;
+  gap: 1rem;
+}
+
+.dashboard__section-header h2 {
+  margin: 0.2rem 0 0;
+  font-size: clamp(1.25rem, 2vw, 1.6rem);
+  font-weight: 800;
+  color: var(--color-text-strong);
+}
+
+.dashboard__content-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.deadline-card,
+.alert-card {
+  grid-column: span 6;
+}
+
+.deadline-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 112px;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-card-border);
+  background: #ffffff;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
+}
+
+.deadline-card span {
+  display: block;
+  margin-bottom: .2rem;
+  color: var(--color-text-body);
+  font-size: .78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.deadline-card strong {
+  display: block;
+  color: var(--color-text-strong);
+  font-size: 1rem;
+}
+
+.deadline-card b {
+  min-width: 62px;
+  min-height: 62px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.deadline-card--today {
+  border-color: #fedf89;
+  background: #fffaeb;
+}
+
+.deadline-card--today b {
+  background: #fef0c7;
+  color: #b54708;
+}
+
+.deadline-card--late {
+  border-color: #fecdca;
+  background: #fef3f2;
+}
+
+.deadline-card--late b {
+  background: #fee4e2;
+  color: #b42318;
 }
 
 .alert-card {
@@ -103,21 +252,21 @@
   padding: 1rem;
 }
 
-.alert-card:nth-child(1) {
+.alert-card--validity {
   border-color: #fed7aa;
   background: #fff7ed;
 }
 
-.alert-card:nth-child(2) {
+.alert-card--stock {
   border-color: #bfdbfe;
   background: #eff6ff;
 }
 
-.alert-card:nth-child(1) h2 {
+.alert-card--validity h3 {
   color: #c2410c;
 }
 
-.alert-card:nth-child(2) h2 {
+.alert-card--stock h3 {
   color: #1d4ed8;
 }
 
@@ -129,10 +278,9 @@
   margin-bottom: 0.75rem;
 }
 
-.alert-card__head h2 {
+.alert-card__head h3 {
   margin: 0;
   font-size: 1rem;
-  color: var(--color-text-strong);
 }
 
 .alert-card__head span,
@@ -187,73 +335,27 @@
   color: var(--color-text-strong);
 }
 
-/* ── Nav cards grid ─────────────────────────────────────── */
-.dashboard__cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-}
+@media (max-width: 980px) {
+  .dashboard__cards {
+    grid-template-columns: 1fr;
+  }
 
-.dash-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.25rem 1.5rem;
-  border-radius: 1.25rem;
-  background: #ffffff;
-  border: 1px solid var(--color-card-border);
-  box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
-  color: var(--color-text-strong);
-  text-decoration: none;
-  transition: background 0.15s ease, border-color 0.15s ease,
-              box-shadow 0.15s ease, transform 0.15s ease;
-}
+  .dashboard__sections-grid {
+    grid-template-columns: 1fr;
+  }
 
-.dash-card:hover {
-  background: #f0f6fd;
-  border-color: rgba(66, 145, 225, 0.35);
-  box-shadow: 0 4px 16px rgba(66, 145, 225, 0.14);
-  transform: translateY(-2px);
-}
-
-.dash-card__icon {
-  font-size: 1.75rem;
-  color: var(--color-primary);
-  flex-shrink: 0;
-}
-
-.dash-card__content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.dash-card__content strong {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-text-strong);
-}
-
-.dash-card__content span {
-  font-size: 0.85rem;
-  color: var(--color-text-body);
-}
-
-.dash-card__arrow {
-  color: var(--color-primary);
-  font-size: 1rem;
-  opacity: 0.6;
-  transition: opacity .15s, transform .15s;
-}
-
-.dash-card:hover .dash-card__arrow {
-  opacity: 1;
-  transform: translateX(3px);
+  .dashboard__section {
+    grid-column: auto;
+  }
 }
 
 @media (max-width: 860px) {
-  .dashboard__alerts {
+  .dashboard__content-grid {
     grid-template-columns: 1fr;
+  }
+
+  .deadline-card,
+  .alert-card {
+    grid-column: auto;
   }
 }

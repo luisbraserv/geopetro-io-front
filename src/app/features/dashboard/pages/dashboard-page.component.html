@@ -18,53 +18,6 @@
     </div>
   </div>
 
-  <section class="dashboard__alerts">
-    <div class="alert-card">
-      <div class="alert-card__head">
-        <div>
-          <h2>Químicos próximos do vencimento</h2>
-          <span>Validade em até 60 dias</span>
-        </div>
-        <a routerLink="/app/quimicos">Abrir</a>
-      </div>
-
-      <div class="alert-card__list">
-        @for (quimico of quimicosPertoVencimento(); track quimico.id) {
-          <a class="alert-line" routerLink="/app/quimicos">
-            <strong>{{ quimico.nome }}</strong>
-            <span>{{ quimico.lote || '-' }} · {{ quimico.regional }} · {{ validadeLabel(quimico) }}</span>
-          </a>
-        } @empty {
-          <p>Nenhum lote vencendo em 60 dias.</p>
-        }
-      </div>
-    </div>
-
-    <div class="alert-card">
-      <div class="alert-card__head">
-        <div>
-          <h2>Estoque baixo</h2>
-          <span>Até 20% acima do estoque mínimo</span>
-        </div>
-        <a routerLink="/app/quimicos">Abrir</a>
-      </div>
-
-      <div class="alert-card__list">
-        @for (quimico of quimicosEstoqueBaixo(); track quimico.id) {
-          <a class="alert-line" routerLink="/app/quimicos">
-            <strong>{{ quimico.nome }}</strong>
-            <span>
-              {{ quimico.lote || '-' }} · saldo {{ formatarQuantidade(quimico.estoqueAtual, quimico.unidade) }}
-              / mín. {{ formatarQuantidade(quimico.estoqueMinimo, quimico.unidade) }}
-            </span>
-          </a>
-        } @empty {
-          <p>Nenhum estoque perto do mínimo.</p>
-        }
-      </div>
-    </div>
-  </section>
-
   <div class="dashboard__cards">
     <a class="dash-card" routerLink="/app/simulador">
       <tui-icon icon="@tui.flask-conical" class="dash-card__icon"></tui-icon>
@@ -83,5 +36,95 @@
       </div>
       <tui-icon icon="@tui.arrow-right" class="dash-card__arrow"></tui-icon>
     </a>
+
+    <a class="dash-card" routerLink="/app/gerenciamento/processos">
+      <tui-icon icon="@tui.clipboard-list" class="dash-card__icon"></tui-icon>
+      <div class="dash-card__content">
+        <strong>Gerenciamento de processos</strong>
+        <span>Acompanhar processos, prazos e históricos</span>
+      </div>
+      <tui-icon icon="@tui.arrow-right" class="dash-card__arrow"></tui-icon>
+    </a>
+  </div>
+
+  <div class="dashboard__sections-grid">
+    <section class="dashboard__section">
+      <div class="dashboard__section-header">
+        <p>Gerenciamento</p>
+        <h2>Processos</h2>
+      </div>
+
+      <div class="dashboard__content-grid">
+        <a class="deadline-card deadline-card--today" routerLink="/app/gerenciamento/processos">
+          <div>
+            <span>Processos</span>
+            <strong>Termina hoje</strong>
+          </div>
+          <b>{{ processosTerminamHoje().length }}</b>
+        </a>
+
+        <a class="deadline-card deadline-card--late" routerLink="/app/gerenciamento/processos">
+          <div>
+            <span>Processos</span>
+            <strong>Atrasados</strong>
+          </div>
+          <b>{{ processosAtrasados().length }}</b>
+        </a>
+      </div>
+    </section>
+
+    <section class="dashboard__section">
+      <div class="dashboard__section-header">
+        <p>Estoque e validade</p>
+        <h2>Químicos</h2>
+      </div>
+
+      <div class="dashboard__content-grid">
+        <div class="alert-card alert-card--validity">
+          <div class="alert-card__head">
+            <div>
+              <h3>Químicos próximos do vencimento</h3>
+              <span>Validade em até 60 dias</span>
+            </div>
+            <a routerLink="/app/quimicos">Abrir</a>
+          </div>
+
+          <div class="alert-card__list">
+            @for (quimico of quimicosPertoVencimento(); track quimico.id) {
+              <a class="alert-line" routerLink="/app/quimicos">
+                <strong>{{ quimico.nome }}</strong>
+                <span>{{ quimico.lote || '-' }} · {{ quimico.regional }} · {{ validadeLabel(quimico) }}</span>
+              </a>
+            } @empty {
+              <p>Nenhum lote vencendo em 60 dias.</p>
+            }
+          </div>
+        </div>
+
+        <div class="alert-card alert-card--stock">
+          <div class="alert-card__head">
+            <div>
+              <h3>Estoque baixo</h3>
+              <span>Até 20% acima do estoque mínimo</span>
+            </div>
+            <a routerLink="/app/quimicos">Abrir</a>
+          </div>
+
+          <div class="alert-card__list">
+            @for (quimico of quimicosEstoqueBaixo(); track quimico.id) {
+              <a class="alert-line" routerLink="/app/quimicos">
+                <strong>{{ quimico.nome }}</strong>
+                <span>
+                  {{ quimico.lote || '-' }} · saldo {{ formatarQuantidade(quimico.estoqueAtual, quimico.unidade) }}
+                  / mín. {{ formatarQuantidade(quimico.estoqueMinimo, quimico.unidade) }}
+                </span>
+              </a>
+            } @empty {
+              <p>Nenhum estoque perto do mínimo.</p>
+            }
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
