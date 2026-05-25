@@ -83,8 +83,8 @@
         <div class="alert-card alert-card--validity">
           <div class="alert-card__head">
             <div>
-              <h3>Químicos próximos do vencimento</h3>
-              <span>Validade em até 60 dias</span>
+              <h3>Químicos vencidos e próximos do vencimento</h3>
+              <span>Vencidos ou validade em até 60 dias</span>
             </div>
             <a routerLink="/app/quimicos">Abrir</a>
           </div>
@@ -96,7 +96,7 @@
                 <span>{{ quimico.lote || '-' }} · {{ quimico.regional }} · {{ validadeLabel(quimico) }}</span>
               </a>
             } @empty {
-              <p>Nenhum lote vencendo em 60 dias.</p>
+              <p>Nenhum lote vencido ou vencendo em 60 dias.</p>
             }
           </div>
         </div>

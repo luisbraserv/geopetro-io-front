@@ -43,7 +43,7 @@
       <strong>{{ resumoGeral().outrosQuimicos }}</strong>
     </div>
     <div class="metric">
-      <span>A vencer 60d</span>
+      <span>Vencidos/a vencer 60d</span>
       <strong>{{ quimicosPertoVencimento().length }}</strong>
     </div>
     <div class="metric">
@@ -68,8 +68,8 @@
     <div class="panel alert-panel">
       <div class="panel-title">
         <div>
-          <h2>Próximos do vencimento</h2>
-          <span>Validade em até 60 dias</span>
+          <h2>Vencidos e próximos do vencimento</h2>
+          <span>Vencidos ou validade em até 60 dias</span>
         </div>
       </div>
       <div class="alert-list">
@@ -79,7 +79,7 @@
             <span>{{ quimico.lote || '-' }} · {{ quimico.regional }} · {{ validadeLabel(quimico) }}</span>
           </button>
         } @empty {
-          <p class="empty">Nenhum lote vencendo em 60 dias.</p>
+          <p class="empty">Nenhum lote vencido ou vencendo em 60 dias.</p>
         }
       </div>
     </div>

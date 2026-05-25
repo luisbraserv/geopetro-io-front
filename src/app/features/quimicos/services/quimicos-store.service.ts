@@ -285,7 +285,7 @@ export class QuimicosStoreService {
   }
 
   private estaPertoVencimento(q: Pick<QuimicoResumo, 'diasParaVencer'>): boolean {
-    return q.diasParaVencer !== null && q.diasParaVencer >= 0 && q.diasParaVencer <= DIAS_ALERTA_VALIDADE;
+    return q.diasParaVencer !== null && q.diasParaVencer <= DIAS_ALERTA_VALIDADE;
   }
 
   private estaPertoEstoqueMinimo(q: Pick<QuimicoResumo, 'estoqueAtual' | 'estoqueMinimo'>): boolean {
