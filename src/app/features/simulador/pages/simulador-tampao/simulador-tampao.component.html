@@ -280,7 +280,7 @@
 
         <section class="card">
           <div class="card-head"><h3>Cronograma operacional</h3><span>Tempo acumulado × TT 50 Bc</span></div>
-          <app-ops-chart [phases]="opsPhases" [ttRequiredMin]="tt ? tt.t50 * 60 : 0"></app-ops-chart>
+          <app-ops-chart [phases]="opsPhases" [ttRequiredMin]="tt ? tt.t50 * 60 : 0" [tt100Min]="tt ? tt.t100 * 60 : 0"></app-ops-chart>
         </section>
 
         <section class="card">
@@ -374,6 +374,7 @@
               <div class="rheo-item"><span>Gel 10min</span><strong>{{ rheologyResult.rheology.gel10minLbf100ft2 != null ? (rheologyResult.rheology.gel10minLbf100ft2 | number:'1.0-0') + ' lbf/100ft²' : '-' }}</strong></div>
               <div class="rheo-item"><span>Gel 30min</span><strong>{{ rheologyResult.rheology.gel30minLbf100ft2 != null ? (rheologyResult.rheology.gel30minLbf100ft2 | number:'1.0-0') + ' lbf/100ft²' : '-' }}</strong></div>
               <div class="rheo-item"><span>Fator hidráulico</span><strong>{{ rheologyResult.rheologyPressureFactor | number:'1.2-2' }}×</strong></div>
+              <div class="rheo-item"><span>Origem</span><strong>{{ rheologySourceLabel() }}</strong></div>
               @if (rheologyResult.rheology.fluidLossCc30min != null) {
                 <div class="rheo-item"><span>Filtrado est.</span><strong>{{ rheologyResult.rheology.fluidLossCc30min | number:'1.0-0' }} cc/30min</strong></div>
               }
@@ -489,4 +490,3 @@
   [visivel]="relatorioVisivel"
   (closed)="relatorioVisivel = false">
 </app-relatorio-viewer>
-

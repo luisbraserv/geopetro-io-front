@@ -3,6 +3,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiIcon } from '@taiga-ui/core';
 
+import { CepService } from '../../../../shared/services/cep.service';
 import { ToastService } from '../../../../shared/toast/toast.service';
 import { UserRole } from '../../../auth/models/user.model';
 import { Empresa, Setor } from '../../../cadastros/models/cadastros.model';
@@ -28,11 +29,13 @@ export class UsuariosAdminPageComponent {
   private readonly usuariosService = inject(UsuariosService);
   private readonly empresaService = inject(EmpresaService);
   private readonly setorService = inject(SetorService);
+  private readonly cepService = inject(CepService);
   private readonly toast = inject(ToastService);
 
   protected readonly tipo = signal<TipoUsuario>('INTERNO');
   protected readonly usuarios = signal<UsuarioResponse[]>([]);
   protected readonly isLoading = signal(false);
+  protected readonly buscandoCep = signal(false);
   protected readonly feedback = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly editandoUsername = signal<string | null>(null);
@@ -131,6 +134,24 @@ export class UsuariosAdminPageComponent {
     };
 
     return labels[role] ?? role;
+  }
+
+  protected buscarCep(): void {
+    if (!this.form.cep) return;
+    this.buscandoCep.set(true);
+    this.cepService.buscar(this.form.cep).subscribe({
+      next: (end) => {
+        this.form.logradouro = end.logradouro;
+        this.form.bairro = end.bairro;
+        this.form.cidade = end.localidade;
+        this.form.estado = end.uf;
+        this.buscandoCep.set(false);
+      },
+      error: (e: Error) => {
+        this.toast.error(e.message || 'CEP não encontrado.');
+        this.buscandoCep.set(false);
+      },
+    });
   }
 
   protected salvar(): void {

@@ -34,11 +34,15 @@
 
       <label>
         <span>CEP</span>
-        <input name="cep" [(ngModel)]="form.cep" required />
+        <div class="input-cep" [class.input-cep--loading]="buscandoCep()">
+          <input name="cep" [(ngModel)]="form.cep" (blur)="buscarCep()" maxlength="9" placeholder="00000-000" required />
+          @if (buscandoCep()) { <span class="cep-spinner"></span> }
+        </div>
+        @if (buscandoCep()) { <span class="cep-feedback">Buscando endereÃ§o pelo CEP...</span> }
       </label>
       <label>
         <span>Logradouro</span>
-        <input name="logradouro" [(ngModel)]="form.logradouro" required />
+        <input name="logradouro" [(ngModel)]="form.logradouro" [disabled]="buscandoCep()" required />
       </label>
       <label>
         <span>Número</span>
@@ -46,15 +50,15 @@
       </label>
       <label>
         <span>Bairro</span>
-        <input name="bairro" [(ngModel)]="form.bairro" required />
+        <input name="bairro" [(ngModel)]="form.bairro" [disabled]="buscandoCep()" required />
       </label>
       <label>
         <span>Cidade</span>
-        <input name="cidade" [(ngModel)]="form.cidade" required />
+        <input name="cidade" [(ngModel)]="form.cidade" [disabled]="buscandoCep()" required />
       </label>
       <label>
         <span>Estado</span>
-        <input name="estado" [(ngModel)]="form.estado" maxlength="2" required />
+        <input name="estado" [(ngModel)]="form.estado" maxlength="2" [disabled]="buscandoCep()" required />
       </label>
       <label class="wide">
         <span>Complemento</span>

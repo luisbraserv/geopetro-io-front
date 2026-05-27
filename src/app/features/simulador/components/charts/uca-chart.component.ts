@@ -21,7 +21,8 @@ Chart.register(...registerables);
   styles: [`
     .chart-wrap { display: flex; flex-direction: column; gap: 6px; }
     .chart-toolbar { display: flex; justify-content: flex-end; }
-    .chart-box { position: relative; height: 300px; }
+    .chart-box { position: relative; height: clamp(220px, 34vh, 300px); min-height: 0; overflow: hidden; }
+    .chart-box canvas { display: block; width: 100% !important; height: 100% !important; }
     .save-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border: 1px solid var(--color-card-border, #e2e8f0); border-radius: 6px; background: #f8fafc; color: var(--color-text-body, #64748b); font: inherit; font-size: .72rem; font-weight: 650; cursor: pointer; transition: background .15s, color .15s; }
     .save-btn:hover { background: #eef6ff; color: var(--color-primary, #4291e1); border-color: rgba(66,145,225,.3); }
   `],

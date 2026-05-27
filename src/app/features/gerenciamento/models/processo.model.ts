@@ -36,7 +36,7 @@ export interface ProcessoPayload {
   prioridade: Prioridade;
   setorId: number;
   unidadeSondaId: number;
-  projetoId?: number | null;
+  projetoId: number | null;
   responsavelUsername?: string | null;
 }
 
@@ -46,6 +46,7 @@ export interface ProcessoFiltros {
   setorId?: number | '';
   setorIds?: number[];
   unidadeSondaId?: number | '';
+  projetoId?: number | '';
   responsavelUsername?: string | '';
   texto?: string;
 }

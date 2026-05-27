@@ -20,10 +20,9 @@ import { ObservacaoService } from '../../services/observacao.service';
 import { ProcessoService } from '../../services/processo.service';
 
 type ModalTipo = 'processo' | 'anotacao' | 'confirmar-arquivar' | 'confirmar-anotacao' | 'resumo' | 'observacao' | 'confirmar-observacao' | null;
-type GrupoUnidadeProcessos = {
-  unidadeId: number;
-  unidadeNome: string;
-  unidadeApelido?: string | null;
+type GrupoProjetoProcessos = {
+  projetoId: number;
+  projetoNome: string;
   setorNome: string;
   processos: Processo[];
 };
@@ -75,39 +74,47 @@ type GrupoUnidadeProcessos = {
           <option value="">Todas as prioridades</option>
           <option *ngFor="let prioridade of prioridadeOptions" [value]="prioridade">{{ prioridadeLabel(prioridade) }}</option>
         </select>
-        <select name="unidadeSondaId" [(ngModel)]="filtros.unidadeSondaId">
+        <select name="setorId" [(ngModel)]="filtros.setorId" (ngModelChange)="sincronizarFiltrosSetor()">
+          <option value="">Todos os setores</option>
+          <option *ngFor="let setor of setoresDisponiveisFiltro()" [ngValue]="setor.id">{{ setor.nome }}</option>
+        </select>
+        <select name="unidadeSondaId" [(ngModel)]="filtros.unidadeSondaId" (ngModelChange)="sincronizarProjetoFiltro()">
           <option value="">Todas as unidades/sondas</option>
-          <option *ngFor="let unidade of unidades()" [ngValue]="unidade.id">{{ unidade.nome }}</option>
+          <option *ngFor="let unidade of unidadesDisponiveisFiltro()" [ngValue]="unidade.id">{{ unidade.nome }}</option>
+        </select>
+        <select name="projetoId" [(ngModel)]="filtros.projetoId">
+          <option value="">Todos os projetos</option>
+          <option *ngFor="let projeto of projetosDisponiveisFiltro()" [ngValue]="projeto.id">{{ projeto.nome }}</option>
         </select>
         <select name="responsavelUsername" [(ngModel)]="filtros.responsavelUsername">
           <option value="">Todos os responsáveis</option>
-          <option *ngFor="let usuario of usuariosInternos()" [ngValue]="usuario.username">{{ usuario.nome }}</option>
+          <option *ngFor="let usuario of responsaveisFiltro()" [ngValue]="usuario.username">{{ usuario.nome }}</option>
         </select>
         <button tuiButton type="submit" appearance="secondary">Filtrar</button>
       </form>
 
       <div class="content-grid">
       <main class="unit-list col-8">
-        <section class="unit-block" *ngFor="let grupo of processosPorUnidade()">
-          <header class="unit-block__header" role="button" tabindex="0" (click)="alternarUnidade(grupo.unidadeId)" (keyup.enter)="alternarUnidade(grupo.unidadeId)" style="cursor:pointer">
+        <section class="unit-block" *ngFor="let grupo of processosPorProjeto()">
+          <header class="unit-block__header" role="button" tabindex="0" (click)="alternarProjeto(grupo.projetoId)" (keyup.enter)="alternarProjeto(grupo.projetoId)" style="cursor:pointer">
             <div>
-              <p class="eyebrow">Unidade/Sonda</p>
-              <h2>{{ grupo.unidadeNome }}</h2>
-              <span>{{ grupo.unidadeApelido || 'Sem apelido' }} - {{ grupo.setorNome }}</span>
+              <p class="eyebrow">Projeto</p>
+              <h2>{{ grupo.projetoNome }}</h2>
+              <span>{{ grupo.setorNome }}</span>
             </div>
             <div style="display:flex;align-items:center;gap:.75rem">
               <div class="unit-block__stats">
                 <strong>{{ grupo.processos.length }}</strong>
                 <span>{{ grupo.processos.length === 1 ? 'processo' : 'processos' }}</span>
               </div>
-              <button tuiButton type="button" size="s" appearance="secondary" (click)="$event.stopPropagation(); alternarUnidade(grupo.unidadeId)">
-                <tui-icon [icon]="unidadeExpandida(grupo.unidadeId) ? '@tui.chevron-up' : '@tui.chevron-down'"></tui-icon>
-                {{ unidadeExpandida(grupo.unidadeId) ? 'Ocultar' : 'Mostrar' }}
+              <button tuiButton type="button" size="s" appearance="secondary" (click)="$event.stopPropagation(); alternarProjeto(grupo.projetoId)">
+                <tui-icon [icon]="projetoExpandido(grupo.projetoId) ? '@tui.chevron-up' : '@tui.chevron-down'"></tui-icon>
+                {{ projetoExpandido(grupo.projetoId) ? 'Ocultar' : 'Mostrar' }}
               </button>
             </div>
           </header>
 
-          <div class="process-list" *ngIf="unidadeExpandida(grupo.unidadeId)">
+          <div class="process-list" *ngIf="projetoExpandido(grupo.projetoId)">
         <article class="process-card" [ngClass]="prioridadeCardClass(processo.prioridade)" *ngFor="let processo of grupo.processos">
           <div class="process-card__main" role="button" tabindex="0" (click)="alternarExpansao(processo)" (keyup.enter)="alternarExpansao(processo)">
             <div class="process-card__title">
@@ -118,7 +125,7 @@ type GrupoUnidadeProcessos = {
             <div class="process-card__meta">
               <span><strong>Centro de custo</strong>{{ processo.centroCusto || '-' }}</span>
               <span><strong>Setor</strong>{{ processo.setorNome }}</span>
-              <span><strong>Projeto</strong>{{ processo.projetoNome || '-' }}</span>
+              <span><strong>Unidade/Sonda</strong>{{ processo.unidadeSondaNome || '-' }}</span>
               <span><strong>Responsável</strong>{{ processo.responsavelNome || processo.responsavelUsername || 'Sem responsável' }}</span>
               <span><strong>Previsao</strong>{{ formatarDataHora(processo.dataPrevisaoConclusao) }}</span>
               <span><strong>Atualizado</strong>{{ formatarDataHora(processo.atualizadoEm) }}</span>
@@ -195,7 +202,7 @@ type GrupoUnidadeProcessos = {
           </div>
         </section>
 
-        <p class="empty empty-main" *ngIf="!processosPorUnidade().length">Nenhum processo encontrado para os filtros selecionados.</p>
+        <p class="empty empty-main" *ngIf="!processosPorProjeto().length">Nenhum processo encontrado para os filtros selecionados.</p>
       </main>
 
       <aside class="obs-panel col-4">
@@ -244,16 +251,21 @@ type GrupoUnidadeProcessos = {
 
           <form class="modal-form" *ngIf="modalTipo() === 'processo'" (ngSubmit)="salvarProcesso()">
             <label>Título<input name="titulo" [(ngModel)]="form.titulo" required /></label>
+            <label>Setor
+              <select name="setorId" [(ngModel)]="form.setorId" required (ngModelChange)="sincronizarModalAoTrocarSetor()">
+                <option [ngValue]="0">Selecione</option>
+                <option *ngFor="let setor of setoresDisponiveisFiltro()" [ngValue]="setor.id">{{ setor.nome }}</option>
+              </select>
+            </label>
             <label>Unidade/Sonda
               <select name="unidadeSondaId" [(ngModel)]="form.unidadeSondaId" required (ngModelChange)="sincronizarSetorPelaUnidade()">
                 <option [ngValue]="0">Selecione</option>
-                <option *ngFor="let unidade of unidades()" [ngValue]="unidade.id">{{ unidade.nome }} - {{ unidade.setorNome }}</option>
+                <option *ngFor="let unidade of unidadesDoModal()" [ngValue]="unidade.id">{{ unidade.nome }}</option>
               </select>
             </label>
-            <label>Setor<select name="setorId" [(ngModel)]="form.setorId" disabled><option [ngValue]="form.setorId">{{ setorNomeDoForm() || 'Selecione uma unidade' }}</option></select></label>
             <label>Projeto
-              <select name="projetoId" [(ngModel)]="form.projetoId">
-                <option [ngValue]="null">Sem projeto</option>
+              <select name="projetoId" [(ngModel)]="form.projetoId" required>
+                <option [ngValue]="null">Selecione</option>
                 <option *ngFor="let projeto of projetosDisponiveis()" [ngValue]="projeto.id">{{ projeto.nome }}</option>
               </select>
             </label>
@@ -427,7 +439,7 @@ export class ProcessosPageComponent {
   protected readonly obsAtual = signal<Observacao | null>(null);
   protected readonly obsForm: ObservacaoPayload = { titulo: '', texto: '', setorId: 0 };
   protected readonly obsTexto = signal('');
-  protected readonly unidadesExpandidas = signal<Set<number>>(new Set());
+  protected readonly projetosExpandidos = signal<Set<number>>(new Set());
   protected readonly anotacoesPorProcesso = signal<Record<number, Anotacao[]>>({});
   protected readonly modalTipo = signal<ModalTipo>(null);
   protected readonly processoAtual = signal<Processo | null>(null);
@@ -438,9 +450,11 @@ export class ProcessosPageComponent {
   protected readonly error = signal<string | null>(null);
   protected readonly statusOptions: StatusProcesso[] = ['ABERTO', 'EM_ANDAMENTO', 'PAUSADO', 'CONCLUIDO', 'CANCELADO'];
   protected readonly prioridadeOptions: Prioridade[] = ['BAIXA', 'MEDIA', 'ALTA', 'CRITICA'];
-  protected readonly filtros: ProcessoFiltros = { texto: '', status: '', prioridade: '', setorId: '', unidadeSondaId: '', responsavelUsername: '' };
+  protected readonly filtros: ProcessoFiltros = { texto: '', status: '', prioridade: '', setorId: '', unidadeSondaId: '', projetoId: '', responsavelUsername: '' };
   protected readonly form: ProcessoPayload = this.vazio();
   protected readonly anotacaoForm: AnotacaoPayload = { titulo: '', texto: '' };
+  protected readonly formUnidadeId = signal<number>(0);
+  protected readonly formSetorId = signal<number>(0);
 
   protected readonly setorRestritoIds = computed(() => {
     const user = this.currentUser();
@@ -449,39 +463,61 @@ export class ProcessosPageComponent {
     return user.setorIds?.length ? user.setorIds : user.setorId ? [user.setorId] : [];
   });
   protected readonly totalAltaPrioridade = computed(() => this.processos().filter((p) => p.prioridade === 'ALTA' || p.prioridade === 'CRITICA').length);
-  protected readonly processosPorUnidade = computed<GrupoUnidadeProcessos[]>(() => {
-    const unidadesPorId = new Map(this.unidades().map((unidade) => [unidade.id, unidade]));
-    const grupos = new Map<number, GrupoUnidadeProcessos>();
+  protected readonly processosPorProjeto = computed<GrupoProjetoProcessos[]>(() => {
+    const projetosPorId = new Map(this.projetos().map((projeto) => [projeto.id, projeto]));
+    const grupos = new Map<number, GrupoProjetoProcessos>();
 
     this.processos().forEach((processo) => {
-      const unidadeId = processo.unidadeSondaId ?? 0;
-      const unidade = unidadesPorId.get(unidadeId);
-      const grupo = grupos.get(unidadeId) ?? {
-        unidadeId,
-        unidadeNome: processo.unidadeSondaNome || unidade?.nome || 'Sem unidade/sonda',
-        unidadeApelido: processo.unidadeSondaApelido || unidade?.apelido,
-        setorNome: processo.setorNome || unidade?.setorNome || '-',
+      const projetoId = processo.projetoId ?? 0;
+      const projeto = projetosPorId.get(projetoId);
+      const grupo = grupos.get(projetoId) ?? {
+        projetoId,
+        projetoNome: processo.projetoNome || projeto?.nome || 'Sem projeto',
+        setorNome: processo.setorNome || projeto?.setorNome || '-',
         processos: [],
       };
 
       grupo.processos.push(processo);
-      grupos.set(unidadeId, grupo);
+      grupos.set(projetoId, grupo);
     });
 
-    return Array.from(grupos.values()).sort((a, b) => a.unidadeNome.localeCompare(b.unidadeNome));
+    return Array.from(grupos.values()).sort((a, b) => a.projetoNome.localeCompare(b.projetoNome));
+  });
+  protected readonly unidadesDoModal = computed(() => {
+    const setorId = this.formSetorId();
+    if (!setorId) return [];
+    return this.unidades().filter((u) => u.setorId === setorId);
   });
   protected readonly responsaveisDisponiveis = computed(() => {
-    const unidade = this.unidades().find((u) => u.id === Number(this.form.unidadeSondaId));
-    const setorIds = unidade?.setorId ? [unidade.setorId] : this.setorRestritoIds();
-    return this.usuariosInternos().filter((u) => {
-      const ids = u.setorIds?.length ? u.setorIds : u.setorId ? [u.setorId] : [];
-      return !setorIds.length || ids.some((id) => setorIds.includes(id));
-    });
+    const unidade = this.unidades().find((u) => u.id === this.formUnidadeId());
+    const setorId = unidade?.setorId ?? this.formSetorId();
+    if (!setorId) return [];
+    return this.filtrarUsuariosPorSetores(this.usuariosInternos(), [setorId]);
+  });
+  protected readonly responsaveisFiltro = computed(() => {
+    const setorId = Number(this.filtros.setorId);
+    const unidade = this.unidades().find((u) => u.id === Number(this.filtros.unidadeSondaId));
+    const setorIds = unidade?.setorId ? [unidade.setorId] : setorId ? [setorId] : this.setorRestritoIds();
+    return this.filtrarUsuariosPorSetores(this.usuariosInternos(), setorIds);
   });
   protected readonly projetosDisponiveis = computed(() => {
-    const unidade = this.unidades().find((u) => u.id === Number(this.form.unidadeSondaId));
-    const setorId = unidade?.setorId ?? this.form.setorId;
-    return this.projetos().filter((projeto) => !setorId || projeto.setorId === Number(setorId));
+    const unidade = this.unidades().find((u) => u.id === this.formUnidadeId());
+    const setorId = unidade?.setorId ?? this.formSetorId();
+    return setorId ? this.projetos().filter((projeto) => projeto.setorId === setorId) : [];
+  });
+  protected readonly setoresDisponiveisFiltro = computed(() => {
+    const setorIds = this.setorRestritoIds();
+    return this.setores().filter((setor) => !setorIds.length || setorIds.includes(setor.id));
+  });
+  protected readonly unidadesDisponiveisFiltro = computed(() => {
+    const setorId = Number(this.filtros.setorId);
+    return this.unidades().filter((unidade) => !setorId || unidade.setorId === setorId);
+  });
+  protected readonly projetosDisponiveisFiltro = computed(() => {
+    const unidade = this.unidades().find((u) => u.id === Number(this.filtros.unidadeSondaId));
+    const setorId = Number(this.filtros.setorId);
+    const setorIds = unidade?.setorId ? [unidade.setorId] : setorId ? [setorId] : this.setorRestritoIds();
+    return this.projetos().filter((projeto) => !setorIds.length || setorIds.includes(projeto.setorId));
   });
 
   constructor() {
@@ -519,14 +555,27 @@ export class ProcessosPageComponent {
     });
   }
 
-  protected alternarUnidade(unidadeId: number): void {
-    const proximos = new Set(this.unidadesExpandidas());
-    proximos.has(unidadeId) ? proximos.delete(unidadeId) : proximos.add(unidadeId);
-    this.unidadesExpandidas.set(proximos);
+  protected alternarProjeto(projetoId: number): void {
+    const proximos = new Set(this.projetosExpandidos());
+    proximos.has(projetoId) ? proximos.delete(projetoId) : proximos.add(projetoId);
+    this.projetosExpandidos.set(proximos);
   }
 
-  protected unidadeExpandida(unidadeId: number): boolean {
-    return this.unidadesExpandidas().has(unidadeId);
+  protected sincronizarProjetoFiltro(): void {
+    if (this.filtros.projetoId && !this.projetosDisponiveisFiltro().some((projeto) => projeto.id === Number(this.filtros.projetoId))) {
+      this.filtros.projetoId = '';
+    }
+  }
+
+  protected sincronizarFiltrosSetor(): void {
+    if (this.filtros.unidadeSondaId && !this.unidadesDisponiveisFiltro().some((unidade) => unidade.id === Number(this.filtros.unidadeSondaId))) {
+      this.filtros.unidadeSondaId = '';
+    }
+    this.sincronizarProjetoFiltro();
+  }
+
+  protected projetoExpandido(projetoId: number): boolean {
+    return this.projetosExpandidos().has(projetoId);
   }
 
   protected alternarExpansao(processo: Processo): void {
@@ -548,6 +597,8 @@ export class ProcessosPageComponent {
     this.editandoId.set(processo?.id ?? null);
     this.processoAtual.set(processo ?? null);
     Object.assign(this.form, processo ? this.payloadDeProcesso(processo) : this.vazio());
+    this.formSetorId.set(Number(this.form.setorId) || 0);
+    this.formUnidadeId.set(Number(this.form.unidadeSondaId) || 0);
     this.modalTipo.set('processo');
   }
 
@@ -562,6 +613,7 @@ export class ProcessosPageComponent {
   protected salvarProcesso(): void {
     this.sincronizarSetorPelaUnidade();
     if (!this.form.unidadeSondaId) { this.toast.warning('Preencha os campos obrigatórios.'); this.error.set('Selecione uma Unidade/Sonda.'); return; }
+    if (!this.form.projetoId) { this.toast.warning('Preencha os campos obrigatórios.'); this.error.set('Selecione um Projeto.'); return; }
     const id = this.editandoId();
     const request = id ? this.processoService.atualizar(id, this.form) : this.processoService.criar(this.form);
     request.subscribe({
@@ -676,17 +728,34 @@ export class ProcessosPageComponent {
     this.router.navigate(['/resumo-processos']);
   }
 
+  protected sincronizarModalAoTrocarSetor(): void {
+    this.formSetorId.set(Number(this.form.setorId) || 0);
+    this.form.unidadeSondaId = 0;
+    this.formUnidadeId.set(0);
+    this.form.projetoId = null;
+    this.form.responsavelUsername = null;
+  }
+
   protected sincronizarSetorPelaUnidade(): void {
     const unidade = this.unidades().find((item) => item.id === Number(this.form.unidadeSondaId));
-    this.form.setorId = unidade?.setorId ?? 0;
+    this.formUnidadeId.set(Number(this.form.unidadeSondaId) || 0);
+    if (unidade?.setorId) {
+      this.form.setorId = unidade.setorId;
+      this.formSetorId.set(unidade.setorId);
+    }
     if (this.form.projetoId && !this.projetosDisponiveis().some((projeto) => projeto.id === this.form.projetoId)) {
       this.form.projetoId = null;
     }
+    if (this.form.responsavelUsername && !this.responsaveisDisponiveis().some((u) => u.username === this.form.responsavelUsername)) {
+      this.form.responsavelUsername = null;
+    }
   }
 
-  protected setorNomeDoForm(): string | null {
-    const unidade = this.unidades().find((item) => item.id === Number(this.form.unidadeSondaId));
-    return unidade?.setorNome ?? null;
+  private filtrarUsuariosPorSetores(usuarios: UsuarioResponse[], setorIds: number[]): UsuarioResponse[] {
+    return usuarios.filter((u) => {
+      const ids = u.setorIds?.length ? u.setorIds : u.setorId ? [u.setorId] : [];
+      return ids.some((id) => setorIds.includes(id));
+    });
   }
 
   protected fecharModal(): void {
@@ -698,6 +767,8 @@ export class ProcessosPageComponent {
     this.editandoAnotacaoId.set(null);
     this.editandoObsId.set(null);
     Object.assign(this.form, this.vazio());
+    this.formSetorId.set(0);
+    this.formUnidadeId.set(0);
     Object.assign(this.anotacaoForm, { titulo: '', texto: '' });
     Object.assign(this.obsForm, { titulo: '', texto: '', setorId: 0 });
     this.obsTexto.set('');

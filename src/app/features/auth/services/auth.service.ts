@@ -13,6 +13,13 @@ interface AuthResponse {
   email: string;
   endereco: string | null;
   telefone: string;
+  cep?: string | null;
+  logradouro?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
   roles: UserRole[];
   setorId?: number | null;
   setorNome?: string | null;

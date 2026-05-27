@@ -37,7 +37,7 @@ import { SetorService } from '../../services/setor.service';
       <form class="form" (ngSubmit)="salvar()">
         <label>Nome<input name="nome" [(ngModel)]="form.nome" required /></label>
         <label>Setor
-          <select name="setorId" [(ngModel)]="form.setorId" required>
+          <select name="setorId" [(ngModel)]="form.setorId" required (ngModelChange)="sincronizarResponsavelAoTrocarSetor()">
             <option [ngValue]="0">Selecione</option>
             <option *ngFor="let setor of setoresDisponiveis()" [ngValue]="setor.id">{{ setor.nome }}</option>
           </select>
@@ -107,6 +107,7 @@ export class ProjetosPageComponent {
   protected readonly error = signal<string | null>(null);
   protected filtroSetorId: number | null = null;
   protected readonly form: ProjetoPayload = { nome: '', descricao: '', centroCusto: '', setorId: 0, responsavelUsername: null };
+  protected readonly formSetorId = signal<number>(0);
 
   protected readonly setoresDisponiveis = computed(() => {
     const user = this.currentUser();
@@ -115,10 +116,14 @@ export class ProjetosPageComponent {
     return this.setores().filter((setor) => ids.includes(setor.id));
   });
 
-  protected readonly responsaveisDisponiveis = computed(() => this.usuariosInternos().filter((usuario) => {
-    const ids = usuario.setorIds?.length ? usuario.setorIds : usuario.setorId ? [usuario.setorId] : [];
-    return !this.form.setorId || ids.includes(Number(this.form.setorId));
-  }));
+  protected readonly responsaveisDisponiveis = computed(() => {
+    const setorId = this.formSetorId();
+    if (!setorId) return [];
+    return this.usuariosInternos().filter((usuario) => {
+      const ids = usuario.setorIds?.length ? usuario.setorIds : usuario.setorId ? [usuario.setorId] : [];
+      return ids.includes(setorId);
+    });
+  });
 
   constructor() {
     this.setorService.listar().subscribe({ next: (setores) => this.setores.set(setores), error: (error: Error) => this.notificarErro(error) });
@@ -148,6 +153,7 @@ export class ProjetosPageComponent {
       setorId: projeto.setorId,
       responsavelUsername: projeto.responsavelUsername ?? null,
     });
+    this.formSetorId.set(projeto.setorId);
   }
 
   protected excluir(projeto: Projeto): void {
@@ -161,6 +167,14 @@ export class ProjetosPageComponent {
   protected novo(): void {
     this.editandoId.set(null);
     Object.assign(this.form, { nome: '', descricao: '', centroCusto: '', setorId: 0, responsavelUsername: null });
+    this.formSetorId.set(0);
+  }
+
+  protected sincronizarResponsavelAoTrocarSetor(): void {
+    this.formSetorId.set(Number(this.form.setorId));
+    if (this.form.responsavelUsername && !this.responsaveisDisponiveis().some((u) => u.username === this.form.responsavelUsername)) {
+      this.form.responsavelUsername = null;
+    }
   }
 
   private notificarErro(error: Error): void {

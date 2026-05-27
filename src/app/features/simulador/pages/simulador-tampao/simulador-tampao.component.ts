@@ -26,7 +26,8 @@ import { AditivosStoreService } from '../../services/aditivos-store.service';
 import { PlugGeometry, TampaoInputs, PressureProfile } from '../../models/tampao.model';
 import { SlurryDesign, SlurryRecipe, Diagnostic, SlurryRecipeByVolume } from '../../models/pasta.model';
 import { ThickeningResult, UCAResult } from '../../models/reologia.model';
-import { ADITIVOS_CATALOGO, AditivoCatalogo, Aditivo } from '../../models/aditivo.model';
+import { ADITIVOS_CATALOGO, AditivoCatalogo, Aditivo, hydrateAditivosFromCatalog, unidadePadraoAditivo } from '../../models/aditivo.model';
+import { Rheology } from '../../models/reologia.model';
 import { CEMENT_CLASSES } from '../../models/constantes';
 import { API_CASING_SIZES, API_TUBING_SIZES, ApiTubular } from '../../models/api-tubulares';
 
@@ -204,22 +205,20 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
 
     const vWithBHT = { ...v, bhct: bht.bhct, bhst: bht.bhst };
 
+    const thetaReadings = this.buildThetaReadings(v);
+    const aditivosRaw = hydrateAditivosFromCatalog((v.additivos || []) as Aditivo[]);
+
     this.plug = this.tampaoCalc.calcPlug(inputs);
-    this.slurry = this.slurryCalc.calculateSlurryDesign(vWithBHT as any);
+    this.slurry = this.slurryCalc.calculateSlurryDesign({ ...vWithBHT, additivos: aditivosRaw } as any);
     this.recipe = this.slurryCalc.buildSlurryRecipe(this.plug.volCementTotal, this.slurry);
     this.manualRecipeResult = this.slurryCalc.buildSlurryRecipe(this.manualVolumeBbl, this.slurry).volumeRecipe ?? null;
 
-    this.tt = this.testsCalc.simulateThickening(this.slurry, v.sectionEndTVD);
+    this.tt = this.testsCalc.simulateThickening(this.slurry, v.sectionEndTVD, thetaReadings);
     this.uca = this.testsCalc.simulateUCA(this.slurry, this.tt);
     this.freeWater = this.testsCalc.estimateFreeWater(this.slurry);
     this.rheoDiags = this.testsCalc.rheoDiagnostics(this.slurry, this.tt, this.freeWater);
 
-    const aditivosRaw: Aditivo[] = (v.additivos || []).map((a: any) => {
-      const cat = ADITIVOS_CATALOGO.find(c => c.catalogId === a.catalogId);
-      const coefficients = cat?.coefficients ?? (typeof a.coefficients === 'object' ? a.coefficients : null);
-      return { ...cat, ...a, conc: +a.conc, coefficients } as Aditivo;
-    });
-    this.rheologyResult = this.rheologyAdj.applyAdditiveRheologyEffects(BASE_SLURRY_RHEOLOGY, aditivosRaw);
+    this.rheologyResult = this.rheologyAdj.applyAdditiveRheologyEffects(BASE_SLURRY_RHEOLOGY, aditivosRaw, { thetaReadings });
 
     this.pressureProfile = this.tampaoCalc.calcPressureProfile(this.plug, this.slurry, inputs);
 
@@ -231,13 +230,19 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
     if (!this.plug || !this.slurry || !this.tt) return;
     const v = this.form.getRawValue();
     const rate = v.pumpRate || 3;
-    const bbl2min = (vol: number) => rate > 0 ? vol / rate * 60 : 0;
+    const bbl2min = (vol: number) => rate > 0 ? Math.max(0, vol || 0) / rate : 0;
+    const pause1 = Math.max(0, Number(v.pause1) || 0);
+    const pause2 = Math.max(0, Number(v.pause2) || 0);
+    const pause3 = Math.max(0, Number(v.pause3) || 0);
     this.opsPhases = [
-      { label: 'Fl. Frente', durationMin: bbl2min(this.plug.volWashTotal) + (v.pause1 || 0), color: '#bae6fd' },
-      { label: 'Pasta', durationMin: bbl2min(this.plug.volCementTotal) + (v.pause2 || 0), color: '#bbf7d0' },
-      { label: 'Fl. Atrás', durationMin: bbl2min(this.plug.volBackSpacer) + (v.pause3 || 0), color: '#e9d5ff' },
+      { label: 'Fl. Frente', durationMin: bbl2min(this.plug.volWashTotal), color: '#bae6fd' },
+      ...(pause1 > 0 ? [{ label: 'Pausa 1', durationMin: pause1, color: '#cbd5e1' }] : []),
+      { label: 'Pasta', durationMin: bbl2min(this.plug.volCementTotal), color: '#bbf7d0' },
+      ...(pause2 > 0 ? [{ label: 'Pausa 2', durationMin: pause2, color: '#94a3b8' }] : []),
+      { label: 'Fl. Atrás', durationMin: bbl2min(this.plug.volBackSpacer), color: '#e9d5ff' },
+      ...(pause3 > 0 ? [{ label: 'Pausa 3', durationMin: pause3, color: '#64748b' }] : []),
       { label: 'Deslocamento', durationMin: bbl2min(this.plug.volDisplacement), color: '#fed7aa' },
-    ];
+    ].filter(phase => phase.durationMin > 0);
   }
 
   private buildRecipeDiags(): void {
@@ -278,14 +283,15 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
 
   private createAditivoGroup(data: Partial<AditivoCatalogo & { conc: number; coefficients?: any }> = {}): FormGroup {
     const cat = ADITIVOS_CATALOGO.find(c => c.catalogId === data.catalogId);
-    const coefficients = cat?.coefficients ?? data.coefficients ?? {};
+    const source = { ...cat, ...data } as Partial<Aditivo>;
     return this.fb.group({
       catalogId: [data.catalogId ?? ''],
-      name: [data.name ?? '', Validators.required],
-      category: [data.category ?? 'retarder', Validators.required],
-      type: [data.type ?? 'liquid', Validators.required],
+      name: [data.name ?? cat?.name ?? '', Validators.required],
+      funcaoPrincipal: [data.funcaoPrincipal ?? cat?.funcaoPrincipal ?? cat?.primaryFunction ?? ''],
       conc: [data.conc ?? data.defaultConc ?? 0, [Validators.required, Validators.min(0)]],
-      coefficients: [coefficients],
+      unidadeDosagem: [data.unidadeDosagem ?? unidadePadraoAditivo(source)],
+      misturadoEm: [data.misturadoEm ?? cat?.misturadoEm ?? 'aguaMistura'],
+      ativo: [data.ativo ?? true],
     });
   }
 
@@ -301,7 +307,30 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
 
   aditivoUnit(i: number): string {
     const ad = this.additivos.at(i);
-    return ad?.get('type')?.value === 'solid' ? '% BWOC' : 'gpc';
+    const unit = ad?.get('unidadeDosagem')?.value;
+    return unit === 'percentBWOW' ? '% BWOW' : unit === 'percentBWOC' ? '% BWOC' : 'GPC';
+  }
+
+  rheologySourceLabel(): string {
+    const source = this.rheologyResult?.source;
+    if (source === 'laboratorio' || source === 'theta') return 'Laboratório';
+    if (source === 'catalogo') return 'Catálogo';
+    if (source === 'estimado') return 'Estimado';
+    return 'Base';
+  }
+
+  private buildThetaReadings(v: any): Rheology {
+    return {
+      theta300: +v.theta300,
+      theta200: +v.theta200,
+      theta100: +v.theta100,
+      theta60: +v.theta60,
+      theta30: +v.theta30,
+      theta20: +v.theta20,
+      theta10: +v.theta10,
+      theta6: +v.theta6,
+      theta3: +v.theta3,
+    };
   }
 
   onCasingSelect(idx: string): void {
@@ -365,6 +394,7 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
     <style>body{font-family:Arial,sans-serif;padding:24px;font-size:13px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f1f5f9}h2{color:#1e293b}</style></head>
     <body><h2>Tampão Balanceado — Cálculo da Receita</h2>
     <p><b>Volume total de pasta:</b> ${this.fmt(p.volCementTotal)} bbl | <b>Sacos:</b> ${rec.sacks} sk | <b>Densidade:</b> ${this.fmt(sl.density)} ppg | <b>Rendimento:</b> ${this.fmt(sl.yieldLPerSk)} L/sk</p>
+    <p><b>Nota de reologia/aditivos:</b> efeitos baixo/medio/alto sao estimativas operacionais por familia quimica e concentracao. Nao substituem ensaio de laboratorio/API.</p>
     <table><thead><tr><th>Item</th><th>Concentração</th><th>Por kg cem.</th><th>Total</th><th>Unidade</th></tr></thead><tbody>${rows}</tbody></table>
     </body></html>`;
   }

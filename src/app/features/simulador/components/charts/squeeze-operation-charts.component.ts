@@ -23,7 +23,7 @@ Chart.register(...registerables);
               Salvar
             </button>
           </div>
-          <canvas #envelope></canvas>
+          <div class="sq-chart-box"><canvas #envelope></canvas></div>
         </div>
         <div class="sq-block">
           <div class="sq-block-head">
@@ -36,7 +36,7 @@ Chart.register(...registerables);
               Salvar
             </button>
           </div>
-          <canvas #pressureTime></canvas>
+          <div class="sq-chart-box"><canvas #pressureTime></canvas></div>
         </div>
         <div class="sq-block">
           <div class="sq-block-head">
@@ -49,7 +49,7 @@ Chart.register(...registerables);
               Salvar
             </button>
           </div>
-          <canvas #bhpEcd></canvas>
+          <div class="sq-chart-box"><canvas #bhpEcd></canvas></div>
         </div>
         <div class="sq-block">
           <div class="sq-block-head">
@@ -62,7 +62,7 @@ Chart.register(...registerables);
               Salvar
             </button>
           </div>
-          <canvas #freeFall></canvas>
+          <div class="sq-chart-box"><canvas #freeFall></canvas></div>
         </div>
         <div class="sq-block">
           <div class="sq-title">Índice Operacional Estimado — Squeeze</div>
@@ -78,7 +78,8 @@ Chart.register(...registerables);
     .sq-block-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
     .sq-title { color: var(--color-text-strong); font-size: .92rem; font-weight: 850; }
     .sq-sub { margin: 3px 0 0; color: var(--color-text-body); font-size: .74rem; }
-    canvas { width: 100%; height: 340px; }
+    .sq-chart-box { position: relative; height: clamp(240px, 38vh, 340px); min-height: 0; overflow: hidden; }
+    .sq-chart-box canvas { display: block; width: 100% !important; height: 100% !important; }
     .op-index { color: var(--color-primary); font-size: 42px; font-weight: 900; line-height: 1; }
     .save-btn { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 5px 10px; border: 1px solid var(--color-card-border, #e2e8f0); border-radius: 6px; background: #f8fafc; color: var(--color-text-body, #64748b); font: inherit; font-size: .72rem; font-weight: 650; cursor: pointer; transition: background .15s, color .15s; }
     .save-btn:hover { background: #eef6ff; color: var(--color-primary, #4291e1); border-color: rgba(66,145,225,.3); }

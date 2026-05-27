@@ -5,7 +5,7 @@ import { Aditivo } from '../models/aditivo.model';
 describe('RheologyAdjustmentService', () => {
   const service = new RheologyAdjustmentService();
 
-  it('does not change rheology from additive name or category alone', () => {
+  it('uses a generic profile when only additive function/category is available', () => {
     const additive: Aditivo = {
       name: 'Dispersante sem ensaio',
       category: 'dispersant',
@@ -17,9 +17,11 @@ describe('RheologyAdjustmentService', () => {
 
     const result = service.applyAdditiveRheologyEffects({ plasticViscosityCp: 70, yieldPointLbf100ft2: 30 }, [additive]);
 
-    expect(result.rheology.plasticViscosityCp).toBe(70);
-    expect(result.rheology.yieldPointLbf100ft2).toBe(30);
-    expect(result.warnings.some(w => w.includes('não possui coeficientes cadastrados'))).toBe(true);
+    expect(result.rheology.plasticViscosityCp).toBe(61);
+    expect(result.rheology.yieldPointLbf100ft2).toBe(18);
+    expect(result.confidence).toBe('estimated');
+    expect(result.source).toBe('estimado');
+    expect(result.operationalEffects?.positivo.some(e => e.parametro === 'pv' && e.direcao === 'reduz')).toBe(true);
   });
 
   it('applies empirical coefficients inside the additive data', () => {
@@ -37,14 +39,14 @@ describe('RheologyAdjustmentService', () => {
 
     const result = service.applyAdditiveRheologyEffects({ plasticViscosityCp: 40, yieldPointLbf100ft2: 20 }, [additive]);
 
-    expect(result.rheology.plasticViscosityCp).toBe(46);
-    expect(result.rheology.yieldPointLbf100ft2).toBe(23);
+    expect(result.rheology.plasticViscosityCp).toBe(52);
+    expect(result.rheology.yieldPointLbf100ft2).toBe(31);
     expect(result.confidence).toBe('estimated');
   });
 
   it('uses Fann readings when they are registered', () => {
     const additive: Aditivo = {
-      name: 'Colchão ensaiado',
+      name: 'Colchao ensaiado',
       category: 'washerAdditive',
       type: 'liquid',
       conc: 0.6,

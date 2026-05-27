@@ -80,6 +80,34 @@ input {
   font: inherit;
 }
 
+.input-cep { position: relative; display: flex; align-items: center; }
+.input-cep input { width: 100%; }
+.input-cep--loading input { padding-right: 2.4rem; }
+.cep-spinner {
+  position: absolute;
+  right: 0.65rem;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #cbd5e1;
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: cep-spin 0.7s linear infinite;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.cep-feedback {
+  color: var(--color-primary);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+@keyframes cep-spin { to { transform: rotate(360deg); } }
+
+input:disabled {
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: wait;
+}
+
 input::placeholder {
   color: #94a3b8;
 }

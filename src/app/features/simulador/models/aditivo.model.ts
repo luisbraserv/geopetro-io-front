@@ -29,9 +29,50 @@ export type UnidadeDosagem =
   | 'lbPerSack'
   | 'kgPerM3'
   | 'lbPerBbl';
+export type DosageUnit = UnidadeDosagem;
 
 export type MisturadoEm = 'cimentoSeco' | 'aguaMistura' | 'fluidoBase' | 'adicionadoCampo';
 export type MassaEspecificaUnidade = 'sg' | 'lbPerGal' | 'kgPerM3' | 'gPerCm3';
+export type OrigemReologia = 'laboratorio' | 'theta' | 'estimado' | 'catalogo' | 'base';
+export type OrigemEfeito = 'laboratorio' | 'catalogo' | 'estimado';
+export type IntensidadeEfeito = 'baixo' | 'medio' | 'alto';
+export type FamiliaQuimica =
+  | 'calciumChloride'
+  | 'sodiumChloride'
+  | 'calciumFormate'
+  | 'calciumNitrite'
+  | 'calciumNitrate'
+  | 'lignosulfonate'
+  | 'hydroxycarboxylicAcid'
+  | 'saccharide'
+  | 'celluloseDerivative'
+  | 'organophosphonate'
+  | 'naphthaleneSulfonate'
+  | 'ketoneAldehydePolymer'
+  | 'ampsPolymer'
+  | 'latex'
+  | 'bentonite'
+  | 'sodiumSilicate'
+  | 'hematite'
+  | 'barite'
+  | 'silicaFlour'
+  | 'antifoam'
+  | 'lcmGranular'
+  | 'lcmFibrous'
+  | 'generic';
+export type FuncaoAditivoGenerica =
+  | 'antiespumante'
+  | 'dispersante'
+  | 'retardador'
+  | 'acelerador'
+  | 'controladorFiltrado'
+  | 'controladorGas'
+  | 'silica'
+  | 'sal'
+  | 'adensante'
+  | 'estendedorViscosificante'
+  | 'lcm'
+  | 'outro';
 export type EfeitoTendencia = 'increase' | 'decrease' | 'neutral' | 'unknown';
 export type EfeitoTempoPega = 'accelerate' | 'retard' | 'neutral' | 'unknown';
 export type EfeitoReduzAumenta = 'reduce' | 'increase' | 'neutral' | 'unknown';
@@ -49,6 +90,45 @@ export type EfeitoReologicoPrincipal =
   | 'neutral'
   | 'unknown';
 export type ModeloReologico = 'none' | 'binghamPlastic' | 'powerLaw' | 'herschelBulkley' | 'fannReadings' | 'empirical';
+
+export interface PastaEffect {
+  parametro:
+    | 'tempoEspessamento'
+    | 'resistenciaInicial'
+    | 'pv'
+    | 'yp'
+    | 'gel'
+    | 'filtrado'
+    | 'aguaLivre'
+    | 'sedimentacao'
+    | 'densidade'
+    | 'rendimento'
+    | 'perdaCarga'
+    | 'riscoGasMigration'
+    | 'riscoCorrosao'
+    | 'riscoSobrerretardo'
+    | 'riscoPegaRapida'
+    | 'riscoEspuma'
+    | 'estabilidadeTermica'
+    | 'perdaCirculacao'
+    | 'permeabilidadeEstimada'
+    | 'arIncorporado';
+  direcao: 'aumenta' | 'reduz';
+  intensidade: IntensidadeEfeito;
+  observacao?: string;
+}
+
+export interface AdditiveEffectProfile {
+  positivo: PastaEffect[];
+  negativo: PastaEffect[];
+}
+
+export interface AdditiveDoseRange {
+  unidade: DosageUnit;
+  baixa: number;
+  media: number;
+  alta: number;
+}
 
 export interface FannReadings {
   rpm300?: number | null;
@@ -173,6 +253,23 @@ export interface Aditivo {
   observacoesLaboratorio?: string;
   fonteDados?: string;
   warnings?: string[];
+  origemReologia?: OrigemReologia;
+  familiaQuimica?: FamiliaQuimica;
+  doseRange?: AdditiveDoseRange;
+  efeitoPasta?: AdditiveEffectProfile;
+  origemEfeito?: OrigemEfeito;
+  _hydrationWarnings?: string[];
+  _usesEstimatedTechnicalData?: boolean;
+}
+
+export interface AditivoUsado {
+  catalogId: string;
+  name?: string;
+  funcaoPrincipal?: string;
+  conc: number;
+  unidadeDosagem?: UnidadeDosagem;
+  misturadoEm?: MisturadoEm;
+  ativo?: boolean;
 }
 
 export interface AditivoCalc {
@@ -216,6 +313,103 @@ export interface AditivoCatalogo extends Partial<Aditivo> {
   ucaOnsetPerUnit?: number;
   ucaStrengthPerUnit?: number;
   freeWaterPerUnit?: number;
+  familiaQuimica?: FamiliaQuimica;
+  doseRange?: AdditiveDoseRange;
+  efeitoPasta?: AdditiveEffectProfile;
+  origemEfeito?: OrigemEfeito;
+}
+
+export function funcaoGenericaAditivo(additive: Partial<Aditivo>): FuncaoAditivoGenerica {
+  const category = additive.category ?? additive.categoria;
+  if (category === 'antifoam') return 'antiespumante';
+  if (category === 'dispersant') return 'dispersante';
+  if (category === 'retarder') return 'retardador';
+  if (category === 'accelerator') return 'acelerador';
+  if (category === 'fluidLossControl' || category === 'fluid-loss') return 'controladorFiltrado';
+  if (category === 'gasMigrationControl') return 'controladorGas';
+  if (category === 'silica') return 'silica';
+  if (category === 'salt') return 'sal';
+  if (category === 'weightingAgent') return 'adensante';
+  if (category === 'extender' || category === 'viscosifier' || category === 'lightweightAgent') return 'estendedorViscosificante';
+  if (category === 'lostCirculationMaterial') return 'lcm';
+  return 'outro';
+}
+
+export function unidadePadraoAditivo(additive: Partial<Aditivo>): UnidadeDosagem {
+  const category = additive.category ?? additive.categoria;
+  const type = additive.type ?? additive.estadoFisico;
+  if (category === 'salt') return 'percentBWOW';
+  if (type === 'liquid') return 'galPerCubicFootCement';
+  return 'percentBWOC';
+}
+
+export function hydrateAditivoFromCatalog(
+  usado: Partial<AditivoUsado & Aditivo>,
+  catalogo: AditivoCatalogo[] = ADITIVOS_CATALOGO,
+): Aditivo {
+  const catalogId = usado.catalogId ?? usado.id ?? '';
+  const catalogItem = catalogId ? catalogo.find(item => item.catalogId === catalogId) : undefined;
+  const warnings: string[] = [];
+
+  if (!catalogItem) {
+    warnings.push(catalogId
+      ? `Aditivo ${catalogId} nao encontrado no catalogo; dados tecnicos incompletos.`
+      : 'Aditivo sem catalogId; dados tecnicos incompletos.');
+  }
+
+  const merged = {
+    ...usado,
+    ...(catalogItem || {}),
+    catalogId,
+    name: usado.name ?? catalogItem?.name ?? usado.nomeComercial ?? usado.commercialName ?? 'Aditivo',
+    funcaoPrincipal: usado.funcaoPrincipal ?? catalogItem?.funcaoPrincipal ?? catalogItem?.primaryFunction ?? usado.primaryFunction ?? '',
+    conc: Number.isFinite(Number(usado.conc)) ? Number(usado.conc) : Number(catalogItem?.defaultConc ?? catalogItem?.concentracaoPadrao ?? 0),
+    concentracaoUsada: Number.isFinite(Number(usado.conc)) ? Number(usado.conc) : Number(catalogItem?.defaultConc ?? catalogItem?.concentracaoPadrao ?? 0),
+    unidadeDosagem: usado.unidadeDosagem ?? catalogItem?.unidadeDosagem ?? unidadePadraoAditivo(catalogItem || usado),
+    misturadoEm: usado.misturadoEm ?? catalogItem?.misturadoEm ?? 'aguaMistura',
+    ativo: usado.ativo ?? true,
+  } as Aditivo;
+
+  merged.category = (merged.category ?? merged.categoria ?? 'other') as AditivoCategoria;
+  merged.categoria = merged.category;
+  merged.type = (merged.type ?? merged.estadoFisico ?? 'solid') as AditivoTipo;
+  merged.estadoFisico = merged.type;
+
+  if (merged.ativo === false) {
+    return { ...merged, _hydrationWarnings: warnings };
+  }
+
+  if (merged.type === 'liquid' && !hasCatalogDensity(merged)) {
+    warnings.push(`${merged.name}: densidade do liquido ausente no catalogo.`);
+  }
+  if (merged.type === 'solid' && !hasCatalogAbsoluteVolume(merged)) {
+    warnings.push(`${merged.name}: volume absoluto ou massa especifica ausente no catalogo.`);
+  }
+
+  return {
+    ...merged,
+    _hydrationWarnings: warnings,
+    _usesEstimatedTechnicalData: warnings.length > 0,
+  };
+}
+
+export function hydrateAditivosFromCatalog(
+  usados: Partial<AditivoUsado & Aditivo>[] = [],
+  catalogo: AditivoCatalogo[] = ADITIVOS_CATALOGO,
+): Aditivo[] {
+  return usados
+    .map(item => hydrateAditivoFromCatalog(item, catalogo))
+    .filter(item => item.ativo !== false);
+}
+
+function hasCatalogDensity(additive: Partial<Aditivo>): boolean {
+  return Number(additive.densidadeLbGal ?? additive.densityLbGal ?? additive.densityLb ?? 0) > 0
+      || Number(additive.massaEspecifica ?? additive.specificGravity ?? 0) > 0;
+}
+
+function hasCatalogAbsoluteVolume(additive: Partial<Aditivo>): boolean {
+  return Number(additive.volumeAbsolutoGalPerLb ?? additive.absoluteVolumeGalLb ?? 0) > 0
+      || Number(additive.massaEspecifica ?? additive.specificGravity ?? 0) > 0;
 }
 
 export const ADITIVO_CATEGORIAS: { value: AditivoCategoria; label: string }[] = [

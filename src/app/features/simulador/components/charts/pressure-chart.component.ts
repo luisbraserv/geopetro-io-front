@@ -60,7 +60,8 @@ Chart.register(...registerables);
     .p-chart-block { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; }
     .p-chart-title { font-size: .88rem; font-weight: 600; color: #1e293b; margin-bottom: 2px; }
     .p-chart-sub { font-size: .72rem; color: #64748b; margin-bottom: 10px; }
-    .p-chart-box { position: relative; height: 420px; }
+    .p-chart-box { position: relative; height: clamp(260px, 42vh, 380px); min-height: 0; overflow: hidden; }
+    .p-chart-box canvas { display: block; width: 100% !important; height: 100% !important; }
 
     /* Free Fall */
     .ff-block { }

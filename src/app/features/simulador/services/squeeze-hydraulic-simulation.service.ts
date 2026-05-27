@@ -9,7 +9,7 @@ import {
 import { SlurryDesign } from '../models/pasta.model';
 import { CoreCalculoService } from './core-calculo.service';
 import { Aditivo } from '../models/aditivo.model';
-import { RheologyAdjustmentService } from './rheology-adjustment.service';
+import { RheologyAdjustmentOptions, RheologyAdjustmentService } from './rheology-adjustment.service';
 
 interface PhaseDef {
   label: string;
@@ -30,12 +30,13 @@ export class SqueezeHydraulicSimulationService {
     'Resumo de volumes/fases',
   ];
 
-  constructor(private core: CoreCalculoService, private rheologyAdj: RheologyAdjustmentService) {}
+  constructor(
+    private core: CoreCalculoService,
+    private rheologyAdj: RheologyAdjustmentService = new RheologyAdjustmentService(),
+  ) {}
 
-  simulate(geom: SqueezeGeometry, slurry: SlurryDesign, inputs: SqueezeInputs, perfs: Perfuracao[], additives?: Aditivo[]): SqueezeHydraulicSimulation {
-    const rheologyPressureFactor = additives && additives.length > 0
-      ? this.rheologyAdj.computeRheologyPressureFactor(additives)
-      : 1.0;
+  simulate(geom: SqueezeGeometry, slurry: SlurryDesign, inputs: SqueezeInputs, perfs: Perfuracao[], additives?: Aditivo[], rheologyOptions: RheologyAdjustmentOptions = {}): SqueezeHydraulicSimulation {
+    const rheologyPressureFactor = this.rheologyAdj.computeRheologyPressureFactor(additives || [], rheologyOptions);
     const section = this.core.normalizeSectionValues(
       inputs.sectionStartMD,
       inputs.sectionEndMD,
@@ -56,15 +57,18 @@ export class SqueezeHydraulicSimulationService {
     const back = inputs.densidadeAguaAtrasPpg ?? inputs.mudWeightBack ?? 9.5;
     const cement = inputs.densidadePastaPpg ?? slurry.density ?? 15.8;
     const rate = inputs.vazaoBpm ?? inputs.pumpRate ?? 0;
-    const pauseMin = inputs.tempoPausaMin ?? Math.max(0, (inputs as any).pause1 || 0, (inputs as any).pause2 || 0, (inputs as any).pause3 || 0);
+    const pause1Min = Math.max(0, Number((inputs as any).pause1) || 0);
+    const pause2Min = Math.max(0, Number(inputs.tempoPausaMin ?? (inputs as any).pause2) || 0);
+    const pause3Min = Math.max(0, Number((inputs as any).pause3) || 0);
+    const pauseMin = pause1Min + pause2Min + pause3Min;
     const porePsi = this.hydroK * poreGrad * referenceTVD;
     const fracturePsi = this.hydroK * fracGrad * referenceTVD;
     const phases: PhaseDef[] = [
-      { label: 'Água frente', volumeBbl: inputs.volumeAguaFrenteBbl ?? geom.frontPhysicalVolumeBbl, densityPpg: front, rateBpm: rate },
-      { label: 'Pasta de cimento', volumeBbl: inputs.volumePastaBbl ?? geom.slurryTotal, densityPpg: cement, rateBpm: rate, pauseMin },
-      { label: 'Água atrás', volumeBbl: inputs.volumeAguaAtrasBbl ?? geom.volBackSpacer, densityPpg: back, rateBpm: rate },
+      { label: 'Agua frente', volumeBbl: inputs.volumeAguaFrenteBbl ?? geom.frontPhysicalVolumeBbl, densityPpg: front, rateBpm: rate, pauseMin: pause1Min },
+      { label: 'Pasta de cimento', volumeBbl: inputs.volumePastaBbl ?? geom.slurryTotal, densityPpg: cement, rateBpm: rate, pauseMin: pause2Min },
+      { label: 'Agua atras', volumeBbl: inputs.volumeAguaAtrasBbl ?? geom.volBackSpacer, densityPpg: back, rateBpm: rate, pauseMin: pause3Min },
       { label: 'Deslocamento', volumeBbl: inputs.volumeDeslocamentoBbl ?? geom.operationalDisplacementVolumeBbl, densityPpg: completion, rateBpm: rate },
-      { label: 'Squeeze/pressurização final', volumeBbl: 0, densityPpg: cement, rateBpm: 0, pauseMin: Math.max(1, pauseMin || 2) },
+      { label: 'Squeeze/pressurizacao final', volumeBbl: 0, densityPpg: cement, rateBpm: 0, pauseMin: 1 },
     ];
 
     const points: SqueezeHydraulicPoint[] = [];

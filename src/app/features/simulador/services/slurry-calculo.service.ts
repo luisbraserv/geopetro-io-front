@@ -4,7 +4,14 @@ import {
   CEMENT_WEIGHT, VOL_WATER_FRESH, VOL_WATER_SEA, VOL_NACL, VOL_SILICA,
   LB_TO_KG, GAL_TO_L, FT3_TO_L,
 } from '../models/constantes';
-import { Aditivo, AditivoCalc, AditivoEfeitos, UnidadeDosagem } from '../models/aditivo.model';
+import {
+  Aditivo,
+  AditivoCalc,
+  AditivoEfeitos,
+  UnidadeDosagem,
+  hydrateAditivosFromCatalog,
+  unidadePadraoAditivo,
+} from '../models/aditivo.model';
 import { SlurryDesign, SlurryInputs, SlurryRecipe, RecipeItem } from '../models/pasta.model';
 import { RheologyAdjustmentService } from './rheology-adjustment.service';
 import { CementSlurryRecipeService } from './cement-slurry-recipe.service';
@@ -30,7 +37,7 @@ export class SlurryCalculoService {
   ) {}
 
   getAdditiveCalcs(additivos: Aditivo[], context: AdditiveCalcContext = {}): AditivoCalc[] {
-    return (additivos || []).map(a => {
+    return hydrateAditivosFromCatalog(additivos || []).map(a => {
       const conc         = this.safeNumber(a.concentracaoUsada ?? a.conc ?? a.concentracaoPadrao, 0);
       const unit         = this.getDosageUnit(a);
       const type         = (a.estadoFisico ?? a.type ?? 'solid') as Aditivo['type'];
@@ -42,47 +49,50 @@ export class SlurryCalculoService {
       const baseBbl      = context.baseFluidBblPerSk ?? Math.max(0.01, waterLb * VOL_WATER_FRESH / 42);
       const slurryBbl    = context.slurryBblPerSk ?? baseBbl;
 
-      let wt = 0, vol = 0, warning = '';
+      let wt = 0, vol = 0;
+      const warnings = [...(a._hydrationWarnings || [])];
 
       switch (unit) {
         case 'percentBWOC':
           wt  = CEMENT_WEIGHT * conc / 100;
-          vol = wt * absVol;
+          vol = absVol != null ? wt * absVol : 0;
           break;
         case 'percentBWOW':
           wt  = waterLb * conc / 100;
-          vol = wt * absVol;
+          vol = absVol != null ? wt * absVol : 0;
           break;
         case 'lbPerSack':
           wt  = conc;
-          vol = wt * absVol;
+          vol = absVol != null ? wt * absVol : 0;
           break;
         case 'galPerSack':
           vol = conc;
-          wt  = vol * densityLbGal;
+          wt  = densityLbGal != null ? vol * densityLbGal : 0;
           break;
         case 'galPerBbl':
           vol = baseBbl * conc;
-          wt  = vol * densityLbGal;
+          wt  = densityLbGal != null ? vol * densityLbGal : 0;
           break;
         case 'galPerCubicFootCement':
-          vol = cementFt3 * conc;
-          wt  = vol * densityLbGal;
+          vol = conc;
+          wt  = densityLbGal != null ? vol * densityLbGal : 0;
           break;
         case 'kgPerM3':
           wt  = conc * slurryBbl * 0.158987 * 2.20462;
-          vol = wt * absVol;
+          vol = absVol != null ? wt * absVol : 0;
           break;
         case 'lbPerBbl':
           wt  = conc * slurryBbl;
-          vol = wt * absVol;
+          vol = absVol != null ? wt * absVol : 0;
           break;
       }
 
-      if (type === 'liquid' && !this.hasDensity(a))
-        warning = 'Informar densidade do líquido para massa/volume precisos.';
-      if (type === 'solid' && !this.hasAbsoluteVolumeOrSg(a))
-        warning = 'Informar volume absoluto ou massa específica do sólido para precisão.';
+      if (type === 'liquid' && !this.hasDensity(a)) {
+        warnings.push('Informar densidade do liquido no catalogo para massa precisa.');
+      }
+      if (type === 'solid' && !this.hasAbsoluteVolumeOrSg(a)) {
+        warnings.push('Informar volume absoluto ou massa especifica do solido no catalogo para volume preciso.');
+      }
 
       wt  = this.sanitize(wt);
       vol = this.sanitize(vol);
@@ -96,8 +106,8 @@ export class SlurryCalculoService {
         mixedIn:          a.misturadoEm,
         wt,
         vol,
-        absoluteVolumeGal: wt * absVol,
-        warning,
+        absoluteVolumeGal: absVol != null ? wt * absVol : 0,
+        warning: [...new Set(warnings)].join(' '),
       };
     });
   }
@@ -146,7 +156,7 @@ export class SlurryCalculoService {
 
     const silicaPct = inputs.silica ?? 35;
     const naclPct   = inputs.nacl   ?? 0;
-    const additivos = (inputs.additivos ?? []) as Aditivo[];
+    const additivos = hydrateAditivosFromCatalog((inputs.additivos ?? []) as Aditivo[]);
 
     // Pré-calcular aditivos com estimativa de água (contexto inicial)
     const estimatedWaterLb = this.galToWaterLb(cementClass.waterGal || 5);
@@ -250,44 +260,43 @@ export class SlurryCalculoService {
       'percentBWOC', 'percentBWOW', 'galPerSack', 'galPerBbl',
       'galPerCubicFootCement', 'lbPerSack', 'kgPerM3', 'lbPerBbl',
     ].includes(explicit)) return explicit;
-    if (a.unit === 'gpc' || a.type === 'liquid') return 'galPerSack';
-    return 'percentBWOC';
+    return unidadePadraoAditivo(a);
   }
 
-  private getDensityLbGal(a: Aditivo): number {
-    if (this.hasDensity(a))
+  private getDensityLbGal(a: Aditivo): number | null {
+    if (this.safeNumber(a.densidadeLbGal ?? a.densityLbGal ?? a.densityLb, 0) > 0)
       return this.safeNumber(a.densidadeLbGal ?? a.densityLbGal ?? a.densityLb, 8.33);
-    if (a.massaEspecificaUnidade === 'sg' || a.massaEspecificaUnidade === 'gPerCm3')
-      return this.safeNumber(a.massaEspecifica, 1) * 8.3454;
-    if (a.massaEspecificaUnidade === 'kgPerM3')
+    if ((a.massaEspecificaUnidade === 'sg' || a.massaEspecificaUnidade === 'gPerCm3') && this.safeNumber(a.massaEspecifica ?? a.specificGravity, 0) > 0)
+      return this.safeNumber(a.massaEspecifica ?? a.specificGravity, 1) * 8.3454;
+    if (a.massaEspecificaUnidade === 'kgPerM3' && this.safeNumber(a.massaEspecifica, 0) > 0)
       return this.safeNumber(a.massaEspecifica, 1000) / 119.826;
-    return 8.33;
+    return null;
   }
 
-  private getAbsoluteVolumeGalLb(a: Aditivo): number {
+  private getAbsoluteVolumeGalLb(a: Aditivo): number | null {
     if (this.safeNumber(a.volumeAbsolutoGalPerLb, 0) > 0)
       return this.safeNumber(a.volumeAbsolutoGalPerLb, 0.0453);
     const sg = this.getSpecificGravity(a);
-    return sg > 0 ? 1 / (sg * 8.3454) : 0.0453;
+    return sg > 0 ? 1 / (sg * 8.3454) : null;
   }
 
   private getSpecificGravity(a: Aditivo): number {
     if ((a.massaEspecificaUnidade === 'sg' || a.massaEspecificaUnidade === 'gPerCm3')
-        && this.safeNumber(a.massaEspecifica, 0) > 0)
-      return this.safeNumber(a.massaEspecifica, 1);
+        && this.safeNumber(a.massaEspecifica ?? a.specificGravity, 0) > 0)
+      return this.safeNumber(a.massaEspecifica ?? a.specificGravity, 1);
     if (this.safeNumber(a.densidadeLbGal ?? a.densityLbGal ?? a.densityLb, 0) > 0)
       return this.safeNumber(a.densidadeLbGal ?? a.densityLbGal ?? a.densityLb, 8.33) / 8.3454;
-    return 2.65;
+    return 0;
   }
 
   private hasDensity(a: Aditivo): boolean {
     return this.safeNumber(a.densidadeLbGal ?? a.densityLbGal ?? a.densityLb, 0) > 0
-        || this.safeNumber(a.massaEspecifica, 0) > 0;
+        || this.safeNumber(a.massaEspecifica ?? a.specificGravity, 0) > 0;
   }
 
   private hasAbsoluteVolumeOrSg(a: Aditivo): boolean {
     return this.safeNumber(a.volumeAbsolutoGalPerLb, 0) > 0
-        || this.safeNumber(a.massaEspecifica, 0) > 0;
+        || this.safeNumber(a.massaEspecifica ?? a.specificGravity, 0) > 0;
   }
 
   private galToWaterLb(gal: number): number {

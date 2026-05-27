@@ -1,5 +1,13 @@
 import { Injectable } from '@angular/core';
-import { Aditivo, AditivoRheologyCoefficients, FannReadings } from '../models/aditivo.model';
+import {
+  Aditivo,
+  AditivoRheologyCoefficients,
+  FannReadings,
+  OrigemReologia,
+  hydrateAditivosFromCatalog,
+} from '../models/aditivo.model';
+import { Rheology } from '../models/reologia.model';
+import { AdditiveEffectEngineService, AppliedPastaEffect } from './additive-effect-engine.service';
 
 export interface BaseRheology {
   plasticViscosityCp?: number | null;
@@ -20,16 +28,25 @@ export interface BaseRheology {
   rpm3?: number | null;
 }
 
+export interface RheologyAdjustmentOptions {
+  manualRheology?: BaseRheology | null;
+  thetaReadings?: Partial<Rheology> | null;
+}
+
 export interface RheologyAdjustmentResult {
   rheology: BaseRheology;
   warnings: string[];
   confidence: 'manual' | 'measured' | 'estimated' | 'unknown';
+  source: OrigemReologia;
   rheologyPressureFactor: number;
   synergyApplied: string[];
   riscoEspuma: boolean;
+  operationalEffects?: {
+    positivo: AppliedPastaEffect[];
+    negativo: AppliedPastaEffect[];
+  };
 }
 
-/** Pasta Classe G 15.8 ppg sem aditivos — referência empírica. */
 export const BASE_SLURRY_RHEOLOGY: BaseRheology = {
   plasticViscosityCp: 38,
   yieldPointLbf100ft2: 45,
@@ -51,15 +68,31 @@ export const BASE_SLURRY_RHEOLOGY: BaseRheology = {
 
 @Injectable({ providedIn: 'root' })
 export class RheologyAdjustmentService {
+  constructor(private effectEngine: AdditiveEffectEngineService = new AdditiveEffectEngineService()) {}
 
-  applyAdditiveRheologyEffects(baseRheology: BaseRheology, additives: Aditivo[]): RheologyAdjustmentResult {
+  applyAdditiveRheologyEffects(
+    baseRheology: BaseRheology,
+    additives: Aditivo[],
+    options: RheologyAdjustmentOptions = {},
+  ): RheologyAdjustmentResult {
     const rheology: BaseRheology = { ...BASE_SLURRY_RHEOLOGY, ...this.sanitizeBase(baseRheology) };
     const warnings: string[] = [];
     const synergyApplied: string[] = [];
-    let confidence: RheologyAdjustmentResult['confidence'] = 'manual';
-    let riscoEspuma = false;
 
+    if (this.hasAnyBaseValue(options.manualRheology)) {
+      Object.assign(rheology, this.sanitizeBase(options.manualRheology || {}));
+      return this.finalize(rheology, warnings, 'measured', 'laboratorio', 0, synergyApplied, false);
+    }
+
+    if (this.hasThetaReadings(options.thetaReadings)) {
+      Object.assign(rheology, this.fromThetaReadings(options.thetaReadings || {}));
+      return this.finalize(rheology, warnings, 'measured', 'theta', 0, synergyApplied, false);
+    }
+
+    let confidence: RheologyAdjustmentResult['confidence'] = 'manual';
+    let source: OrigemReologia = 'base';
     let frictionDelta = 0;
+    let riscoEspuma = false;
     let hasDispersant = false;
     let hasFluidLoss = false;
     let hasSilica = false;
@@ -67,27 +100,35 @@ export class RheologyAdjustmentService {
     let hasRetarder = false;
     let hasLatex = false;
     let hasAntifoam = false;
+    const hydratedAdditives = this.effectEngine.hydrateAdditivesFromCatalog(additives || []);
+    const effectResult = this.effectEngine.applyPositiveNegativeEffects({}, hydratedAdditives);
+    warnings.push(...effectResult.warnings);
 
-    for (const additive of additives || []) {
+    if (effectResult.rheologyCoefficients && this.hasAnyCoefficient(effectResult.rheologyCoefficients)) {
+      this.applyGenericProfile(rheology, effectResult.rheologyCoefficients, 1);
+      frictionDelta += this.frictionDelta(effectResult.rheologyCoefficients, 1);
+      confidence = 'estimated';
+      source = effectResult.origem === 'laboratorio' ? 'laboratorio' : effectResult.origem === 'catalogo' ? 'catalogo' : 'estimado';
+    }
+
+    for (const additive of hydratedAdditives) {
+      warnings.push(...(additive._hydrationWarnings || []));
       if (!this.affectsRheology(additive)) continue;
 
       const label = additive.name || additive.nomeComercial || additive.commercialName || 'Aditivo';
       const concentration = this.numberOrZero(additive.concentracaoUsada ?? additive.conc ?? additive.concentracaoPadrao);
       const coeffs = this.getCoefficients(additive);
       const fann = this.getFannReadings(additive);
-
-      if (!this.hasMeasuredRheology(additive) && !this.hasAnyCoefficient(coeffs) && !this.hasAnyFann(fann)) {
-        warnings.push(`${label}: pode afetar a reologia, mas sem coeficientes cadastrados — efeito não calculado.`);
-        confidence = confidence === 'manual' ? 'unknown' : confidence;
-        continue;
-      }
+      const hasLab = this.hasMeasuredRheology(additive);
+      const hasCoeffs = this.hasAnyCoefficient(coeffs);
+      const hasFann = this.hasAnyFann(fann);
 
       const min = additive.concentracaoMin;
       const max = additive.concentracaoMax;
-      if (typeof min === 'number' && concentration < min) warnings.push(`${label}: concentração abaixo do mínimo; resultado é extrapolação.`);
-      if (typeof max === 'number' && concentration > max) warnings.push(`${label}: concentração acima do máximo; resultado é extrapolação.`);
+      if (typeof min === 'number' && concentration < min) warnings.push(`${label}: concentracao abaixo do minimo; resultado e extrapolacao.`);
+      if (typeof max === 'number' && concentration > max) warnings.push(`${label}: concentracao acima do maximo; resultado e extrapolacao.`);
 
-      if (this.hasAnyCoefficient(coeffs)) {
+      if (hasCoeffs) {
         this.applyCoefficient(rheology, 'plasticViscosityCp', coeffs.pvDeltaPerUnit, concentration);
         this.applyCoefficient(rheology, 'yieldPointLbf100ft2', coeffs.ypDeltaPerUnit, concentration);
         this.applyCoefficient(rheology, 'gel10sLbf100ft2', coeffs.gel10sDeltaPerUnit, concentration);
@@ -95,30 +136,33 @@ export class RheologyAdjustmentService {
         this.applyCoefficient(rheology, 'gel30minLbf100ft2', coeffs.gel30minDeltaPerUnit, concentration);
         this.applyCoefficient(rheology, 'consistencyBc', coeffs.consistencyDeltaPerUnit, concentration);
         this.applyCoefficient(rheology, 'thickeningTimeMin', coeffs.thickeningTimeDeltaMinPerUnit, concentration);
-        if (this.isFiniteNumber(coeffs.fluidLossReductionFactorPerUnit) && (coeffs.fluidLossReductionFactorPerUnit as number) > 0) {
-          const base = this.numberOrDefault(rheology.fluidLossCc30min, 1500);
-          const reduction = Math.min(0.95, (coeffs.fluidLossReductionFactorPerUnit as number) * concentration);
-          rheology.fluidLossCc30min = Math.max(20, base * (1 - reduction));
-        }
-        if (this.isFiniteNumber(coeffs.frictionFactorMultiplierDeltaPerUnit)) {
-          frictionDelta += (coeffs.frictionFactorMultiplierDeltaPerUnit as number) * concentration;
-        } else if (this.isFiniteNumber(coeffs.frictionFactorMultiplier)) {
-          frictionDelta += ((coeffs.frictionFactorMultiplier as number) - 1);
-        }
+        this.applyFluidLossReduction(rheology, coeffs, concentration);
+        frictionDelta += this.frictionDelta(coeffs, concentration);
         confidence = 'estimated';
+        if (source === 'base') source = 'catalogo';
+      } else if (!hasLab && !hasFann) {
+        if (!additive.efeitoPasta?.positivo?.length && !additive.efeitoPasta?.negativo?.length) {
+          warnings.push(`${label}: pode afetar a reologia, mas sem coeficientes cadastrados; efeito nao calculado.`);
+          if (confidence === 'manual') confidence = 'unknown';
+        }
       }
 
-      if (this.hasAnyFann(fann)) {
+      if (hasFann) {
         Object.assign(rheology, fann);
         const pv = this.calcPvFromFann(fann);
         const yp = this.calcYpFromFann(fann);
         if (pv != null) rheology.plasticViscosityCp = pv;
         if (yp != null) rheology.yieldPointLbf100ft2 = yp;
-        warnings.push(`${label}: leituras Fann cadastradas substituíram estimativa base.`);
+        warnings.push(`${label}: leituras Fann cadastradas substituiram a estimativa base.`);
         confidence = 'measured';
+        source = 'laboratorio';
       }
 
-      this.applyMeasuredFields(rheology, additive);
+      if (hasLab) {
+        this.applyMeasuredFields(rheology, additive);
+        confidence = 'measured';
+        source = 'laboratorio';
+      }
 
       const cat = additive.category ?? additive.categoria;
       if (cat === 'dispersant') hasDispersant = true;
@@ -130,29 +174,49 @@ export class RheologyAdjustmentService {
       if (cat === 'antifoam') hasAntifoam = true;
     }
 
-    // Regras de sinergia
     if (hasDispersant && hasFluidLoss) {
       rheology.plasticViscosityCp = this.isFiniteNumber(rheology.plasticViscosityCp)
         ? (rheology.plasticViscosityCp as number) * 0.90 : rheology.plasticViscosityCp;
       rheology.yieldPointLbf100ft2 = this.isFiniteNumber(rheology.yieldPointLbf100ft2)
         ? (rheology.yieldPointLbf100ft2 as number) * 0.90 : rheology.yieldPointLbf100ft2;
-      synergyApplied.push('Dispersante + Controlador de filtrado: redução adicional de 10% em PV e YP.');
+      synergyApplied.push('Dispersante + Controlador de filtrado: reducao adicional de 10% em PV e YP.');
     }
     if (hasSilica && hasAccelerator) {
       rheology.plasticViscosityCp = this.isFiniteNumber(rheology.plasticViscosityCp)
         ? (rheology.plasticViscosityCp as number) * 1.05 : rheology.plasticViscosityCp;
-      synergyApplied.push('Sílica + Acelerador em alta temperatura: PV aumentado 5%.');
+      synergyApplied.push('Silica + Acelerador em alta temperatura: PV aumentado 5%.');
     }
     if (hasAccelerator && hasRetarder) {
-      warnings.push('Acelerador e retardador na mesma pasta — efeito pode ser imprevisível; recomendar teste de laboratório.');
-      synergyApplied.push('Acelerador + Retardador: efeito oponente — resultado incerto.');
+      warnings.push('Acelerador e retardador na mesma pasta: efeito pode ser imprevisivel; recomendar teste de laboratorio.');
+      synergyApplied.push('Acelerador + Retardador: efeito oponente; resultado incerto.');
     }
     if (hasLatex && !hasAntifoam) {
       riscoEspuma = true;
-      warnings.push('Latex sem antiespumante: risco de formação de espuma na pasta.');
+      warnings.push('Latex sem antiespumante: risco de formacao de espuma na pasta.');
     }
 
-    // Clamping de valores físicos mínimos
+    return this.finalize(rheology, warnings, confidence, source, frictionDelta, synergyApplied, riscoEspuma, effectResult.appliedEffects);
+  }
+
+  computeRheologyPressureFactor(additives: Aditivo[], options: RheologyAdjustmentOptions = {}): number {
+    const result = this.applyAdditiveRheologyEffects({}, additives, options);
+    return result.rheologyPressureFactor;
+  }
+
+  hasAutomaticRheologyData(additive: Aditivo): boolean {
+    return this.hasMeasuredRheology(additive) || this.hasAnyCoefficient(this.getCoefficients(additive)) || this.hasAnyFann(this.getFannReadings(additive));
+  }
+
+  private finalize(
+    rheology: BaseRheology,
+    warnings: string[],
+    confidence: RheologyAdjustmentResult['confidence'],
+    source: OrigemReologia,
+    frictionDelta: number,
+    synergyApplied: string[],
+    riscoEspuma: boolean,
+    operationalEffects?: RheologyAdjustmentResult['operationalEffects'],
+  ): RheologyAdjustmentResult {
     if (this.isFiniteNumber(rheology.plasticViscosityCp)) rheology.plasticViscosityCp = Math.max(5, rheology.plasticViscosityCp as number);
     if (this.isFiniteNumber(rheology.yieldPointLbf100ft2)) rheology.yieldPointLbf100ft2 = Math.max(2, rheology.yieldPointLbf100ft2 as number);
     if (this.isFiniteNumber(rheology.gel10sLbf100ft2)) rheology.gel10sLbf100ft2 = Math.max(1, rheology.gel10sLbf100ft2 as number);
@@ -160,30 +224,49 @@ export class RheologyAdjustmentService {
     if (this.isFiniteNumber(rheology.gel30minLbf100ft2)) rheology.gel30minLbf100ft2 = Math.max(3, rheology.gel30minLbf100ft2 as number);
     if (this.isFiniteNumber(rheology.consistencyBc)) rheology.consistencyBc = Math.max(1, rheology.consistencyBc as number);
 
-    // Fator de pressão hidráulica
     const pv = this.numberOrDefault(rheology.plasticViscosityCp, 38);
     const yp = this.numberOrDefault(rheology.yieldPointLbf100ft2, 45);
     const baseMultiplier = Math.max(0.65, Math.min(1.80, 1 + (pv - 38) / 100 + (yp - 45) / 180));
-    const effectiveFrictionDelta = frictionDelta / 100;
-    const rheologyPressureFactor = Math.max(0.5, Math.min(2.0, baseMultiplier + effectiveFrictionDelta));
+    const rheologyPressureFactor = Math.max(0.5, Math.min(2.0, baseMultiplier + frictionDelta / 100));
 
     return {
       rheology: this.sanitize(rheology),
-      warnings,
+      warnings: [...new Set(warnings)],
       confidence,
+      source,
       rheologyPressureFactor,
       synergyApplied,
       riscoEspuma,
+      operationalEffects,
     };
   }
 
-  computeRheologyPressureFactor(additives: Aditivo[]): number {
-    const result = this.applyAdditiveRheologyEffects({}, additives);
-    return result.rheologyPressureFactor;
+  private applyGenericProfile(target: BaseRheology, coeffs: AditivoRheologyCoefficients, concentration: number): void {
+    this.applyCoefficient(target, 'plasticViscosityCp', coeffs.pvDeltaPerUnit, concentration);
+    this.applyCoefficient(target, 'yieldPointLbf100ft2', coeffs.ypDeltaPerUnit, concentration);
+    this.applyCoefficient(target, 'gel10sLbf100ft2', coeffs.gel10sDeltaPerUnit, concentration);
+    this.applyCoefficient(target, 'gel10minLbf100ft2', coeffs.gel10minDeltaPerUnit, concentration);
+    this.applyCoefficient(target, 'gel30minLbf100ft2', coeffs.gel30minDeltaPerUnit, concentration);
+    this.applyCoefficient(target, 'consistencyBc', coeffs.consistencyDeltaPerUnit, concentration);
+    this.applyCoefficient(target, 'thickeningTimeMin', coeffs.thickeningTimeDeltaMinPerUnit, concentration);
+    this.applyFluidLossReduction(target, coeffs, concentration);
   }
 
-  hasAutomaticRheologyData(additive: Aditivo): boolean {
-    return this.hasMeasuredRheology(additive) || this.hasAnyCoefficient(this.getCoefficients(additive)) || this.hasAnyFann(this.getFannReadings(additive));
+  private applyFluidLossReduction(target: BaseRheology, coeffs: AditivoRheologyCoefficients, concentration: number): void {
+    if (!this.isFiniteNumber(coeffs.fluidLossReductionFactorPerUnit) || (coeffs.fluidLossReductionFactorPerUnit as number) <= 0) return;
+    const base = this.numberOrDefault(target.fluidLossCc30min, 1500);
+    const reduction = Math.min(0.95, (coeffs.fluidLossReductionFactorPerUnit as number) * concentration);
+    target.fluidLossCc30min = Math.max(20, base * (1 - reduction));
+  }
+
+  private frictionDelta(coeffs: AditivoRheologyCoefficients, concentration: number): number {
+    if (this.isFiniteNumber(coeffs.frictionFactorMultiplierDeltaPerUnit)) {
+      return (coeffs.frictionFactorMultiplierDeltaPerUnit as number) * concentration;
+    }
+    if (this.isFiniteNumber(coeffs.frictionFactorMultiplier)) {
+      return ((coeffs.frictionFactorMultiplier as number) - 1);
+    }
+    return 0;
   }
 
   private sanitizeBase(base: BaseRheology): BaseRheology {
@@ -232,6 +315,34 @@ export class RheologyAdjustmentService {
     return Object.values(fann || {}).some(v => this.isFiniteNumber(v));
   }
 
+  private hasAnyBaseValue(rheology?: BaseRheology | null): boolean {
+    return Object.values(rheology || {}).some(v => this.isFiniteNumber(v));
+  }
+
+  private hasThetaReadings(theta?: Partial<Rheology> | null): boolean {
+    return this.isFiniteNumber(theta?.theta300) && this.isFiniteNumber(theta?.theta100);
+  }
+
+  private fromThetaReadings(theta: Partial<Rheology>): BaseRheology {
+    const rpm300 = this.numberOrDefault(theta.theta300, 75);
+    const rpm100 = this.numberOrDefault(theta.theta100, 42);
+    const pv = Math.max(0, rpm300 - rpm100);
+    const yp = Math.max(0, rpm300 - pv);
+    return {
+      rpm300,
+      rpm200: this.numberOrNull(theta.theta200),
+      rpm100,
+      rpm60: this.numberOrNull(theta.theta60),
+      rpm30: this.numberOrNull(theta.theta30),
+      rpm6: this.numberOrNull(theta.theta6),
+      rpm3: this.numberOrNull(theta.theta3),
+      plasticViscosityCp: pv,
+      yieldPointLbf100ft2: yp,
+      gel10sLbf100ft2: this.numberOrDefault(theta.theta10, BASE_SLURRY_RHEOLOGY.gel10sLbf100ft2 || 10),
+      gel10minLbf100ft2: this.numberOrDefault(theta.theta3, BASE_SLURRY_RHEOLOGY.gel10minLbf100ft2 || 22),
+    };
+  }
+
   private applyCoefficient(target: BaseRheology, key: keyof BaseRheology, delta: number | null | undefined, concentration: number): void {
     if (!this.isFiniteNumber(delta)) return;
     const base = this.numberOrZero(target[key] as number | null | undefined);
@@ -276,6 +387,10 @@ export class RheologyAdjustmentService {
 
   private numberOrDefault(value: number | null | undefined, fallback: number): number {
     return this.isFiniteNumber(value) ? value as number : fallback;
+  }
+
+  private numberOrNull(value: number | null | undefined): number | null {
+    return this.isFiniteNumber(value) ? value as number : null;
   }
 
   private isFiniteNumber(value: unknown): value is number {
