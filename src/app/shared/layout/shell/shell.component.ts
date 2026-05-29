@@ -120,7 +120,7 @@ export class ShellComponent {
       }
 
       if (entry.label === 'Gerenciamento') {
-        return roles.includes('INTERNO') || roles.includes('ADMIN');
+        return roles.includes('INTERNO') || roles.includes('CIMENTACAO') || roles.includes('ADMIN');
       }
 
       return true;

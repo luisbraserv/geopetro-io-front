@@ -124,19 +124,19 @@ export const routes: Routes = [
         path: 'gerenciamento/processos',
         component: ProcessosPageComponent,
         canActivate: [authGuard],
-        data: { roles: ['INTERNO', 'ADMIN'] },
+        data: { roles: ['INTERNO', 'CIMENTACAO', 'ADMIN'] },
       },
       {
         path: 'gerenciamento/processos/arquivados',
         component: ProcessosArquivadosPageComponent,
         canActivate: [authGuard],
-        data: { roles: ['INTERNO', 'ADMIN'] },
+        data: { roles: ['INTERNO', 'CIMENTACAO', 'ADMIN'] },
       },
       {
         path: 'gerenciamento/processos/:id',
         component: ProcessoDetailPageComponent,
         canActivate: [authGuard],
-        data: { roles: ['INTERNO', 'ADMIN'] },
+        data: { roles: ['INTERNO', 'CIMENTACAO', 'ADMIN'] },
       },
       {
         path: 'monitoramento-sondas',
@@ -171,7 +171,7 @@ export const routes: Routes = [
     path: 'resumo-processos',
     component: ProcessosResumoPageComponent,
     canActivate: [authGuard],
-    data: { roles: ['INTERNO', 'ADMIN'] },
+    data: { roles: ['INTERNO', 'CIMENTACAO', 'ADMIN'] },
   },
   {
     path: '404',
