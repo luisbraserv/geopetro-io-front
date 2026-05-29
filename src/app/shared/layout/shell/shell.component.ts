@@ -33,6 +33,14 @@ const ALL_NAV_ENTRIES: NavEntry[] = [
   },
   {
     kind: 'group',
+    label: 'Sonda',
+    icon: '@tui.activity',
+    children: [
+      { kind: 'leaf', label: 'Monitoramento', icon: '@tui.radio-tower', route: '/app/monitoramento-sondas' },
+    ],
+  },
+  {
+    kind: 'group',
     label: 'Cimentação',
     icon: '@tui.layers',
     children: [
@@ -72,6 +80,7 @@ export class ShellComponent {
   protected readonly showLabels = computed(
     () => (!this.sidebarCollapsed() && !this.isMobile()) || this.mobileOpen(),
   );
+  protected readonly isAdmin = computed(() => this.currentUser()?.roles.includes('ADMIN') ?? false);
 
   protected readonly toggleIcon = computed(() => {
     if (this.isMobile()) return this.mobileOpen() ? '@tui.x' : '@tui.menu';
@@ -92,6 +101,10 @@ export class ShellComponent {
 
       if (entry.label === 'Cimentação') {
         return roles.includes('CIMENTACAO');
+      }
+
+      if (entry.label === 'Sonda') {
+        return roles.includes('SONDA') || roles.includes('ADMIN');
       }
 
       return true;

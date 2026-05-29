@@ -3,14 +3,14 @@
 }
 
 .dashboard {
-  padding: clamp(1.5rem, 3vw, 2.5rem);
-  max-width: 1200px;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
+  color: var(--color-text-strong);
 }
 
-.dashboard__header {
+.page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -18,22 +18,29 @@
   flex-wrap: wrap;
 }
 
-.dashboard__eyebrow,
+.eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--color-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+h1 { margin: 0; font-size: 1.5rem; font-weight: 800; color: var(--color-text-strong); }
+
+.page-header > div > span {
+  font-size: 0.86rem;
+  color: var(--color-text-secondary);
+}
+
 .dashboard__section-header p {
   margin: 0;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.06em;
   font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-text-body);
-}
-
-.dashboard__title {
-  margin: 0.25rem 0 0;
-  font-size: clamp(1.75rem, 4vw, 2.75rem);
-  font-weight: 800;
-  color: var(--color-text-strong);
-  letter-spacing: 0;
+  font-weight: 700;
+  color: var(--color-secondary);
 }
 
 .dashboard__status {
@@ -60,33 +67,6 @@
   flex-shrink: 0;
 }
 
-.dashboard__welcome {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.25rem 1.5rem;
-  border-radius: 8px;
-  background: var(--color-surface-muted);
-  border: 1px solid var(--color-card-border);
-}
-
-.welcome__icon {
-  font-size: 2.25rem;
-  color: var(--color-primary);
-  flex-shrink: 0;
-}
-
-.welcome__greeting {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--color-text-strong);
-}
-
-.welcome__role {
-  margin: 0.25rem 0 0;
-  font-size: 0.85rem;
-  color: var(--color-text-body);
-}
 
 .dashboard__cards {
   display: grid;

@@ -41,7 +41,7 @@ export class UsuariosAdminPageComponent {
   protected readonly editandoUsername = signal<string | null>(null);
   protected readonly empresas = signal<Empresa[]>([]);
   protected readonly setores = signal<Setor[]>([]);
-  protected readonly rolesAdicionais: UserRole[] = ['ADMIN', 'CIMENTACAO'];
+  protected readonly rolesAdicionais: UserRole[] = ['ADMIN', 'CIMENTACAO', 'SONDA'];
 
   protected readonly form = {
     id: 1,
@@ -131,6 +131,7 @@ export class UsuariosAdminPageComponent {
       CLIENTE: 'Cliente',
       INTERNO: 'Interno',
       CIMENTACAO: 'Cimentação',
+      SONDA: 'Sonda',
     };
 
     return labels[role] ?? role;

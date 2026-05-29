@@ -130,8 +130,25 @@ export const routes: Routes = [
         component: ProcessoDetailPageComponent,
       },
       {
+        path: 'monitoramento-sondas',
+        loadComponent: () =>
+          import('./features/monitoramento/pages/monitoramento-sonda-page/monitoramento-sonda-page.component').then(
+            (m) => m.MonitoramentoSondaPageComponent,
+          ),
+        canActivate: [authGuard],
+      },
+      {
         path: 'meu-usuario',
         component: MeuUsuarioPageComponent,
+      },
+      {
+        path: 'configuracoes',
+        loadComponent: () =>
+          import('./features/configuracoes/pages/configuracoes-page/configuracoes-page.component').then(
+            (m) => m.ConfiguracoesPageComponent,
+          ),
+        canActivate: [authGuard],
+        data: { roles: ['ADMIN'] },
       },
       {
         path: '**',

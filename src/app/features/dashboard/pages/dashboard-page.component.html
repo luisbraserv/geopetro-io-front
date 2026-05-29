@@ -1,22 +1,15 @@
 <div class="dashboard">
-  <div class="dashboard__header">
+  <header class="page-header">
     <div>
-      <p class="dashboard__eyebrow">Painel Principal</p>
-      <h1 class="dashboard__title">Dashboard</h1>
+      <p class="eyebrow">Painel Principal</p>
+      <h1>Dashboard</h1>
+      <span>Bem-vindo, <strong>{{ currentUser()?.nome }}</strong> · {{ currentUser()?.roles?.join(', ') }}</span>
     </div>
     <span class="dashboard__status">
       <span class="status-dot"></span>
       Status Operacional: Ativo
     </span>
-  </div>
-
-  <div class="dashboard__welcome">
-    <tui-icon icon="@tui.user-circle" class="welcome__icon"></tui-icon>
-    <div>
-      <p class="welcome__greeting">Bem-vindo, <strong>{{ currentUser()?.nome }}</strong></p>
-      <p class="welcome__role">Perfil: {{ currentUser()?.roles?.join(', ') }}</p>
-    </div>
-  </div>
+  </header>
 
   <div class="dashboard__cards">
     <a class="dash-card" routerLink="/app/simulador">
