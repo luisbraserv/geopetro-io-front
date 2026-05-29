@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface SondaDisponivel {
-  idUnidade: number;
+  idSondaUnidade: string;
   nome: string;
   apelido: string;
 }
@@ -29,7 +29,7 @@ export class MonitoramentoSondaService {
   }
 
   consultarSerie(
-    idSondaUnidade: number,
+    idSondaUnidade: string,
     dispositivoId: string,
     inicio: string,
     fim: string
@@ -39,7 +39,7 @@ export class MonitoramentoSondaService {
       .set('inicio', inicio)
       .set('fim', fim);
     return this.http.get<MonitoramentoSerie>(
-      `${this.baseUrl}/${idSondaUnidade}/monitoramentos/series`,
+      `${this.baseUrl}/${encodeURIComponent(idSondaUnidade)}/monitoramentos/series`,
       { params }
     );
   }

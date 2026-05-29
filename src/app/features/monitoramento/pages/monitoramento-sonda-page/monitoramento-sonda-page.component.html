@@ -13,7 +13,7 @@
         <span>Sonda / Unidade</span>
         <select [(ngModel)]="sondaSelecionadaValue" (ngModelChange)="onSondaChange()">
           <option [ngValue]="null" disabled selected>Selecione uma sonda</option>
-          @for (sonda of sondas(); track sonda.idUnidade) {
+          @for (sonda of sondas(); track sonda.idSondaUnidade) {
             <option [ngValue]="sonda">{{ sonda.apelido || sonda.nome }}</option>
           }
         </select>

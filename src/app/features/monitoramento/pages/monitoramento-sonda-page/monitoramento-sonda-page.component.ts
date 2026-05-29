@@ -103,7 +103,7 @@ export class MonitoramentoSondaPageComponent implements OnInit {
 
     const { inicio, fim } = this.calcularPeriodo();
 
-    this.service.consultarSerie(sonda.idUnidade, dispositivo, inicio, fim).subscribe({
+    this.service.consultarSerie(sonda.idSondaUnidade, dispositivo, inicio, fim).subscribe({
       next: (data) => {
         this.carregando.set(false);
         if (!data.pontos || data.pontos.length === 0) {
