@@ -35,10 +35,11 @@ export class MonitoramentoSondaPageComponent implements OnInit {
   readonly erro = signal<string | null>(null);
 
   readonly dispositivos = signal<DispositivoMonitoramento[]>([
-    { id: 'PRESSAO-01', label: 'Pressao de Bombeio', unidade: 'psi', visivel: true },
-    { id: 'VAZAO-01', label: 'Vazao de Bombeio', unidade: 'bbl/min', visivel: true },
-    { id: 'DENSIDADE-01', label: 'Densidade da Pasta', unidade: 'ppg', visivel: true },
-    { id: 'TEMPERATURA-01', label: 'Temperatura de Fundo', unidade: 'C', visivel: true },
+    { id: 'PESO_COLUNA_01',  label: 'Peso da Coluna',          unidade: 'lbf',    visivel: true },
+    { id: 'TORQUE_01',       label: 'Torque Ch. Hid. Tubos',   unidade: 'lbf·ft', visivel: true },
+    { id: 'TORQUE_02',       label: 'Torque Ch. Flutuante',    unidade: 'lbf·ft', visivel: true },
+    { id: 'PRESSAO_01',      label: 'Pressao Bomba / ESCP',    unidade: 'psi',    visivel: true },
+    { id: 'VAZAO_01',        label: 'Vazao',                   unidade: 'bbl/min',visivel: true },
   ]);
 
   readonly periodos = [
