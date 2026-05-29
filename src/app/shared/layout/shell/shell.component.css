@@ -92,10 +92,10 @@
 
 .brand-logo {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.12);
+  background: #ffffff;
   display: grid;
   place-items: center;
   padding: 4px;
