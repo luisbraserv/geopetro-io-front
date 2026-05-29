@@ -526,7 +526,10 @@ export class ProcessosPageComponent {
 
   protected carregarTudo(): void {
     this.setorService.listar().subscribe({ next: (setores) => this.setores.set(setores), error: (error: Error) => this.notificarErro(error) });
-    this.usuariosService.listar(0, 200).subscribe({ next: (pagina) => this.usuariosInternos.set(pagina.conteudo.filter((u) => u.roles.includes('INTERNO'))), error: (error: Error) => this.notificarErro(error) });
+    const user = this.currentUser();
+    if (user?.roles.includes('ADMIN')) {
+      this.usuariosService.listar(0, 200).subscribe({ next: (pagina) => this.usuariosInternos.set(pagina.conteudo.filter((u) => u.roles.includes('INTERNO'))), error: (error: Error) => this.notificarErro(error) });
+    }
     this.projetoService.listar().subscribe({ next: (projetos) => this.projetos.set(projetos), error: (error: Error) => this.notificarErro(error) });
     this.carregarUnidades();
     this.carregarProcessos();

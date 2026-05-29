@@ -4,6 +4,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { TuiIcon } from '@taiga-ui/core';
 import { Store } from '@ngxs/store';
 
+import { AuthenticatedUser, UserRole } from '../../../features/auth/models/user.model';
 import { Logout } from '../../../features/auth/state/auth.actions';
 import { AuthState } from '../../../features/auth/state/auth.state';
 
@@ -61,7 +62,14 @@ const ALL_NAV_ENTRIES: NavEntry[] = [
       },
     ],
   },
-  { kind: 'leaf', label: 'Cadastros', icon: '@tui.clipboard-list', route: '/app/cadastros' },
+  {
+    kind: 'group',
+    label: 'Administração',
+    icon: '@tui.shield',
+    children: [
+      { kind: 'leaf', label: 'Cadastros', icon: '@tui.clipboard-list', route: '/app/cadastros' },
+    ],
+  },
 ];
 
 @Component({
@@ -80,7 +88,7 @@ export class ShellComponent {
   protected readonly showLabels = computed(
     () => (!this.sidebarCollapsed() && !this.isMobile()) || this.mobileOpen(),
   );
-  protected readonly isAdmin = computed(() => this.currentUser()?.roles.includes('ADMIN') ?? false);
+  protected readonly isAdmin = computed(() => obterRolesUsuario(this.currentUser()).includes('ADMIN'));
 
   protected readonly toggleIcon = computed(() => {
     if (this.isMobile()) return this.mobileOpen() ? '@tui.x' : '@tui.menu';
@@ -88,11 +96,15 @@ export class ShellComponent {
   });
 
   protected readonly navEntries = computed(() => {
-    const roles = this.currentUser()?.roles ?? [];
+    const roles = obterRolesUsuario(this.currentUser());
 
     return ALL_NAV_ENTRIES.filter((entry) => {
       if (entry.kind !== 'group') {
-        return entry.label === 'Cadastros' ? roles.includes('ADMIN') || roles.includes('INTERNO') : true;
+        if (entry.label === 'Dashboard') {
+          return roles.includes('ADMIN');
+        }
+
+        return entry.label === 'Cadastros' ? roles.includes('ADMIN') : true;
       }
 
       if (entry.label === 'Administração') {
@@ -100,11 +112,15 @@ export class ShellComponent {
       }
 
       if (entry.label === 'Cimentação') {
-        return roles.includes('CIMENTACAO');
+        return roles.includes('CIMENTACAO') || roles.includes('ADMIN');
       }
 
       if (entry.label === 'Sonda') {
         return roles.includes('SONDA') || roles.includes('ADMIN');
+      }
+
+      if (entry.label === 'Gerenciamento') {
+        return roles.includes('INTERNO') || roles.includes('ADMIN');
       }
 
       return true;
@@ -135,4 +151,18 @@ export class ShellComponent {
   protected logout(): void {
     this.store.dispatch(new Logout());
   }
+}
+
+function obterRolesUsuario(user: AuthenticatedUser | null): UserRole[] {
+  return normalizarRoles([...(user?.roles ?? []), user?.role].filter(Boolean) as string[]);
+}
+
+function normalizarRoles(roles: string[] | undefined): UserRole[] {
+  return Array.from(
+    new Set(
+      (roles ?? [])
+        .map((role) => role.replace(/^ROLE_/i, '').toUpperCase())
+        .filter(Boolean),
+    ),
+  ) as UserRole[];
 }

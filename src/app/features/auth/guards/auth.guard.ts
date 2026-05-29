@@ -7,7 +7,7 @@ import {
 } from '@angular/router';
 import { Store } from '@ngxs/store';
 
-import { UserRole } from '../models/user.model';
+import { AuthenticatedUser, UserRole } from '../models/user.model';
 import { AuthState } from '../state/auth.state';
 
 /**
@@ -29,11 +29,11 @@ export const authGuard: CanActivateFn = (
     return router.createUrlTree(['/login']);
   }
 
-  const requiredRoles: UserRole[] | undefined = route.data['roles'];
+  const requiredRoles = normalizarRoles(route.data['roles']);
 
   if (requiredRoles && requiredRoles.length > 0) {
     const currentUser = store.selectSnapshot(AuthState.currentUser);
-    const userRoles = currentUser?.roles ?? [];
+    const userRoles = obterRolesUsuario(currentUser);
 
     if (!userRoles.some((role) => requiredRoles.includes(role))) {
       return router.createUrlTree(['/acesso-negado']);
@@ -42,3 +42,17 @@ export const authGuard: CanActivateFn = (
 
   return true;
 };
+
+function obterRolesUsuario(user: AuthenticatedUser | null): UserRole[] {
+  return normalizarRoles([...(user?.roles ?? []), user?.role].filter(Boolean) as string[]);
+}
+
+function normalizarRoles(roles: string[] | undefined): UserRole[] {
+  return Array.from(
+    new Set(
+      (roles ?? [])
+        .map((role) => role.replace(/^ROLE_/i, '').toUpperCase())
+        .filter(Boolean),
+    ),
+  ) as UserRole[];
+}

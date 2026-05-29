@@ -92,7 +92,7 @@ export class AuthState {
       isLoading: false,
       error: null,
     });
-    this.router.navigate(['/app']);
+    this.router.navigate([rotaInicial(action.user)]);
   }
 
   @Action(LoginFailure)
@@ -151,4 +151,15 @@ export class AuthState {
   clearError(ctx: StateContext<AuthStateModel>): void {
     ctx.patchState({ error: null });
   }
+}
+
+function rotaInicial(user: AuthenticatedUser): string {
+  const roles = new Set((user.roles ?? []).map((role) => role.replace(/^ROLE_/i, '').toUpperCase()));
+
+  if (roles.has('ADMIN')) return '/app/dashboard';
+  if (roles.has('INTERNO')) return '/app/gerenciamento/processos';
+  if (roles.has('CIMENTACAO')) return '/app/simulador';
+  if (roles.has('SONDA')) return '/app/monitoramento-sondas';
+
+  return '/acesso-negado';
 }

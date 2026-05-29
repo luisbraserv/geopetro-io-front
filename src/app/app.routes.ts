@@ -53,11 +53,13 @@ export const routes: Routes = [
       {
         path: 'dashboard',
         component: DashboardPageComponent,
+        canActivate: [authGuard],
+        data: { roles: ['ADMIN'] },
       },
       {
         path: 'simulador',
         canActivate: [authGuard],
-        data: { roles: ['CIMENTACAO'] },
+        data: { roles: ['CIMENTACAO', 'ADMIN'] },
         children: [
           { path: '', component: SimuladorIndexComponent },
           { path: 'squeeze', component: SimuladorSqueezeComponent },
@@ -68,7 +70,7 @@ export const routes: Routes = [
         path: 'quimicos',
         component: QuimicosPageComponent,
         canActivate: [authGuard],
-        data: { roles: ['CIMENTACAO'] },
+        data: { roles: ['CIMENTACAO', 'ADMIN'] },
       },
       {
         path: 'administracao/usuarios',
@@ -79,6 +81,7 @@ export const routes: Routes = [
         path: 'cadastros',
         component: CadastrosPageComponent,
         canActivate: [authGuard],
+        data: { roles: ['ADMIN'] },
         children: [
           {
             path: '',
@@ -113,21 +116,27 @@ export const routes: Routes = [
             path: 'projetos',
             component: ProjetosPageComponent,
             canActivate: [authGuard],
-            data: { roles: ['ADMIN', 'INTERNO'] },
+            data: { roles: ['ADMIN'] },
           },
         ],
       },
       {
         path: 'gerenciamento/processos',
         component: ProcessosPageComponent,
+        canActivate: [authGuard],
+        data: { roles: ['INTERNO', 'ADMIN'] },
       },
       {
         path: 'gerenciamento/processos/arquivados',
         component: ProcessosArquivadosPageComponent,
+        canActivate: [authGuard],
+        data: { roles: ['INTERNO', 'ADMIN'] },
       },
       {
         path: 'gerenciamento/processos/:id',
         component: ProcessoDetailPageComponent,
+        canActivate: [authGuard],
+        data: { roles: ['INTERNO', 'ADMIN'] },
       },
       {
         path: 'monitoramento-sondas',
@@ -136,6 +145,7 @@ export const routes: Routes = [
             (m) => m.MonitoramentoSondaPageComponent,
           ),
         canActivate: [authGuard],
+        data: { roles: ['SONDA', 'ADMIN'] },
       },
       {
         path: 'meu-usuario',
@@ -161,6 +171,7 @@ export const routes: Routes = [
     path: 'resumo-processos',
     component: ProcessosResumoPageComponent,
     canActivate: [authGuard],
+    data: { roles: ['INTERNO', 'ADMIN'] },
   },
   {
     path: '404',
