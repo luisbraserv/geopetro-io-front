@@ -92,13 +92,13 @@
 
 .brand-logo {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: linear-gradient(135deg, #ffffff, #d0d0d0);
   display: grid;
   place-items: center;
-  padding: 3px;
+  padding: 2px;
 }
 
 .brand-logo__img {
