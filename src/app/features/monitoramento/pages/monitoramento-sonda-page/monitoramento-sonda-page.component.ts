@@ -1,9 +1,18 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiIcon } from '@taiga-ui/core';
-import { MonitoramentoSondaService, SondaDisponivel, MonitoramentoSerie } from '../../services/monitoramento-sonda.service';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { MonitoramentoSondaService, MonitoramentoSerie, SondaDisponivel } from '../../services/monitoramento-sonda.service';
 import { GraficoMonitoramentoComponent } from '../../components/grafico-monitoramento/grafico-monitoramento.component';
+
+interface DispositivoMonitoramento {
+  id: string;
+  label: string;
+  unidade: string;
+  visivel: boolean;
+}
 
 @Component({
   selector: 'app-monitoramento-sonda-page',
@@ -17,35 +26,30 @@ export class MonitoramentoSondaPageComponent implements OnInit {
 
   readonly sondas = signal<SondaDisponivel[]>([]);
   readonly sondaSelecionada = signal<SondaDisponivel | null>(null);
-  readonly dispositivoSelecionado = signal<string>('');
   readonly periodo = signal<string>('1h');
   readonly inicioPeriodo = signal<string>('');
   readonly fimPeriodo = signal<string>('');
   readonly carregando = signal(false);
-  readonly serie = signal<MonitoramentoSerie | null>(null);
+  readonly series = signal<MonitoramentoSerie[]>([]);
   readonly semDados = signal(false);
   readonly erro = signal<string | null>(null);
 
-  readonly dispositivos = [
-    { id: 'PRESSAO-01', label: 'Pressão de Bombeio' },
-    { id: 'VAZAO-01', label: 'Vazão de Bombeio' },
-    { id: 'DENSIDADE-01', label: 'Densidade da Pasta' },
-    { id: 'TEMPERATURA-01', label: 'Temperatura de Fundo' },
-  ];
+  readonly dispositivos = signal<DispositivoMonitoramento[]>([
+    { id: 'PRESSAO-01', label: 'Pressao de Bombeio', unidade: 'psi', visivel: true },
+    { id: 'VAZAO-01', label: 'Vazao de Bombeio', unidade: 'bbl/min', visivel: true },
+    { id: 'DENSIDADE-01', label: 'Densidade da Pasta', unidade: 'ppg', visivel: true },
+    { id: 'TEMPERATURA-01', label: 'Temperatura de Fundo', unidade: 'C', visivel: true },
+  ]);
 
   readonly periodos = [
-    { value: '15m', label: 'Últimos 15 minutos' },
-    { value: '1h', label: 'Última 1 hora' },
-    { value: '6h', label: 'Últimas 6 horas' },
+    { value: '15m', label: 'Ultimos 15 minutos' },
+    { value: '1h', label: 'Ultima 1 hora' },
+    { value: '6h', label: 'Ultimas 6 horas' },
     { value: 'custom', label: 'Personalizado' },
   ];
 
-  // Getters/setters para two-way binding com signals
   get sondaSelecionadaValue() { return this.sondaSelecionada(); }
   set sondaSelecionadaValue(v: SondaDisponivel | null) { this.sondaSelecionada.set(v); }
-
-  get dispositivoSelecionadoValue() { return this.dispositivoSelecionado(); }
-  set dispositivoSelecionadoValue(v: string) { this.dispositivoSelecionado.set(v); }
 
   get periodoValue() { return this.periodo(); }
   set periodoValue(v: string) { this.periodo.set(v); }
@@ -56,26 +60,36 @@ export class MonitoramentoSondaPageComponent implements OnInit {
   get fimPeriodoValue() { return this.fimPeriodo(); }
   set fimPeriodoValue(v: string) { this.fimPeriodo.set(v); }
 
+  readonly dispositivosSelecionados = computed(() =>
+    this.dispositivos().filter((dispositivo) => dispositivo.visivel)
+  );
+
   readonly podeconsultar = computed(() =>
-    !!this.sondaSelecionada() && !!this.dispositivoSelecionado() &&
+    !!this.sondaSelecionada() &&
+    this.dispositivosSelecionados().length > 0 &&
     (this.periodo() !== 'custom' || (!!this.inicioPeriodo() && !!this.fimPeriodo()))
   );
 
   ngOnInit() {
     this.service.listarMinhas().subscribe({
       next: (sondas) => this.sondas.set(sondas),
-      error: () => this.erro.set('Erro ao carregar sondas disponíveis.'),
+      error: () => this.erro.set('Erro ao carregar sondas disponiveis.'),
     });
   }
 
   onSondaChange() {
-    this.serie.set(null);
+    this.series.set([]);
     this.semDados.set(false);
     this.erro.set(null);
   }
 
-  onDispositivoChange() {
-    this.serie.set(null);
+  alternarDispositivo(id: string, checked: boolean) {
+    this.dispositivos.update((dispositivos) =>
+      dispositivos.map((dispositivo) =>
+        dispositivo.id === id ? { ...dispositivo, visivel: checked } : dispositivo
+      )
+    );
+    this.series.update((series) => checked ? series : series.filter((serie) => serie.dispositivoId !== id));
     this.semDados.set(false);
     this.erro.set(null);
   }
@@ -93,35 +107,50 @@ export class MonitoramentoSondaPageComponent implements OnInit {
 
   consultar() {
     const sonda = this.sondaSelecionada();
-    const dispositivo = this.dispositivoSelecionado();
-    if (!sonda || !dispositivo) return;
+    const dispositivos = this.dispositivosSelecionados();
+    if (!sonda || dispositivos.length === 0) return;
 
     this.carregando.set(true);
-    this.serie.set(null);
+    this.series.set([]);
     this.semDados.set(false);
     this.erro.set(null);
 
     const { inicio, fim } = this.calcularPeriodo();
 
-    this.service.consultarSerie(sonda.idSondaUnidade, dispositivo, inicio, fim).subscribe({
-      next: (data) => {
+    forkJoin(
+      dispositivos.map((dispositivo) =>
+        this.service.consultarSerie(sonda.idSondaUnidade, dispositivo.id, inicio, fim).pipe(
+          catchError(() => of({ idSondaUnidade: sonda.idSondaUnidade, dispositivoId: dispositivo.id, pontos: [] }))
+        )
+      )
+    ).subscribe({
+      next: (resultados) => {
         this.carregando.set(false);
-        if (!data.pontos || data.pontos.length === 0) {
+        const seriesComDados = resultados.filter((serie) => serie.pontos?.length);
+        if (seriesComDados.length === 0) {
           this.semDados.set(true);
         } else {
-          this.serie.set(data);
+          this.series.set(seriesComDados);
         }
       },
       error: (err) => {
         this.carregando.set(false);
         if (err.status === 403) {
-          this.erro.set('Você não tem permissão para acessar esta sonda.');
+          this.erro.set('Voce nao tem permissao para acessar esta sonda.');
         } else if (err.status === 502) {
-          this.erro.set('Serviço de telemetria indisponível no momento.');
+          this.erro.set('Servico de telemetria indisponivel no momento.');
         } else {
           this.erro.set('Erro ao consultar dados de telemetria.');
         }
       },
     });
+  }
+
+  nomeDispositivo(dispositivoId: string): string {
+    return this.dispositivos().find((dispositivo) => dispositivo.id === dispositivoId)?.label ?? dispositivoId;
+  }
+
+  unidadeDispositivo(dispositivoId: string): string {
+    return this.dispositivos().find((dispositivo) => dispositivo.id === dispositivoId)?.unidade ?? '';
   }
 }

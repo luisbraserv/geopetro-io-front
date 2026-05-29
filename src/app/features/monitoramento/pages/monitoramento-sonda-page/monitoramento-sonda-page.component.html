@@ -3,7 +3,7 @@
     <div>
       <p class="eyebrow">Telemetria</p>
       <h1>Monitoramento de Sondas</h1>
-      <span>Visualize dados históricos das sondas em tempo real.</span>
+      <span>Selecione a sonda e o periodo para comparar as variaveis de operacao.</span>
     </div>
   </header>
 
@@ -20,17 +20,7 @@
       </label>
 
       <label class="field">
-        <span>Dispositivo / Variável</span>
-        <select [(ngModel)]="dispositivoSelecionadoValue" (ngModelChange)="onDispositivoChange()">
-          <option value="" disabled selected>Selecione um dispositivo</option>
-          @for (d of dispositivos; track d.id) {
-            <option [value]="d.id">{{ d.label }}</option>
-          }
-        </select>
-      </label>
-
-      <label class="field">
-        <span>Período</span>
+        <span>Periodo</span>
         <select [(ngModel)]="periodoValue">
           @for (p of periodos; track p.value) {
             <option [value]="p.value">{{ p.label }}</option>
@@ -40,7 +30,7 @@
 
       @if (periodo() === 'custom') {
         <label class="field">
-          <span>Início</span>
+          <span>Inicio</span>
           <input type="datetime-local" [(ngModel)]="inicioPeriodoValue" />
         </label>
         <label class="field">
@@ -58,10 +48,23 @@
             Consultando...
           } @else {
             <tui-icon icon="@tui.search"></tui-icon>
-            Consultar
+            Consultar graficos
           }
         </button>
       </div>
+    </div>
+
+    <div class="variaveis-panel">
+      @for (dispositivo of dispositivos(); track dispositivo.id) {
+        <label class="toggle-chip">
+          <input
+            type="checkbox"
+            [checked]="dispositivo.visivel"
+            (change)="alternarDispositivo(dispositivo.id, $any($event.target).checked)"
+          />
+          <span>{{ dispositivo.label }}</span>
+        </label>
+      }
     </div>
   </section>
 
@@ -79,14 +82,22 @@
     } @else if (semDados()) {
       <div class="estado-vazio">
         <tui-icon icon="@tui.chart-no-axes-column" class="estado-vazio__icon"></tui-icon>
-        <p>Nenhum dado encontrado para o período selecionado.</p>
+        <p>Nenhum dado encontrado para o periodo selecionado.</p>
       </div>
-    } @else if (serie()) {
-      <app-grafico-monitoramento [serie]="serie()!" />
+    } @else if (series().length) {
+      <div class="graficos-grid">
+        @for (serie of series(); track serie.dispositivoId) {
+          <app-grafico-monitoramento
+            [serie]="serie"
+            [titulo]="nomeDispositivo(serie.dispositivoId)"
+            [unidade]="unidadeDispositivo(serie.dispositivoId)"
+          />
+        }
+      </div>
     } @else {
       <div class="estado-vazio">
         <tui-icon icon="@tui.activity" class="estado-vazio__icon"></tui-icon>
-        <p>Selecione uma sonda, dispositivo e período para visualizar o gráfico.</p>
+        <p>Selecione uma sonda e um periodo para visualizar os graficos.</p>
       </div>
     }
   </section>

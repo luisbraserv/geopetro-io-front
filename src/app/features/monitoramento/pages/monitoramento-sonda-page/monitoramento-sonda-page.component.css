@@ -21,7 +21,7 @@ h1 { margin: 0; font-size: 1.5rem; font-weight: 800; color: var(--color-text-str
 
 .filtros-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: minmax(240px, 1.2fr) minmax(180px, 0.8fr) auto;
   gap: 0.85rem;
   align-items: end;
 }
@@ -56,15 +56,44 @@ select:focus, input:focus {
   outline: 3px solid rgba(82, 140, 156, 0.16);
 }
 
-.grafico-section {
+.variaveis-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.toggle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.2rem 0.7rem;
+  color: var(--color-text-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
   background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 1rem;
-  box-shadow: var(--shadow-card);
+  cursor: pointer;
+}
+
+.toggle-chip input {
+  width: 0.95rem;
+  height: 0.95rem;
+  accent-color: #2563eb;
+}
+
+.grafico-section {
   min-height: 380px;
   display: flex;
   flex-direction: column;
+}
+
+.graficos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
 }
 
 .estado-vazio {
@@ -88,4 +117,5 @@ select:focus, input:focus {
 
 @media (max-width: 900px) {
   .filtros-grid { grid-template-columns: 1fr; }
+  .graficos-grid { grid-template-columns: 1fr; }
 }
