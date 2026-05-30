@@ -19,11 +19,18 @@ h1 { margin: 0; font-size: 1.5rem; font-weight: 800; color: var(--color-text-str
   box-shadow: var(--shadow-card);
 }
 
-.filtros-grid {
+.filtros-main {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: minmax(220px, 1.15fr) minmax(220px, 1.15fr) minmax(150px, 0.7fr) auto;
   gap: 0.85rem;
   align-items: end;
+}
+
+.filtros-custom {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 240px));
+  gap: 0.85rem;
+  margin-top: 0.85rem;
 }
 
 .field {
@@ -38,6 +45,17 @@ h1 { margin: 0; font-size: 1.5rem; font-weight: 800; color: var(--color-text-str
 .field--action {
   display: flex;
   align-items: flex-end;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.action-buttons button {
+  min-width: 9.25rem;
+  height: 2.45rem;
 }
 
 select, input[type="datetime-local"] {
@@ -67,6 +85,104 @@ select:focus, input:focus {
   flex-direction: column;
 }
 
+.graficos-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(300px, auto);
+  gap: 0.8rem;
+}
+
+.graficos-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.graficos-grid app-grafico-monitoramento {
+  min-height: 300px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.grafico-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.grafico-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.grafico-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: min(1180px, 96vw);
+  max-height: 92vh;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
+
+.grafico-modal__panel app-grafico-monitoramento {
+  display: block;
+  min-height: 520px;
+}
+
+.grafico-modal__loading {
+  min-height: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+.grafico-modal__loading-icon {
+  font-size: 2.75rem;
+  color: rgb(55, 107, 122);
+}
+
+.grafico-modal__loading p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.grafico-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.grafico-modal__header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.grafico-modal__close {
+  height: 2rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2937;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0 0.75rem;
+}
+
 .estado-vazio {
   flex: 1;
   display: flex;
@@ -87,5 +203,19 @@ select:focus, input:focus {
 .spin { animation: spin 1s linear infinite; }
 
 @media (max-width: 900px) {
-  .filtros-grid { grid-template-columns: 1fr; }
+  .filtros-main,
+  .filtros-custom { grid-template-columns: 1fr; }
+  .action-buttons {
+    width: 100%;
+    flex-direction: column;
+  }
+  .action-buttons button { width: 100%; }
+  .graficos-grid { grid-template-columns: 1fr; }
+  .grafico-modal { padding: 0.6rem; }
+  .grafico-modal__panel app-grafico-monitoramento,
+  .grafico-modal__loading { min-height: 420px; }
+}
+
+@media (min-width: 901px) and (max-width: 1280px) {
+  .graficos-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

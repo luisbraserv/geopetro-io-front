@@ -8,7 +8,7 @@
   </header>
 
   <section class="filtros-panel">
-    <div class="filtros-grid">
+    <div class="filtros-main">
       <label class="field">
         <span>Sonda / Unidade</span>
         <select [(ngModel)]="sondaSelecionadaValue" (ngModelChange)="onSondaChange()">
@@ -23,6 +23,7 @@
         <span>Dispositivo / Variável</span>
         <select [(ngModel)]="dispositivoSelecionadoValue" (ngModelChange)="onDispositivoChange()">
           <option value="" disabled selected>Selecione um dispositivo</option>
+          <option [value]="todosDispositivos">Todos os gráficos</option>
           @for (d of dispositivos; track d.id) {
             <option [value]="d.id">{{ d.label }}</option>
           }
@@ -38,7 +39,36 @@
         </select>
       </label>
 
-      @if (periodo() === 'custom') {
+      <div class="field field--action">
+        <div class="action-buttons">
+          <button tuiButton type="button" appearance="primary" size="m"
+            [disabled]="!podeconsultar() || carregando()"
+            (click)="consultar()">
+            @if (carregando()) {
+              <tui-icon icon="@tui.loader-circle" class="spin"></tui-icon>
+              Consultando...
+            } @else {
+              <tui-icon icon="@tui.search"></tui-icon>
+              Consultar
+            }
+          </button>
+          <button tuiButton type="button" appearance="secondary" size="m"
+            [disabled]="series().length === 0 || carregando() || gerandoPdf()"
+            (click)="gerarPdf()">
+            @if (gerandoPdf()) {
+              <tui-icon icon="@tui.loader-circle" class="spin"></tui-icon>
+              Gerando...
+            } @else {
+              <tui-icon icon="@tui.file-text"></tui-icon>
+              Gerar PDF
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+
+    @if (periodo() === 'custom') {
+      <div class="filtros-custom">
         <label class="field">
           <span>Início</span>
           <input type="datetime-local" [(ngModel)]="inicioPeriodoValue" />
@@ -47,22 +77,8 @@
           <span>Fim</span>
           <input type="datetime-local" [(ngModel)]="fimPeriodoValue" />
         </label>
-      }
-
-      <div class="field field--action">
-        <button tuiButton type="button" appearance="primary" size="m"
-          [disabled]="!podeconsultar() || carregando()"
-          (click)="consultar()">
-          @if (carregando()) {
-            <tui-icon icon="@tui.loader-circle" class="spin"></tui-icon>
-            Consultando...
-          } @else {
-            <tui-icon icon="@tui.search"></tui-icon>
-            Consultar
-          }
-        </button>
       </div>
-    </div>
+    }
   </section>
 
   <section class="grafico-section">
@@ -81,8 +97,21 @@
         <tui-icon icon="@tui.chart-no-axes-column" class="estado-vazio__icon"></tui-icon>
         <p>Nenhum dado encontrado para o período selecionado.</p>
       </div>
-    } @else if (serie()) {
-      <app-grafico-monitoramento [serie]="serie()!" />
+    } @else if (sondas().length === 0) {
+      <div class="estado-vazio">
+        <tui-icon icon="@tui.lock-keyhole" class="estado-vazio__icon"></tui-icon>
+        <p>Nenhuma sonda/unidade vinculada aos seus setores.</p>
+      </div>
+    } @else if (series().length > 0) {
+      <div class="graficos-grid" [class.graficos-grid--single]="series().length === 1">
+        @for (serie of series(); track serie.dispositivoId) {
+          <app-grafico-monitoramento
+            [serie]="serie"
+            [titulo]="rotuloDispositivo(serie.dispositivoId)"
+            (abrir)="abrirSerie(serie)"
+          />
+        }
+      </div>
     } @else {
       <div class="estado-vazio">
         <tui-icon icon="@tui.activity" class="estado-vazio__icon"></tui-icon>
@@ -90,4 +119,34 @@
       </div>
     }
   </section>
+
+  @if (modalGraficoAberto()) {
+    <div class="grafico-modal" role="dialog" aria-modal="true">
+      <div class="grafico-modal__backdrop" (click)="fecharSerie()"></div>
+      <div class="grafico-modal__panel">
+        <div class="grafico-modal__header">
+          <h2>
+            @if (serieAberta(); as aberta) {
+              {{ rotuloDispositivo(aberta.dispositivoId) }}
+            } @else {
+              Carregando gráfico
+            }
+          </h2>
+          <button type="button" class="grafico-modal__close" (click)="fecharSerie()">Fechar</button>
+        </div>
+        @if (carregandoModalGrafico()) {
+          <div class="grafico-modal__loading">
+            <tui-icon icon="@tui.loader-circle" class="spin grafico-modal__loading-icon"></tui-icon>
+            <p>Preparando visualização ampliada...</p>
+          </div>
+        } @else if (serieAberta(); as aberta) {
+          <app-grafico-monitoramento
+            [serie]="aberta"
+            [titulo]="rotuloDispositivo(aberta.dispositivoId)"
+            [mostrarAbrir]="false"
+          />
+        }
+      </div>
+    </div>
+  }
 </div>
