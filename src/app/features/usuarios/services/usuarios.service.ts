@@ -26,11 +26,11 @@ export class UsuariosService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = environment.apiUrl;
 
-  listar(pagina = 0, tamanho = 20): Observable<UsuarioPaginadoResponse> {
+  listar(pagina = 0, tamanho = 20, busca = ''): Observable<UsuarioPaginadoResponse> {
+    const params: Record<string, string | number> = { pagina, tamanho };
+    if (busca) params['busca'] = busca;
     return this.http
-      .get<UsuarioPaginadoResponse>(`${this.apiUrl}/usuarios`, {
-        params: { pagina, tamanho },
-      })
+      .get<UsuarioPaginadoResponse>(`${this.apiUrl}/usuarios`, { params })
       .pipe(catchError((error) => this.handleError(error)));
   }
 

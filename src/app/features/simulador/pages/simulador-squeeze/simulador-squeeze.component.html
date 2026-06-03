@@ -8,14 +8,6 @@
       <p class="subtitle">Cálculo de volumes, pasta, reologia e pressões para operação de squeeze.</p>
     </div>
     <div class="head-actions">
-      <button tuiButton class="btn btn--ghost" type="button" (click)="abrirRelatorioReceita()">
-        <tui-icon icon="@tui.file-text"></tui-icon>
-        Gerar Relatório
-      </button>
-      <button tuiButton class="btn btn--ghost btn--danger" type="button" (click)="resetForm()">
-        <tui-icon icon="@tui.rotate-ccw"></tui-icon>
-        Limpar
-      </button>
     </div>
   </header>
 
@@ -131,6 +123,8 @@
               <div><label>Vazão (bbl/min)</label><input type="number" step="0.1" formControlName="pumpRate"></div>
               <div><label>Pressão sup. (psi)</label><input type="number" step="50" formControlName="surfacePressure"></div>
               <div><label>Teste squeeze (psi)</label><input type="number" step="50" formControlName="squeezeTestPressure"></div>
+              <div><label>Pressão de Operação (psi)</label><input type="number" step="100" formControlName="pressaoOperacao"></div>
+              <div><label>Vol. máx. injetado (bbl)</label><input type="number" step="0.1" formControlName="volMaxInjetadoBbl"></div>
               <div class="col-span-2"><label>Perda esperada formação (bbl)</label><input type="number" step="0.1" formControlName="expectedLoss"></div>
               <div><label>Pausa 1 – fl. frente (min)</label><input type="number" step="1" formControlName="pause1"></div>
               <div><label>Pausa 2 – pasta (min)</label><input type="number" step="1" formControlName="pause2"></div>
@@ -206,6 +200,29 @@
           </div>
         </tui-expand>
 
+        <!-- 8. Dados do Relatório -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec8Open">
+          <tui-icon icon="@tui.file-text"></tui-icon> 8. Dados do Relatório
+        </button>
+        <tui-expand [expanded]="sec8Open">
+          <div class="acc-body">
+            <div class="g2">
+              <div class="col-span-2"><label>Cliente</label><input type="text" [ngModel]="dadosRelatorio.cliente" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.cliente=$event;saveDadosRelatorio()" placeholder="Nome do cliente"></div>
+              <div class="col-span-2"><label>Preparado para</label><input type="text" [ngModel]="dadosRelatorio.preparadoPara" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.preparadoPara=$event;saveDadosRelatorio()" placeholder="Destinatário"></div>
+              <div class="col-span-2"><label>Preparado por</label><input type="text" [ngModel]="dadosRelatorio.preparadoPor" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.preparadoPor=$event;saveDadosRelatorio()" placeholder="Autor"></div>
+              <div class="col-span-2"><label>Revisado por</label><input type="text" [ngModel]="dadosRelatorio.revisadoPor" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.revisadoPor=$event;saveDadosRelatorio()" placeholder="Revisor"></div>
+              <div><label>Origem / Operador</label><input type="text" [ngModel]="dadosRelatorio.origem" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.origem=$event;saveDadosRelatorio()" placeholder="ORIGEM"></div>
+              <div><label>Poço</label><input type="text" [ngModel]="dadosRelatorio.poco" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.poco=$event;saveDadosRelatorio()" placeholder="7-PIR-100-AL"></div>
+              <div><label>Campo</label><input type="text" [ngModel]="dadosRelatorio.campo" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.campo=$event;saveDadosRelatorio()" placeholder="Pilar"></div>
+              <div><label>Sonda</label><input type="text" [ngModel]="dadosRelatorio.sonda" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.sonda=$event;saveDadosRelatorio()" placeholder="SPT-145"></div>
+              <div><label>Versão</label><input type="text" [ngModel]="dadosRelatorio.versao" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.versao=$event;saveDadosRelatorio()" placeholder="01"></div>
+              <div><label>Job #</label><input type="text" [ngModel]="dadosRelatorio.jobNum" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.jobNum=$event;saveDadosRelatorio()" placeholder=""></div>
+              <div><label>País</label><input type="text" [ngModel]="dadosRelatorio.pais" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.pais=$event;saveDadosRelatorio()" placeholder="Brasil"></div>
+              <div class="col-span-2"><label>Zona a isolar</label><input type="text" [ngModel]="dadosRelatorio.zonaIsolarNome" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.zonaIsolarNome=$event;saveDadosRelatorio()" placeholder="CSO-6H"></div>
+            </div>
+          </div>
+        </tui-expand>
+
       </tui-accordion>
     </aside>
 
@@ -244,23 +261,20 @@
           <section class="card">
             <div class="card-head">
               <div><h3>Receita da Pasta</h3><span>Cálculo base por 1 pé³ de cimento / 1 saco de 94 lb</span></div>
-              <button tuiButton class="btn btn--ghost btn--sm" (click)="abrirRelatorioReceita()" type="button">
-                <tui-icon icon="@tui.file-text"></tui-icon> Gerar PDF
-              </button>
             </div>
             <section class="metrics" style="margin-bottom:12px">
               <div class="metric"><span>Peso específico calculado</span><strong>{{ fmt(recipe.baseRecipe?.densityPpg) }} ppg</strong></div>
               <div class="metric"><span>Rendimento</span><strong>{{ fmt(recipe.baseRecipe?.yieldFt3PerFt3Cement, 3) }} ft³/ft³</strong></div>
               <div class="metric"><span>FAC</span><strong>{{ fmt(recipe.baseRecipe?.facGpc) }} gpc</strong></div>
               <div class="metric"><span>FAM</span><strong>{{ fmt(recipe.baseRecipe?.famGpc) }} gpc</strong></div>
-              <div class="metric"><span>Vol. base</span><strong>{{ fmt(recipe.baseRecipe?.totalVolumeGal, 4) }} gal</strong></div>
-              <div class="metric"><span>Peso base</span><strong>{{ fmt(recipe.baseRecipe?.totalMassLb) }} lb</strong></div>
+              <div class="metric"><span>Volume base</span><strong>{{ fmt(litersFromGal(recipe.baseRecipe?.totalVolumeGal), 2) }} L</strong></div>
+              <div class="metric"><span>Massa base</span><strong>{{ fmt(kgFromLb(recipe.baseRecipe?.totalMassLb), 2) }} kg</strong></div>
             </section>
             <table>
-              <thead><tr><th>Produto</th><th>Tipo</th><th>Concentração</th><th>Unidade</th><th>Peso base (lb)</th><th>Vol. abs. (gal/lb)</th><th>Vol. gerado (gal)</th></tr></thead>
+              <thead><tr><th>Aditivo</th><th>Código</th><th>Concentração</th><th>Quantidade</th></tr></thead>
               <tbody>
                 @for (row of recipe.baseRecipe?.rows; track $index) {
-                  <tr><td>{{ row.productName }}</td><td>{{ row.type }}</td><td>{{ row.concentration }}</td><td>{{ row.concentrationUnit }}</td><td>{{ fmt(row.baseMassLb, 4) }}</td><td>{{ fmt(row.absoluteVolumeGalLb, 4) }}</td><td>{{ fmt(row.baseVolumeGal, 4) }}</td></tr>
+                  <tr><td>{{ recipeItemLabel(row) }}</td><td>{{ recipeCode(row) }}</td><td>{{ recipeConcentrationText(row) }}</td><td>{{ recipeQuantityText(row) }}</td></tr>
                 }
               </tbody>
             </table>
@@ -312,16 +326,16 @@
               <div class="metric"><span>FAM</span><strong>{{ fmt(manualRecipeResult.famGpc) }} gpc</strong></div>
               <div class="metric"><span>Volume cimento</span><strong>{{ fmt(manualRecipeResult.cementVolumeFt3) }} ft³</strong></div>
               <div class="metric"><span>Sacos 94 lb</span><strong>{{ fmt(manualRecipeResult.sacks94lb) }} sk</strong></div>
-              <div class="metric"><span>Água total</span><strong>{{ fmt(manualRecipeResult.totalMixWaterGal) }} gal</strong></div>
+              <div class="metric"><span>Água total</span><strong>{{ fmt(litersFromGal(manualRecipeResult.totalMixWaterGal)) }} L</strong></div>
             </div>
             @if (manualRecipeResult.error) {
               <div class="chip chip--danger">{{ manualRecipeResult.error }}</div>
             }
             <table>
-              <thead><tr><th>Produto</th><th>Concentração</th><th>Unidade</th><th>Qtd. base (lb)</th><th>Total (lb)</th><th>Total (kg)</th><th>Vol. (gal)</th><th>Vol. (bbl)</th><th>Obs.</th></tr></thead>
+              <thead><tr><th>Aditivo</th><th>Código</th><th>Concentração</th><th>Quantidade</th></tr></thead>
               <tbody>
                 @for (row of manualRecipeResult.rows; track $index) {
-                  <tr><td>{{ row.productName }}</td><td>{{ row.concentration }}</td><td>{{ row.concentrationUnit }}</td><td>{{ fmt(row.baseMassLb, 4) }}</td><td>{{ fmt(row.scaledMassLb) }}</td><td>{{ fmt(row.scaledMassKg) }}</td><td>{{ fmt(row.scaledVolumeGal) }}</td><td>{{ fmt(row.scaledVolumeBbl, 4) }}</td><td>{{ row.operationalNote || '-' }}</td></tr>
+                  <tr><td>{{ recipeItemLabel(row) }}</td><td>{{ recipeCode(row) }}</td><td>{{ recipeConcentrationText(row) }}</td><td>{{ recipeQuantityText(row, true) }}</td></tr>
                 }
               </tbody>
             </table>
@@ -341,6 +355,28 @@
             </tbody>
           </table>
         </section>
+
+        @if (reverseCirculation) {
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h3>Circulação Reversa</h3>
+                <span>Operação posterior ao posicionamento da pasta</span>
+              </div>
+            </div>
+            <p class="subtitle">
+              Volume calculado como 1,5 vezes o volume interno da coluna até a extremidade aberta. Circular reverso até retorno limpo, sem presença de cimento.
+            </p>
+            <section class="metrics" style="margin-bottom:0">
+              <div class="metric"><span>ID do tubing usado</span><strong>{{ fmt(form.value.tubingID, 3) }} in</strong></div>
+              <div class="metric"><span>Profundidade da extremidade aberta</span><strong>{{ fmt(form.value.sectionEndMD, 1) }} m</strong></div>
+              <div class="metric"><span>Capacidade interna do tubing</span><strong>{{ fmt(reverseCirculation.tubingCapacityBblPerM, 4) }} bbl/m</strong></div>
+              <div class="metric"><span>Volume interno da coluna</span><strong>{{ fmt(reverseCirculation.internalTubingVolumeBbl) }} bbl</strong></div>
+              <div class="metric"><span>Fator de segurança aplicado</span><strong>{{ fmt(reverseCirculation.safetyFactor, 2) }}×</strong></div>
+              <div class="metric"><span>Volume mínimo recomendado</span><strong>{{ fmt(reverseCirculation.reverseCirculationVolumeBbl) }} bbl</strong></div>
+            </section>
+          </section>
+        }
 
         <!-- Cronograma operacional -->
         <section class="card">
@@ -528,7 +564,8 @@
             [geom]="geom"
             [slurry]="slurry"
             [recipe]="recipe"
-            [simulation]="hydraulicSim">
+            [simulation]="hydraulicSim"
+            [squeezeInputs]="squeezeInputsSnapshot">
           </app-squeeze-schematics>
         }
       }
@@ -555,6 +592,10 @@
       <tui-icon icon="@tui.bookmark"></tui-icon>
       <span>Cenários</span>
     </button>
+    <button class="sidebar-dock-btn sidebar-dock-btn--report" type="button" (click)="capaModalOpen = true">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <span>Relatório</span>
+    </button>
   </div>
 
   <app-simulador-state-modal
@@ -566,9 +607,41 @@
   </app-simulador-state-modal>
 </div>
 
+<app-relatorio-capa-modal
+  [open]="capaModalOpen"
+  operacaoLabel="SQUEEZE"
+  [prefill]="dadosRelatorio"
+  (closed)="capaModalOpen = false"
+  (gerado)="onCapaGerada($event)">
+</app-relatorio-capa-modal>
+
 <app-relatorio-viewer
   [titulo]="relatorioTitulo"
   [conteudo]="relatorioConteudo"
   [visivel]="relatorioVisivel"
   (closed)="relatorioVisivel = false">
 </app-relatorio-viewer>
+
+@if (geom && slurry && recipe && hydraulicSim) {
+  <div style="position:fixed;left:-12000px;top:0;width:980px;pointer-events:none">
+    <app-squeeze-schematics
+      #reportSchematics
+      [geom]="geom"
+      [slurry]="slurry"
+      [recipe]="recipe"
+      [simulation]="hydraulicSim"
+      [squeezeInputs]="squeezeInputsSnapshot">
+    </app-squeeze-schematics>
+    <app-ops-chart
+      #reportOpsChart
+      [phases]="opsPhases"
+      [ttRequiredMin]="tt ? tt.t50 * 60 : 0"
+      [tt100Min]="tt ? tt.t100 * 60 : 0"
+      [forceCanvas]="true">
+    </app-ops-chart>
+    <app-squeeze-operation-charts
+      #reportPressureCharts
+      [data]="hydraulicSim">
+    </app-squeeze-operation-charts>
+  </div>
+}

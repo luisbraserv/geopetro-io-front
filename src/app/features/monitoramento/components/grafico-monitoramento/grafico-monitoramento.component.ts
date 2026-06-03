@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { Component, Input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MonitoramentoSerie } from '../../services/monitoramento-sonda.service';
 
@@ -6,98 +6,137 @@ import { MonitoramentoSerie } from '../../services/monitoramento-sonda.service';
   selector: 'app-grafico-monitoramento',
   standalone: true,
   imports: [CommonModule],
-  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="grafico-wrapper">
-      <div class="grafico-header">
+    <article class="grafico-card">
+      <header class="grafico-header">
         <div>
           <span class="grafico-title">{{ titulo || serie.dispositivoId }}</span>
-          <div class="grafico-legenda">
-            <span><i class="legenda-original"></i> Original</span>
-            <span><i class="legenda-suavizada"></i> Suavizada</span>
-          </div>
-        </div>
-        <div class="grafico-actions">
           <span class="grafico-meta">{{ serie.pontos.length }} pontos</span>
-          @if (mostrarAbrir) {
-            <button type="button" class="abrir-btn" (click)="abrir.emit()">Abrir</button>
-          }
         </div>
-      </div>
+
+        <div class="line-controls">
+          <label>
+            <input type="checkbox" [checked]="mostrarOriginal()" (change)="mostrarOriginal.set($any($event.target).checked)" />
+            <span>Original</span>
+          </label>
+          <label>
+            <input type="checkbox" [checked]="mostrarSuavizada()" (change)="mostrarSuavizada.set($any($event.target).checked)" />
+            <span>Suavizada</span>
+          </label>
+        </div>
+      </header>
+
       <div class="grafico-area">
         <svg [attr.viewBox]="'0 0 ' + W + ' ' + H" class="grafico-svg" preserveAspectRatio="none">
-          @for (linha of gridLinhas; track linha.y) {
+          @for (linha of gridLinhas(); track linha.y) {
             <line [attr.x1]="pad" [attr.x2]="W - pad" [attr.y1]="linha.y" [attr.y2]="linha.y"
                   stroke="#e2e8f0" stroke-width="1" />
-            <text [attr.x]="pad - 6" [attr.y]="linha.y + 4" text-anchor="end"
-                  font-size="10" fill="#94a3b8">{{ linha.label }}</text>
+            <text [attr.x]="pad - 8" [attr.y]="linha.y + 4" text-anchor="end"
+                  font-size="10" fill="#64748b">{{ linha.label }}</text>
           }
-          <polygon [attr.points]="areaSvg" fill="rgba(82,140,156,0.08)" />
-          <polyline [attr.points]="pontosOriginaisSvg" fill="none" stroke="rgba(82,140,156,0.42)"
-                    stroke-width="1.7" stroke-linejoin="round" />
-          <path [attr.d]="curvaSuavizadaSvg" fill="none" stroke="#c2410c"
-                stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round" />
+
+          @for (linha of gridX(); track linha.x) {
+            <line [attr.x1]="linha.x" [attr.x2]="linha.x" [attr.y1]="pad" [attr.y2]="H - pad"
+                  stroke="#f1f5f9" stroke-width="1" />
+          }
+
+          <line [attr.x1]="pad" [attr.x2]="W - pad" [attr.y1]="H - pad" [attr.y2]="H - pad" stroke="#334155" stroke-width="1" />
+          <line [attr.x1]="pad" [attr.x2]="pad" [attr.y1]="pad" [attr.y2]="H - pad" stroke="#334155" stroke-width="1" />
+
+          @if (mostrarOriginal()) {
+            <polygon [attr.points]="areaOriginalSvg()" fill="rgba(37,99,235,0.08)" />
+            <polyline [attr.points]="originalSvg()" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+          }
+
+          @if (mostrarSuavizada()) {
+            <polyline [attr.points]="suavizadaSvg()" fill="none" stroke="#f97316" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />
+          }
+
+          <text [attr.x]="pad" y="22" font-size="11" fill="#475569">Variavel: {{ titulo || serie.dispositivoId }}{{ unidade ? ' (' + unidade + ')' : '' }}</text>
+          <text [attr.x]="W - pad" [attr.y]="H - 12" text-anchor="end" font-size="10" fill="#64748b">Eixo X: hora</text>
+          <text [attr.x]="pad + 8" [attr.y]="pad + 14" font-size="10" fill="#64748b">Eixo Y{{ unidade ? ': ' + unidade : '' }}</text>
         </svg>
+
         <div class="eixo-x">
-          @for (label of labelsX; track label) {
+          @for (label of labelsX(); track label) {
             <span>{{ label }}</span>
           }
         </div>
       </div>
-    </div>
+    </article>
   `,
   styles: [`
-    .grafico-wrapper { display: flex; flex-direction: column; gap: 0.5rem; height: 100%; }
-    .grafico-header { display: flex; justify-content: space-between; align-items: center; }
-    .grafico-title { font-size: 0.9rem; font-weight: 700; color: var(--color-text-strong); }
-    .grafico-meta { font-size: 0.75rem; color: var(--color-text-secondary); }
-    .grafico-actions { display: inline-flex; align-items: center; gap: 0.6rem; }
-    .abrir-btn {
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
+    .grafico-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      min-height: 360px;
       background: #fff;
-      color: #1f2937;
-      cursor: pointer;
-      font: inherit;
-      font-size: 0.72rem;
-      font-weight: 700;
-      height: 1.8rem;
-      padding: 0 0.55rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: var(--shadow-card);
     }
-    .abrir-btn:hover { border-color: rgba(82, 140, 156, 0.72); color: rgb(55, 107, 122); }
-    .grafico-legenda { display: flex; gap: 0.7rem; margin-top: 0.25rem; font-size: 0.68rem; color: var(--color-text-secondary); }
-    .grafico-legenda span { display: inline-flex; align-items: center; gap: 0.28rem; }
-    .grafico-legenda i { width: 18px; height: 3px; border-radius: 999px; display: inline-block; }
-    .legenda-original { background: rgba(82,140,156,0.42); }
-    .legenda-suavizada { background: #c2410c; }
-    .grafico-area { position: relative; flex: 1; }
+    .grafico-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .grafico-header > div:first-child {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .grafico-title { font-size: 0.92rem; font-weight: 800; color: var(--color-text-strong); }
+    .grafico-meta { font-size: 0.75rem; color: var(--color-text-secondary); }
+    .line-controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.55rem;
+    }
+    .line-controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: #334155;
+      font-size: 0.76rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .line-controls input {
+      width: 0.9rem;
+      height: 0.9rem;
+      accent-color: #2563eb;
+    }
+    .grafico-area { position: relative; flex: 1; min-height: 0; }
     .grafico-svg { width: 100%; height: 300px; display: block; }
-    .eixo-x { display: flex; justify-content: space-between; padding: 0 48px; font-size: 0.7rem; color: #94a3b8; }
+    .eixo-x {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 48px;
+      font-size: 0.7rem;
+      color: #64748b;
+    }
   `],
 })
-export class GraficoMonitoramentoComponent implements OnChanges {
+export class GraficoMonitoramentoComponent {
   @Input({ required: true }) serie!: MonitoramentoSerie;
   @Input() titulo = '';
-  @Input() mostrarAbrir = true;
-  @Output() abrir = new EventEmitter<void>();
+  @Input() unidade = '';
+
+  readonly mostrarOriginal = signal(true);
+  readonly mostrarSuavizada = signal(true);
 
   readonly W = 800;
   readonly H = 300;
   readonly pad = 48;
 
-  pontosOriginaisSvg = '';
-  curvaSuavizadaSvg = '';
-  areaSvg = '';
-  gridLinhas: { y: number; label: string }[] = [];
-  labelsX: string[] = [];
-
-  private valores: number[] = [];
-  private minV = 0;
-  private rangeV = 1;
-
-  ngOnChanges() {
-    this.prepararGrafico();
-  }
+  get valores(): number[] { return this.serie.pontos.map((p) => Number(p.valor ?? 0)); }
+  get minV(): number { return Math.min(...this.valores); }
+  get maxV(): number { return Math.max(...this.valores); }
+  get rangeV(): number { return this.maxV - this.minV || 1; }
 
   toX(i: number): number {
     const n = this.serie.pontos.length;
@@ -109,100 +148,62 @@ export class GraficoMonitoramentoComponent implements OnChanges {
     return this.H - this.pad - ((v - this.minV) / this.rangeV) * (this.H - this.pad * 2);
   }
 
-  pontosSvg(valores: number[]): string {
-    return valores.map((v, i) => `${this.toX(i)},${this.toY(v)}`).join(' ');
+  originalSvg(): string {
+    return this.serie.pontos.map((p, i) => `${this.toX(i)},${this.toY(Number(p.valor ?? 0))}`).join(' ');
   }
 
-  private prepararGrafico() {
-    this.valores = this.serie.pontos.map(p => p.valor);
-    if (this.valores.length === 0) {
-      this.minV = 0;
-      this.rangeV = 1;
-      this.pontosOriginaisSvg = '';
-      this.curvaSuavizadaSvg = '';
-      this.areaSvg = '';
-      this.gridLinhas = [];
-      this.labelsX = [];
-      return;
-    }
-
-    this.minV = Math.min(...this.valores);
-    const maxV = Math.max(...this.valores);
-    this.rangeV = maxV - this.minV || 1;
-    this.pontosOriginaisSvg = this.pontosSvg(this.valores);
-    this.curvaSuavizadaSvg = this.montarCurvaSuavizadaSvg();
-    this.areaSvg = this.montarAreaSvg();
-    this.gridLinhas = this.montarGridLinhas();
-    this.labelsX = this.montarLabelsX();
+  suavizadaSvg(): string {
+    return this.mediaMovel(this.valores, 8).map((valor, i) => `${this.toX(i)},${this.toY(valor)}`).join(' ');
   }
 
-  private montarCurvaSuavizadaSvg(): string {
-    const pontos = this.valoresSuavizados().map((v, i) => ({ x: this.toX(i), y: this.toY(v) }));
-    if (pontos.length === 0) return '';
-    if (pontos.length === 1) return `M ${pontos[0].x} ${pontos[0].y}`;
-
-    let path = `M ${pontos[0].x} ${pontos[0].y}`;
-    for (let i = 1; i < pontos.length; i++) {
-      const anterior = pontos[i - 1];
-      const atual = pontos[i];
-      const meioX = (anterior.x + atual.x) / 2;
-      const meioY = (anterior.y + atual.y) / 2;
-      path += ` Q ${anterior.x} ${anterior.y} ${meioX} ${meioY}`;
-    }
-
-    const ultimo = pontos[pontos.length - 1];
-    path += ` T ${ultimo.x} ${ultimo.y}`;
-    return path;
-  }
-
-  private montarAreaSvg(): string {
-    const linha = this.serie.pontos.map((p, i) => `${this.toX(i)},${this.toY(p.valor)}`).join(' ');
+  areaOriginalSvg(): string {
+    const linha = this.originalSvg();
     const n = this.serie.pontos.length - 1;
     return `${this.pad},${this.H - this.pad} ${linha} ${this.toX(n)},${this.H - this.pad}`;
   }
 
-  private montarGridLinhas(): { y: number; label: string }[] {
+  gridLinhas(): { y: number; label: string }[] {
     const steps = 5;
     return Array.from({ length: steps + 1 }, (_, i) => {
       const v = this.minV + (this.rangeV * i) / steps;
-      return { y: this.toY(v), label: v.toFixed(1) };
+      return { y: this.toY(v), label: this.formatarValor(v) };
     });
   }
 
-  private montarLabelsX(): string[] {
+  gridX(): { x: number }[] {
+    return this.indicesLabelsX().map((i) => ({ x: this.toX(i) }));
+  }
+
+  labelsX(): string[] {
+    return this.indicesLabelsX().map((i) => {
+      const d = new Date(this.serie.pontos[i].dataHora);
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    });
+  }
+
+  private indicesLabelsX(): number[] {
     const pts = this.serie.pontos;
     if (pts.length < 2) return [];
-    const indices = [
+    return [
       0,
       Math.floor(pts.length / 4),
       Math.floor(pts.length / 2),
       Math.floor((3 * pts.length) / 4),
       pts.length - 1,
     ];
-    return indices.map(i => {
-      const d = new Date(pts[i].dataHora);
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  private mediaMovel(values: number[], window: number): number[] {
+    return values.map((_, i) => {
+      const start = Math.max(0, i - window + 1);
+      const slice = values.slice(start, i + 1);
+      return slice.reduce((sum, value) => sum + value, 0) / slice.length;
     });
   }
 
-  private valoresSuavizados(): number[] {
-    const valores = this.valores;
-    if (valores.length < 3) return valores;
-
-    const janelaBase = Math.max(5, Math.round(valores.length * 0.045));
-    const janela = Math.min(17, janelaBase % 2 === 0 ? janelaBase + 1 : janelaBase);
-    const raio = Math.floor(janela / 2);
-    let suavizados = valores;
-
-    for (let passagem = 0; passagem < 2; passagem++) {
-      suavizados = suavizados.map((_valor, index) => {
-        const inicio = Math.max(0, index - raio);
-        const fim = Math.min(suavizados.length - 1, index + raio);
-        const trecho = suavizados.slice(inicio, fim + 1);
-        return trecho.reduce((total, atual) => total + atual, 0) / trecho.length;
-      });
-    }
-
-    return suavizados;
+  private formatarValor(value: number): string {
+    if (Math.abs(value) >= 100) return value.toFixed(0);
+    if (Math.abs(value) >= 10) return value.toFixed(1);
+    return value.toFixed(2);
   }
 }

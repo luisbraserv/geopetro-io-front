@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 
 export interface SondaDisponivel {
-  idUnidade: number;
+  idSondaUnidade: string;
   nome: string;
   apelido: string;
 }
@@ -23,14 +23,19 @@ export interface MonitoramentoSerie {
 @Injectable({ providedIn: 'root' })
 export class MonitoramentoSondaService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = `${environment.apiUrl}/api/sondas`;
+  // Backend-Telemetria (:8081) — endpoint de consulta de séries no InfluxDB
+  private readonly telemetriaUrl = `${environment.telemetriaUrl}/api/monitoramentos`;
 
   listarMinhas(): Observable<SondaDisponivel[]> {
-    return this.http.get<SondaDisponivel[]>(`${this.baseUrl}/minhas`);
+    // Retorna lista estática enquanto não existe endpoint de sondas no backend-telemetria
+    return new Observable(obs => {
+      obs.next([{ idSondaUnidade: 'SONDA-01', nome: 'Sonda 01', apelido: 'SONDA-01' }]);
+      obs.complete();
+    });
   }
 
   consultarSerie(
-    idSondaUnidade: number,
+    idSondaUnidade: string,
     dispositivoId: string,
     inicio: string,
     fim: string
@@ -40,7 +45,7 @@ export class MonitoramentoSondaService {
       .set('inicio', inicio)
       .set('fim', fim);
     return this.http.get<MonitoramentoSerie>(
-      `${this.baseUrl}/${idSondaUnidade}/monitoramentos/series`,
+      `${this.telemetriaUrl}/sondas/${encodeURIComponent(idSondaUnidade)}/series`,
       { params }
     );
   }

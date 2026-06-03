@@ -1,5 +1,6 @@
 ﻿import {
   AfterViewInit,
+  ChangeDetectorRef,
   Component,
   ElementRef,
   Input,
@@ -8,9 +9,10 @@
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PlugGeometry } from '../../models/tampao.model';
+import { PlugGeometry, TampaoInputs } from '../../models/tampao.model';
 import { SlurryDesign, SlurryRecipe } from '../../models/pasta.model';
 import { ADJUSTED_SCHEMATIC_NOTE, computeVisualSegmentHeights, displaySubtitleForSegment, formatBbl, formatM, formatPpg, joinInfoParts, layoutDepthAnnotations, SchematicInfoSection, shouldShowSegmentLabel, visibleInfoRows, visualYForSegmentBoundary, VisualSegmentInput } from './visual-segments';
+import { SchematicWellboreComponent, WellboreSchematicConfig, WellboreSegment } from './schematic-wellbore.component';
 
 export interface SchematicSegment {
   key: 'completionFluid' | 'displacementFluid' | 'frontWater' | 'backWater' | 'cement';
@@ -63,7 +65,7 @@ export function createWithoutTubingSchematic(plug: PlugGeometry): WithoutTubingS
   const topBack = Math.max(0, topCement - backHeight);
   const topFront = Math.max(0, topBack - frontHeight);
   const topDisplacement = Math.max(0, topFront - displacementHeight);
-  const totalDepth = Math.max(base + 60, plug.wellFinalMD || base + 60);
+  const totalDepth = Math.max(base, 1);
   const allSegments: SchematicSegment[] = [
     {
       key: 'completionFluid',
@@ -83,15 +85,15 @@ export function createWithoutTubingSchematic(plug: PlugGeometry): WithoutTubingS
     },
     {
       key: 'frontWater',
-      name: 'Água Frente',
+      name: 'Espaçador Frente',
       sub: `${formatPt(plug.volWashTotal)} bbl | ${formatPt(frontHeight, 0)} m`,
       top: topFront,
       bottom: topBack,
-      color: '#a5f3fc',
+      color: '#d8b4fe',
     },
     {
       key: 'backWater',
-      name: 'Água Trás',
+      name: 'Espaçador Trás',
       sub: `${formatPt(plug.volBackSpacer)} bbl | ${formatPt(backHeight, 0)} m`,
       top: topBack,
       bottom: topCement,
@@ -165,7 +167,7 @@ function formatPt(v: number | null | undefined, dec = 2): string {
 @Component({
   selector: 'app-schematic-tampao',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SchematicWellboreComponent],
   template: `
     <div class="schema-row">
       <div class="schema-card">
@@ -194,6 +196,9 @@ function formatPt(v: number | null | undefined, dec = 2): string {
         </div>
         <canvas #cvNoTub class="schema-canvas"></canvas>
       </div>
+      @if (wellboreConfig) {
+        <app-schematic-wellbore [config]="wellboreConfig"></app-schematic-wellbore>
+      }
     </div>
   `,
   styles: [`
@@ -211,25 +216,51 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
   @Input() plug: PlugGeometry | null = null;
   @Input() slurry: SlurryDesign | null = null;
   @Input() recipe: SlurryRecipe | null = null;
+  @Input() inputs: TampaoInputs | null = null;
 
   @ViewChild('cvTubing') cvTubing!: ElementRef<HTMLCanvasElement>;
   @ViewChild('cvNoTub') cvNoTub!: ElementRef<HTMLCanvasElement>;
+  @ViewChild(SchematicWellboreComponent) wellboreComponent?: SchematicWellboreComponent;
+
+  wellboreConfig: WellboreSchematicConfig | null = null;
 
   private resizeObserver?: ResizeObserver;
 
+  constructor(private cdr: ChangeDetectorRef) {}
+
   ngAfterViewInit(): void {
     this.draw();
-    this.resizeObserver = new ResizeObserver(() => this.draw());
+    this.resizeObserver = new ResizeObserver(() => { this.draw(); this.cdr.detectChanges(); });
     if (this.cvTubing?.nativeElement.parentElement) {
       this.resizeObserver.observe(this.cvTubing.nativeElement.parentElement);
     }
   }
 
-  ngOnChanges(): void { this.draw(); }
+  ngOnChanges(): void {
+    // Calcula wellboreConfig aqui para garantir que o @if reaja antes dos canvases estarem prontos
+    this.wellboreConfig = this.buildWellboreConfig();
+    this.draw();
+  }
   ngOnDestroy(): void { this.resizeObserver?.disconnect(); }
 
   saveTubing(): void { this.saveRef(this.cvTubing, 'tampao-com-tubing'); }
   saveNoTub(): void { this.saveRef(this.cvNoTub, 'tampao-sem-tubing'); }
+
+  getReportImages(selected: string[] = ['bombeio', 'comTubing', 'semTubing']): { tipo: string; label: string; imagem: string }[] {
+    this.draw();
+    const images: { tipo: string; label: string; imagem: string }[] = [];
+    if (selected.includes('bombeio')) {
+      const image = this.wellboreComponent?.toImage();
+      if (image) images.push({ tipo: 'bombeio', label: 'Esquemático de bombeio', imagem: image });
+    }
+    if (selected.includes('comTubing') && this.cvTubing) {
+      images.push({ tipo: 'comTubing', label: 'Com tubing', imagem: this.cvTubing.nativeElement.toDataURL('image/png') });
+    }
+    if (selected.includes('semTubing') && this.cvNoTub) {
+      images.push({ tipo: 'semTubing', label: 'Sem tubing / final', imagem: this.cvNoTub.nativeElement.toDataURL('image/png') });
+    }
+    return images;
+  }
 
   private saveRef(ref: ElementRef<HTMLCanvasElement>, filename: string): void {
     const url = ref.nativeElement.toDataURL('image/png');
@@ -246,6 +277,67 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
     this.drawWithoutTubing();
   }
 
+  private buildWellboreConfig(): WellboreSchematicConfig | null {
+    const p = this.plug;
+    const inp = this.inputs;
+    if (!p) return null;
+
+    const topCem = p.topCementWithTubing;
+    const topBack = p.topBackSpacer;
+    const topFront = p.topFrontSpacer;
+
+    // Peso linear: disponível nos inputs brutos; se ausente usa 0
+    const casingWeightLbmFt = 0;   // TampaoInputs não tem peso linear de casing — campo não existe no modelo
+    const tubingWeightLbmFt = 0;
+
+    // Diâmetros em polegadas
+    const casingOD = inp?.holeID ?? p.hID;   // holeID é o ID do poço (buraco), equivale ao casing ID no tampão
+    const casingID = p.hID;
+    const tubingOD = inp?.pipeOD ?? p.pOD;
+    const tubingID = inp?.pipeID ?? p.pID;
+
+    const casingDepthM = p.sEnd;
+    const tubingDepthM = p.pipeDep;
+
+    const annulusSegments: WellboreSchematicConfig['segments'] = [
+      { key: 'completionFluid', zone: 'annulus', label: 'Fl. Completação', sub: '', topM: 0, bottomM: topFront, color: '#bae6fd' },
+      { key: 'frontWater', zone: 'annulus', label: 'Espaçador Frente', sub: `${this.f(p.volWashTotal)} bbl`, topM: topFront, bottomM: topCem, color: '#d8b4fe' },
+      { key: 'cement', zone: 'annulus', label: 'Cimento anular', sub: `${this.f(p.volCementAnn)} bbl`, topM: topCem, bottomM: p.pBase, color: '#fb923c' },
+    ];
+    const tubingSegments: WellboreSchematicConfig['segments'] = [
+      { key: 'displacementFluid', zone: 'tubing', label: 'Fl. Deslocamento', sub: `${this.f(p.volDisplacement)} bbl`, topM: 0, bottomM: topBack, color: '#93c5fd' },
+      { key: 'backWater', zone: 'tubing', label: 'Espaçador Trás', sub: `${this.f(p.volBackSpacer)} bbl`, topM: topBack, bottomM: topCem, color: '#d8b4fe' },
+      { key: 'cement', zone: 'tubing', label: 'Cimento tubing', sub: `${this.f(p.volCementPipe)} bbl`, topM: topCem, bottomM: p.pBase, color: '#fb923c' },
+    ];
+
+    return {
+      casingOD,
+      casingID,
+      casingWeightLbmFt,
+      casingDepthM,
+      tubingOD,
+      tubingID,
+      tubingWeightLbmFt,
+      tubingDepthM,
+      workZoneTopM: topCem,
+      workZoneBaseM: p.pBase,
+      wellFinalMD: p.wellFinalMD || p.pBase + 60,
+      title: 'Esquemático do Poço - Tampão com Revestimento e Tubing',
+      segments: [
+        ...annulusSegments.filter(s => s.bottomM > s.topM),
+        ...tubingSegments.filter(s => s.bottomM > s.topM),
+      ],
+      legendItems: [
+        { color: '#bae6fd', label: 'Fl. Completação' },
+        { color: '#d8b4fe', label: 'Espaçador Frente', sub: `${this.f(p.volWashTotal)} bbl` },
+        { color: '#d8b4fe', label: 'Espaçador Trás', sub: `${this.f(p.volBackSpacer)} bbl` },
+        { color: '#fb923c', label: 'Cimento tubing', sub: `${this.f(p.volCementPipe)} bbl` },
+        { color: '#fb923c', label: 'Cimento anular', sub: `${this.f(p.volCementAnn)} bbl` },
+        { color: '#93c5fd', label: 'Fl. Deslocamento', sub: `${this.f(p.volDisplacement)} bbl` },
+      ],
+    };
+  }
+
   private drawWithTubing(): void {
     const p = this.plug!, rec = this.recipe!;
     const cv = this.cvTubing.nativeElement;
@@ -253,7 +345,7 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
     const topCem = p.topCementWithTubing;
     const topBack = p.topBackSpacer;
     const topFront = p.topFrontSpacer;
-    const totalDepth = Math.max(p.pBase + 60, p.wellFinalMD || p.pBase + 60);
+    const totalDepth = Math.max(p.pBase, 1);
     const PAD_L = 115, PAD_T = 65, PAD_B = 40, LEGEND_W = 230;
     const drawH = H - PAD_T - PAD_B;
     const toY = (d: number) => PAD_T + drawH * (d / totalDepth);
@@ -278,11 +370,11 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
     const columnSegments = this.visualSegments([
       { key: 'displacementFluid', top: 0, bottom: topBack, label: 'Fl. Deslocamento', sub: `${this.f(p.volDisplacement)} bbl`, color: '#93c5fd' },
       { key: 'backWater', top: topBack, bottom: topCem, label: 'Água Atrás', sub: `${this.f(p.volBackSpacer)} bbl | ${this.f(p.backPhysicalHeight, 0)} m`, color: '#d8b4fe' },
-      { key: 'cement', top: topCem, bottom: p.pBase, label: 'Cimento tubing', sub: `${this.f(p.volCementPipe)} bbl | ${this.f(p.cementHeightWithTubing, 1)} m`, color: '#fdba74' },
+      { key: 'cement', top: topCem, bottom: p.pBase, label: 'Cimento tubing', sub: `${this.f(p.volCementPipe)} bbl | ${this.f(p.cementHeightWithTubing, 1)} m`, color: '#fb923c' },
     ], yBase - yTop);
     const annularSegments = this.visualSegments([
       { key: 'completionFluid', top: 0, bottom: topFront, label: 'Fl. Completação', sub: '', color: '#bae6fd' },
-      { key: 'frontWater', top: topFront, bottom: topCem, label: 'Água Frente', sub: `${this.f(p.volWashTotal)} bbl | ${this.f(p.frontPhysicalHeight, 0)} m`, color: '#a5f3fc' },
+      { key: 'frontWater', top: topFront, bottom: topCem, label: 'Espaçador Frente', sub: `${this.f(p.volWashTotal)} bbl | ${this.f(p.frontPhysicalHeight, 0)} m`, color: '#d8b4fe' },
       { key: 'cement', top: topCem, bottom: p.pBase, label: 'Cimento anular', sub: `${this.f(p.volCementAnn)} bbl | ${this.f(p.cementHeightWithTubing, 1)} m`, color: '#fb923c' },
     ], yBase - yTop);
     columnSegments.forEach(segment => this.fillRect(cx, colX, yTop + segment.visualTop, colW, segment.visualHeight, segment.color!, segment.label!, displaySubtitleForSegment(segment)));
@@ -303,9 +395,9 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
     const legendBottom = this.drawLegend(cx, legX, PAD_T, [
       { color: '#93c5fd', label: 'Fl. Deslocamento' },
       { color: '#d8b4fe', label: 'Água Atrás' },
-      { color: '#fdba74', label: 'Cimento tubing' },
+      { color: '#fb923c', label: 'Cimento tubing' },
       { color: '#bae6fd', label: 'Fl. Completação' },
-      { color: '#a5f3fc', label: 'Água Frente' },
+      { color: '#d8b4fe', label: 'Espaçador Frente' },
       { color: '#fb923c', label: 'Cimento anular' },
     ]);
     this.drawInfoPanel(cx, legX, legendBottom + 14, this.tampaoInfoSections(topCem));
@@ -316,7 +408,7 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
     const model = createWithoutTubingSchematic(p);
     const cv = this.cvNoTub.nativeElement;
     const { cx, W, H } = this.prepareCanvas(cv);
-    const totalDepth = Math.max(p.pBase + 60, p.wellFinalMD || p.pBase + 60);
+    const totalDepth = Math.max(p.pBase, 1);
     const PAD_L = 120, PAD_T = 65, PAD_B = 40, LEGEND_W = 230;
     const drawH = H - PAD_T - PAD_B;
     const toY = (d: number) => PAD_T + drawH * (d / totalDepth);
@@ -398,8 +490,8 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
     const legendBottom = this.drawLegend(cx, legX, PAD_T, [
       { color: '#bae6fd', label: 'Fl. Completação' },
       { color: '#93c5fd', label: 'Fl. Deslocamento' },
-      { color: '#a5f3fc', label: 'Água Frente' },
-      { color: '#d8b4fe', label: 'Água Trás' },
+      { color: '#d8b4fe', label: 'Espaçador Frente' },
+      { color: '#d8b4fe', label: 'Espaçador Trás' },
       { color: '#fb923c', label: 'Cimento' },
       { color: '#d4b896', label: 'Formação' },
       { color: '#94a3b8', label: 'Revestimento' },

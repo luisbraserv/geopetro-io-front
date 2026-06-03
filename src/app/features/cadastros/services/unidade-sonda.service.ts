@@ -4,6 +4,7 @@ import { Observable, catchError, throwError } from 'rxjs';
 
 import { parseApiError } from '../../../core/http/api-error';
 import { environment } from '../../../../environments/environment';
+import { Pagina } from '../../../shared/models/pagina.model';
 import { UnidadeSonda, UnidadeSondaPayload } from '../models/cadastros.model';
 
 @Injectable({ providedIn: 'root' })
@@ -19,6 +20,14 @@ export class UnidadeSondaService {
       params = params.set('setorId', String(setorId));
     }
     return this.http.get<UnidadeSonda[]>(this.apiUrl, { params }).pipe(catchError((error) => this.handleError(error)));
+  }
+
+  listarPaginado(pagina = 0, tamanho = 10, busca = ''): Observable<Pagina<UnidadeSonda>> {
+    let params = new HttpParams().set('pagina', pagina).set('tamanho', tamanho);
+    if (busca) params = params.set('busca', busca);
+    return this.http
+      .get<Pagina<UnidadeSonda>>(`${this.apiUrl}/paginado`, { params })
+      .pipe(catchError((error) => this.handleError(error)));
   }
 
   buscarPorId(id: number): Observable<UnidadeSonda> {

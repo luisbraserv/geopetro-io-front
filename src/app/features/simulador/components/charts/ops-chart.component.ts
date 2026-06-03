@@ -114,6 +114,7 @@ export class OpsChartComponent implements AfterViewInit, OnChanges {
   @Input() phases: OpsPhase[] = [];
   @Input() ttRequiredMin = 0;
   @Input() tt100Min = 0;
+  @Input() forceCanvas = false;
   @ViewChild('canvas') canvasRef?: ElementRef<HTMLCanvasElement>;
   private chart?: Chart;
 
@@ -133,11 +134,225 @@ export class OpsChartComponent implements AfterViewInit, OnChanges {
     a.click();
   }
 
+  getImageDataUrl(): string | null {
+    return this.canvasRef?.nativeElement?.toDataURL('image/png') ?? null;
+  }
+
+  renderForReport(): Promise<{ label: string; imagem: string }[]> {
+    const phases = this.visiblePhases();
+    if (!phases.length) return Promise.resolve([]);
+    const canvas = this.renderScheduleCanvas(phases);
+    if (!canvas) return Promise.resolve([]);
+    return Promise.resolve([{ label: 'Cronograma Operacional', imagem: canvas.toDataURL('image/png') }]);
+  }
+
+  private renderScheduleCanvas(phases: OpsPhase[]): HTMLCanvasElement | null {
+    const totalPump = this.totalPumpTimeMin();
+    const totalChart = this.totalChartTimeMin();
+    if (totalPump <= 0 || totalChart <= 0) return null;
+
+    const W = 900;
+    const PAD_L = 20, PAD_R = 20;
+    const BAR_W = W - PAD_L - PAD_R;
+
+    const TITLE_H = 36;
+    const SEC_HEAD_H = 24;
+    const OVERVIEW_H = 52;
+    const AXIS_H = 20;
+    const GAP = 20;
+    const ZOOM_H = 82;
+    const LEGEND_H = 34;
+    const PAD_BOT = 12;
+    const H = TITLE_H + SEC_HEAD_H + OVERVIEW_H + AXIS_H + GAP + SEC_HEAD_H + ZOOM_H + LEGEND_H + PAD_BOT;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    // ── título ──
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 14px Arial,sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Cronograma Operacional', PAD_L, 22);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px Arial,sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('Tempo de bombeio × thickening time', W - PAD_R, 22);
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD_L, 30); ctx.lineTo(W - PAD_R, 30); ctx.stroke();
+
+    let y = TITLE_H;
+
+    // ── seção Visão Geral ──
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 11px Arial,sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Visão geral', PAD_L, y + 15);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px Arial,sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`Escala real: 0 a ${this.formatMin(totalChart)}`, W - PAD_R, y + 15);
+    y += SEC_HEAD_H;
+
+    // track background
+    ctx.fillStyle = '#f1f5f9';
+    this.rrect(ctx, PAD_L, y, BAR_W, OVERVIEW_H, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    this.rrect(ctx, PAD_L, y, BAR_W, OVERVIEW_H, 8);
+    ctx.stroke();
+
+    // pump bar gradient
+    const pumpBarW = Math.max(2, (totalPump / totalChart) * BAR_W);
+    const pumpBarY = y + (OVERVIEW_H - 14) / 2;
+    const grad = ctx.createLinearGradient(PAD_L, 0, PAD_L + pumpBarW, 0);
+    grad.addColorStop(0, '#38bdf8'); grad.addColorStop(1, '#fb923c');
+    ctx.fillStyle = grad;
+    this.rrect(ctx, PAD_L, pumpBarY, pumpBarW, 14, 999);
+    ctx.fill();
+
+    // TT markers
+    const close = this.ttRequiredMin > 0 && this.tt100Min > 0 &&
+      Math.abs(this.tt100Min - this.ttRequiredMin) / totalChart < 0.08;
+    const drawOvMarker = (val: number, label: string, color: string, topOff: number) => {
+      if (!val || val <= 0) return;
+      const mx = PAD_L + (val / totalChart) * BAR_W;
+      if (mx < PAD_L || mx > W - PAD_R) return;
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 2]);
+      ctx.beginPath(); ctx.moveTo(mx, y + 5); ctx.lineTo(mx, y + OVERVIEW_H - 5); ctx.stroke();
+      ctx.setLineDash([]);
+      const txt = `${label} ${this.formatMin(val)}`;
+      ctx.font = 'bold 8.5px Arial,sans-serif';
+      const tw = ctx.measureText(txt).width;
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillRect(mx + 4, y + topOff - 9, tw + 4, 12);
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left';
+      ctx.fillText(txt, mx + 6, y + topOff);
+    };
+    drawOvMarker(this.ttRequiredMin, 'TT 50Bc', '#ef4444', close ? 13 : 20);
+    drawOvMarker(this.tt100Min, 'TT 100Bc', '#7c3aed', close ? 30 : 35);
+
+    // total marker
+    ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath(); ctx.moveTo(PAD_L + BAR_W, y + 5); ctx.lineTo(PAD_L + BAR_W, y + OVERVIEW_H - 5); ctx.stroke();
+    ctx.setLineDash([]);
+
+    y += OVERVIEW_H;
+
+    // axis row
+    ctx.fillStyle = '#64748b'; ctx.font = '9px Arial,sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('0 min', PAD_L, y + 13);
+    ctx.textAlign = 'center';
+    ctx.fillText(`Bombeio ${this.formatMin(totalPump)}`, PAD_L + pumpBarW / 2, y + 13);
+    ctx.textAlign = 'right';
+    ctx.fillText(`Total ${this.formatMin(totalChart)}`, W - PAD_R, y + 13);
+    y += AXIS_H;
+
+    // ── seção Zoom Operacional ──
+    y += GAP;
+    ctx.fillStyle = '#0f172a'; ctx.font = 'bold 11px Arial,sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Zoom operacional', PAD_L, y + 15);
+    ctx.fillStyle = '#64748b'; ctx.font = '10px Arial,sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('Blocos ampliados; durações reais nos rótulos', W - PAD_R, y + 15);
+    y += SEC_HEAD_H;
+
+    // zoom track background
+    ctx.fillStyle = '#f8fafc';
+    this.rrect(ctx, PAD_L, y, BAR_W, ZOOM_H, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    this.rrect(ctx, PAD_L, y, BAR_W, ZOOM_H, 8);
+    ctx.stroke();
+
+    // phase blocks
+    const GAP_BLK = 4;
+    const totalFlex = phases.reduce((s, p) => s + p.durationMin, 0);
+    const usableW = BAR_W - GAP_BLK * (phases.length - 1);
+    const IP = 5;
+    let bx = PAD_L;
+    phases.forEach((p, i) => {
+      const bw = Math.max(4, (p.durationMin / totalFlex) * usableW);
+      ctx.fillStyle = p.color;
+      this.rrect(ctx, bx, y + IP, bw, ZOOM_H - IP * 2, 6);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.lineWidth = 1;
+      this.rrect(ctx, bx, y + IP, bw, ZOOM_H - IP * 2, 6);
+      ctx.stroke();
+      if (bw > 44) {
+        const mx = bx + bw / 2, my = y + ZOOM_H / 2;
+        const fs = Math.min(11, Math.max(8, bw / 7));
+        ctx.fillStyle = 'rgba(15,23,42,0.85)';
+        ctx.font = `bold ${fs}px Arial,sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(p.label, mx, my - 4);
+        ctx.font = `${Math.min(10, Math.max(7, bw / 8))}px Arial,sans-serif`;
+        ctx.fillStyle = 'rgba(15,23,42,0.65)';
+        ctx.fillText(`${p.durationMin.toFixed(1)} min`, mx, my + 10);
+      }
+      bx += bw + (i < phases.length - 1 ? GAP_BLK : 0);
+    });
+    y += ZOOM_H;
+
+    // ── legenda ──
+    y += 8;
+    const legendItems: { color: string; label: string; dash?: boolean }[] = [
+      ...phases.map(p => ({ color: p.color, label: p.label })),
+      { color: '#ef4444', label: 'TT 50Bc', dash: true },
+      { color: '#7c3aed', label: 'TT 100Bc', dash: true },
+    ];
+    let lx = PAD_L;
+    ctx.font = '9px Arial,sans-serif';
+    legendItems.forEach(item => {
+      if (lx > W - PAD_R - 60) return;
+      if (item.dash) {
+        ctx.strokeStyle = item.color; ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 2]);
+        ctx.beginPath(); ctx.moveTo(lx, y + 4); ctx.lineTo(lx + 14, y + 4); ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        ctx.fillStyle = item.color;
+        this.rrect(ctx, lx, y - 2, 12, 8, 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#475569'; ctx.textAlign = 'left';
+      ctx.fillText(item.label, lx + 16, y + 6);
+      lx += ctx.measureText(item.label).width + 30;
+    });
+
+    return canvas;
+  }
+
+  private rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+    const R = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + R, y);
+    ctx.lineTo(x + w - R, y);
+    ctx.arcTo(x + w, y, x + w, y + R, R);
+    ctx.lineTo(x + w, y + h - R);
+    ctx.arcTo(x + w, y + h, x + w - R, y + h, R);
+    ctx.lineTo(x + R, y + h);
+    ctx.arcTo(x, y + h, x, y + h - R, R);
+    ctx.lineTo(x, y + R);
+    ctx.arcTo(x, y, x + R, y, R);
+    ctx.closePath();
+  }
+
   shouldUseOperationalZoom(totalPumpTimeMin: number, totalChartTimeMin: number): boolean {
     return totalPumpTimeMin > 0 && totalChartTimeMin > 0 && totalPumpTimeMin / totalChartTimeMin < 0.15;
   }
 
   useOperationalZoom(): boolean {
+    if (this.forceCanvas) return false;
     return this.shouldUseOperationalZoom(this.totalPumpTimeMin(), this.totalChartTimeMin());
   }
 

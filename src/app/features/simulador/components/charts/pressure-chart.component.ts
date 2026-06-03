@@ -101,6 +101,16 @@ export class PressureChartComponent implements AfterViewInit, OnChanges {
   ngAfterViewInit(): void { this.build(); }
   ngOnChanges(): void { if (this.chart) { this.chart.destroy(); this.build(); } }
 
+  getImageDataUrl(): string | null {
+    return this.cvEnvelope?.nativeElement?.toDataURL('image/png') ?? null;
+  }
+
+  renderForReport(): Promise<string | null> {
+    return new Promise(resolve => {
+      requestAnimationFrame(() => resolve(this.getImageDataUrl()));
+    });
+  }
+
   private build(): void {
     if (!this.cvEnvelope) return;
     const pts = this.data?.points ?? [];

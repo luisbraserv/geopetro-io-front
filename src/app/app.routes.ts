@@ -17,6 +17,7 @@ import { EmpresasPageComponent } from './features/cadastros/pages/empresas-page/
 import { SetoresPageComponent } from './features/cadastros/pages/setores-page/setores-page.component';
 import { UnidadesSondasPageComponent } from './features/cadastros/pages/unidades-sondas-page/unidades-sondas-page.component';
 import { ProjetosPageComponent } from './features/cadastros/pages/projetos-page/projetos-page.component';
+import { RegionaisPageComponent } from './features/cadastros/pages/regionais-page/regionais-page.component';
 import { ProcessosPageComponent } from './features/gerenciamento/pages/processos-page/processos-page.component';
 import { ProcessoDetailPageComponent } from './features/gerenciamento/pages/processo-detail-page/processo-detail-page.component';
 import { ProcessosArquivadosPageComponent } from './features/gerenciamento/pages/processos-arquivados-page/processos-arquivados-page.component';
@@ -97,6 +98,12 @@ export const routes: Routes = [
           {
             path: 'empresas',
             component: EmpresasPageComponent,
+            canActivate: [authGuard],
+            data: { roles: ['ADMIN'] },
+          },
+          {
+            path: 'regionais',
+            component: RegionaisPageComponent,
             canActivate: [authGuard],
             data: { roles: ['ADMIN'] },
           },

@@ -2,6 +2,9 @@ import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { PaginatorComponent } from '../../../../shared/ui/paginator/paginator.component';
+import { SearchBoxComponent } from '../../../../shared/ui/search-box/search-box.component';
 import { CepService } from '../../../../shared/services/cep.service';
 import { ToastService } from '../../../../shared/toast/toast.service';
 import { Empresa, EmpresaPayload } from '../../models/cadastros.model';
@@ -9,7 +12,7 @@ import { EmpresaService } from '../../services/empresa.service';
 
 @Component({
   selector: 'app-empresas-page',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalComponent, SearchBoxComponent, PaginatorComponent],
   template: `
     <section class="page">
       <header class="page__header">
@@ -17,35 +20,39 @@ import { EmpresaService } from '../../services/empresa.service';
           <p class="eyebrow">Cadastros</p>
           <h1>Empresas</h1>
         </div>
-        <button type="button" (click)="novo()">Novo</button>
+        <div class="header-actions">
+          <app-search-box placeholder="Buscar empresa ou CNPJ..." (busca)="aoBuscar($event)" />
+          <button type="button" (click)="abrirNovo()">Novo</button>
+        </div>
       </header>
 
-      <p class="feedback" *ngIf="feedback()">{{ feedback() }}</p>
-      <p class="error" *ngIf="error()">{{ error() }}</p>
-
-      <form class="form" (ngSubmit)="salvar()">
-        <label>Nome<input name="nome" [(ngModel)]="form.nome" required /></label>
-        <label>CNPJ<input name="cnpj" [(ngModel)]="form.cnpj" /></label>
-        <label>Telefone<input name="telefone" [(ngModel)]="form.telefone" /></label>
-        <label>Email<input name="email" [(ngModel)]="form.email" type="email" /></label>
-        <label>CEP
-          <div class="input-cep" [class.input-cep--loading]="buscandoCep()">
-            <input name="cep" [(ngModel)]="form.cep" (blur)="buscarCep()" maxlength="9" placeholder="00000-000" />
-            @if (buscandoCep()) { <span class="cep-spinner"></span> }
-          </div>
-          @if (buscandoCep()) { <span class="cep-feedback">Buscando endereÃ§o pelo CEP...</span> }
-        </label>
-        <label>Logradouro<input name="logradouro" [(ngModel)]="form.logradouro" [disabled]="buscandoCep()" /></label>
-        <label>Bairro<input name="bairro" [(ngModel)]="form.bairro" [disabled]="buscandoCep()" /></label>
-        <label>Cidade<input name="cidade" [(ngModel)]="form.cidade" [disabled]="buscandoCep()" /></label>
-        <label>Estado<input name="estado" [(ngModel)]="form.estado" maxlength="2" [disabled]="buscandoCep()" /></label>
-        <label>Número<input name="numero" [(ngModel)]="form.numero" /></label>
-        <label class="span-2">Complemento<input name="complemento" [(ngModel)]="form.complemento" /></label>
-        <div class="actions">
-          <button type="submit">{{ editandoId() ? 'Atualizar' : 'Cadastrar' }}</button>
-          @if (editandoId()) { <button type="button" class="ghost" (click)="novo()">Cancelar</button> }
-        </div>
-      </form>
+      <app-modal [open]="modalAberto()" [title]="editandoId() ? 'Editar empresa' : 'Nova empresa'" width="760px" (close)="fecharModal()">
+        <p class="feedback" *ngIf="feedback()">{{ feedback() }}</p>
+        <p class="error" *ngIf="error()">{{ error() }}</p>
+        <form id="form-empresa" class="form" (ngSubmit)="salvar()">
+          <label>Nome<input name="nome" [(ngModel)]="form.nome" required /></label>
+          <label>CNPJ<input name="cnpj" [(ngModel)]="form.cnpj" /></label>
+          <label>Telefone<input name="telefone" [(ngModel)]="form.telefone" /></label>
+          <label>Email<input name="email" [(ngModel)]="form.email" type="email" /></label>
+          <label>CEP
+            <div class="input-cep" [class.input-cep--loading]="buscandoCep()">
+              <input name="cep" [(ngModel)]="form.cep" (blur)="buscarCep()" maxlength="9" placeholder="00000-000" />
+              @if (buscandoCep()) { <span class="cep-spinner"></span> }
+            </div>
+            @if (buscandoCep()) { <span class="cep-feedback">Buscando endereço pelo CEP...</span> }
+          </label>
+          <label>Logradouro<input name="logradouro" [(ngModel)]="form.logradouro" [disabled]="buscandoCep()" /></label>
+          <label>Bairro<input name="bairro" [(ngModel)]="form.bairro" [disabled]="buscandoCep()" /></label>
+          <label>Cidade<input name="cidade" [(ngModel)]="form.cidade" [disabled]="buscandoCep()" /></label>
+          <label>Estado<input name="estado" [(ngModel)]="form.estado" maxlength="2" [disabled]="buscandoCep()" /></label>
+          <label>Número<input name="numero" [(ngModel)]="form.numero" /></label>
+          <label class="span-2">Complemento<input name="complemento" [(ngModel)]="form.complemento" /></label>
+        </form>
+        <ng-container modal-footer>
+          <button type="button" class="ghost" (click)="fecharModal()">Cancelar</button>
+          <button type="submit" form="form-empresa">{{ editandoId() ? 'Atualizar' : 'Cadastrar' }}</button>
+        </ng-container>
+      </app-modal>
 
       <table>
         <thead>
@@ -66,11 +73,14 @@ import { EmpresaService } from '../../services/empresa.service';
           }
         </tbody>
       </table>
+
+      <app-paginator [pagina]="pagina()" [totalPaginas]="totalPaginas()" [totalElementos]="totalElementos()" (mudarPagina)="irParaPagina($event)" />
     </section>
   `,
   styles: [`
     .page { display: grid; gap: 1rem; color: var(--color-text-strong); padding: 1.5rem; width: min(100%, 1440px); margin: 0 auto; }
-    .page__header { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+    .page__header { display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    .header-actions { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
     h1 { margin: 0; font-size: 1.65rem; } .eyebrow { margin: 0; color: var(--color-text-body); font-size: .8rem; }
     .form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .85rem; padding: 1rem; background: #fff; border: 1px solid var(--color-card-border); border-radius: 8px; }
     label { display: grid; gap: .35rem; font-size: .82rem; color: var(--color-text-body); }
@@ -97,13 +107,24 @@ export class EmpresasPageComponent {
   protected readonly empresas = signal<Empresa[]>([]);
   protected readonly buscandoCep = signal(false);
   protected readonly editandoId = signal<number | null>(null);
+  protected readonly modalAberto = signal(false);
   protected readonly feedback = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
+  protected readonly pagina = signal(0);
+  protected readonly totalPaginas = signal(0);
+  protected readonly totalElementos = signal(0);
+  private busca = '';
   protected readonly form: EmpresaPayload = this.vazio();
 
   constructor() {
     this.carregar();
   }
+
+  protected abrirNovo(): void { this.novo(); this.feedback.set(null); this.error.set(null); this.modalAberto.set(true); }
+  protected fecharModal(): void { this.modalAberto.set(false); this.novo(); }
+
+  protected aoBuscar(termo: string): void { this.busca = termo; this.pagina.set(0); this.carregar(); }
+  protected irParaPagina(p: number): void { this.pagina.set(p); this.carregar(); }
 
   protected salvar(): void {
     this.feedback.set(null);
@@ -113,6 +134,7 @@ export class EmpresasPageComponent {
     request.subscribe({
       next: () => {
         this.toast.success(id ? 'Empresa atualizada com sucesso.' : 'Empresa cadastrada com sucesso.');
+        this.modalAberto.set(false);
         this.novo();
         this.carregar();
       },
@@ -123,6 +145,7 @@ export class EmpresasPageComponent {
   protected editar(empresa: Empresa): void {
     this.editandoId.set(empresa.id);
     Object.assign(this.form, empresa);
+    this.modalAberto.set(true);
   }
 
   protected excluir(empresa: Empresa): void {
@@ -157,8 +180,12 @@ export class EmpresasPageComponent {
   }
 
   private carregar(): void {
-    this.service.listar().subscribe({
-      next: (empresas) => this.empresas.set(empresas),
+    this.service.listarPaginado(this.pagina(), 10, this.busca).subscribe({
+      next: (p) => {
+        this.empresas.set(p.conteudo);
+        this.totalPaginas.set(p.totalPaginas);
+        this.totalElementos.set(p.totalElementos);
+      },
       error: (error: Error) => this.notificarErro(error),
     });
   }

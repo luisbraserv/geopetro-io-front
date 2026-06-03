@@ -59,6 +59,7 @@ export class CadastrosPageComponent {
       { label: 'Projetos', icon: '@tui.folder-kanban', route: 'projetos', adminOnly: false },
       { label: 'Usuarios', icon: '@tui.users', route: 'usuarios', adminOnly: true },
       { label: 'Empresas', icon: '@tui.building-2', route: 'empresas', adminOnly: true },
+      { label: 'Regionais', icon: '@tui.map-pin', route: 'regionais', adminOnly: true },
       { label: 'Setores', icon: '@tui.network', route: 'setores', adminOnly: true },
       { label: 'Unidades/Sondas', icon: '@tui.landmark', route: 'unidades-sondas', adminOnly: true },
     ];

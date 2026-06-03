@@ -66,15 +66,7 @@ export class DashboardPageComponent {
 
   private carregarProcessos(): void {
     const user = this.currentUser();
-    const setorIds = user?.roles?.includes('ADMIN')
-      ? []
-      : user?.setorIds?.length
-        ? user.setorIds
-        : user?.setorId
-          ? [user.setorId]
-          : [];
-
-    this.processoService.listar({ setorIds: setorIds.length ? setorIds : undefined }).subscribe({
+    this.processoService.listar({}).subscribe({
       next: (processos) => this.processos.set(processos),
     });
   }
