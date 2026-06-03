@@ -227,24 +227,59 @@ export class UsuariosAdminPageComponent {
     });
   }
 
+  // Validacoes espelhando as regras do backend (Usuario/Telefone/Email/UsuarioInterno)
+  private validarFormulario(): string | null {
+    const novo = !this.editando();
+    const nome = this.form.nome?.trim() ?? '';
+    const username = this.form.username?.trim() ?? '';
+    const email = this.form.email?.trim() ?? '';
+    const telefoneDigitos = (this.form.telefone ?? '').replace(/\D/g, '');
+
+    if (!nome) return 'Informe o nome.';
+    if (!email) return 'Informe o e-mail.';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return 'E-mail deve conter usuário e domínio separados por @.';
+    if (telefoneDigitos.length !== 11) return 'Telefone deve conter DDD e número com 11 dígitos.';
+
+    if (novo) {
+      if (!username) return 'Informe o username.';
+      if (username.length > 60) return 'Username deve ter no máximo 60 caracteres.';
+      if (!/^[A-Za-z0-9._-]+$/.test(username)) {
+        return 'Username deve conter apenas letras, números, ponto, hífen ou underline.';
+      }
+      const senha = this.form.password ?? '';
+      if (!senha) return 'Informe a senha.';
+      if (senha.length < 8 || senha.length > 20) return 'Senha deve ter entre 8 e 20 caracteres.';
+      if (!/[a-z]/.test(senha)) return 'Senha deve conter ao menos uma letra minúscula.';
+      if (!/[A-Z]/.test(senha)) return 'Senha deve conter ao menos uma letra maiúscula.';
+      if (!/\d/.test(senha)) return 'Senha deve conter ao menos um número.';
+      if (!/[^A-Za-z0-9]/.test(senha)) return 'Senha deve conter ao menos um caractere especial.';
+    }
+
+    if (this.tipo() === 'INTERNO') {
+      if (!this.form.matricula || Number(this.form.matricula) <= 0) return 'Matrícula deve ser maior que zero.';
+      if (this.regionaisSelecionadas().length === 0) return 'Selecione ao menos uma regional para o usuário interno.';
+      if (!this.form.regionalId || !this.regionaisSelecionadas().includes(Number(this.form.regionalId))) {
+        return 'Selecione a regional principal entre as regionais marcadas.';
+      }
+    } else {
+      if (!this.form.id || Number(this.form.id) <= 0) return 'Informe o ID do cliente.';
+      if (!this.form.empresaId) return 'Selecione a empresa do cliente.';
+    }
+
+    return null;
+  }
+
   protected salvar(): void {
     this.isLoading.set(true);
     this.feedback.set(null);
     this.error.set(null);
 
-    if (this.tipo() === 'INTERNO') {
-      if (this.regionaisSelecionadas().length === 0) {
-        this.toast.warning('Selecione ao menos uma regional para o usuário interno.');
-        this.error.set('Selecione ao menos uma regional para o usuário interno.');
-        this.isLoading.set(false);
-        return;
-      }
-      if (!this.form.regionalId || !this.regionaisSelecionadas().includes(Number(this.form.regionalId))) {
-        this.toast.warning('Selecione a regional principal entre as regionais marcadas.');
-        this.error.set('Selecione a regional principal entre as regionais marcadas.');
-        this.isLoading.set(false);
-        return;
-      }
+    const erro = this.validarFormulario();
+    if (erro) {
+      this.toast.warning(erro);
+      this.error.set(erro);
+      this.isLoading.set(false);
+      return;
     }
 
     const username = this.editandoUsername();
