@@ -15,14 +15,30 @@ export interface Empresa {
 
 export type EmpresaPayload = Omit<Empresa, 'id'>;
 
+export interface Regional {
+  id: number;
+  nome: string;
+  centroCusto?: string | null;
+}
+
+export interface RegionalPayload {
+  nome: string;
+  centroCusto?: string | null;
+}
+
 export interface Setor {
   id: number;
   nome: string;
   centroCusto?: string | null;
-  regional?: string | null;
+  regionalId: number;
+  regionalNome: string;
 }
 
-export type SetorPayload = Omit<Setor, 'id'>;
+export interface SetorPayload {
+  nome: string;
+  centroCusto?: string | null;
+  regionalId: number;
+}
 
 export interface UnidadeSonda {
   id: number;
@@ -30,6 +46,8 @@ export interface UnidadeSonda {
   apelido?: string | null;
   setorId: number;
   setorNome: string;
+  regionalId: number;
+  regionalNome: string;
 }
 
 export interface UnidadeSondaPayload {
@@ -43,8 +61,8 @@ export interface Projeto {
   nome: string;
   descricao?: string | null;
   centroCusto?: string | null;
-  setorId: number;
-  setorNome: string;
+  regionalId: number;
+  regionalNome: string;
   criadoPorUsername?: string | null;
   responsavelUsername?: string | null;
   responsavelNome?: string | null;
@@ -56,6 +74,6 @@ export interface ProjetoPayload {
   nome: string;
   descricao?: string | null;
   centroCusto?: string | null;
-  setorId: number;
+  regionalId: number;
   responsavelUsername?: string | null;
 }

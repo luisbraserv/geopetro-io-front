@@ -505,10 +505,11 @@ export const ADITIVOS_CATALOGO: AditivoCatalogo[] = [
     },
   },
   {
-    catalogId: 'bqfl_30', name: 'BQFL-30', category: 'fluidLossControl', type: 'liquid',
-    defaultConc: 0.03, unit: 'galPerSack', unidadeDosagem: 'galPerSack', misturadoEm: 'aguaMistura',
-    densidadeLbGal: 9.2, densityLb: 9.2, afetaReologia: true, modeloReologico: 'empirical',
-    funcaoPrincipal: 'Controlador de filtrado líquido',
+    catalogId: 'bqfl_30', name: 'BQFL-30', category: 'fluidLossControl', type: 'solid',
+    defaultConc: 0.05, unit: 'percentBWOC', unidadeDosagem: 'percentBWOC', misturadoEm: 'cimentoSeco',
+    massaEspecifica: 1.30, massaEspecificaUnidade: 'sg', volumeAbsolutoGalPerLb: 0.093,
+    afetaReologia: true, modeloReologico: 'empirical',
+    funcaoPrincipal: 'Controlador de filtrado solido',
     alteraFiltrado: 'reduce',
     coefficients: {
       pvDeltaPerUnit: 140,

@@ -11,7 +11,10 @@ import { CoreCalculoService } from '../../services/core-calculo.service';
 import { SlurryCalculoService } from '../../services/slurry-calculo.service';
 import { TestsCalculoService } from '../../services/tests-calculo.service';
 import { SqueezeCalculoService } from '../../services/squeeze-calculo.service';
+import { ReverseCirculationCalculoService, ReverseCirculationResult } from '../../services/reverse-circulation-calculo.service';
 import { RelatorioViewerComponent } from '../../components/relatorio/relatorio-viewer.component';
+import { RelatorioCapaModalComponent, RelatorioCapaData, GraficoOperacionalTipo } from '../../components/relatorio/relatorio-capa-modal.component';
+import { RelatorioBuilderService } from '../../components/relatorio/relatorio-builder.service';
 import { ThickeningChartComponent } from '../../components/charts/thickening-chart.component';
 import { UcaChartComponent } from '../../components/charts/uca-chart.component';
 import { OpsChartComponent, OpsPhase } from '../../components/charts/ops-chart.component';
@@ -22,9 +25,10 @@ import { SimuladorStateModalComponent } from '../../components/state-modal/simul
 import { SqueezeHydraulicSimulationService } from '../../services/squeeze-hydraulic-simulation.service';
 import { RheologyAdjustmentService, RheologyAdjustmentResult, BASE_SLURRY_RHEOLOGY } from '../../services/rheology-adjustment.service';
 import { AditivosStoreService } from '../../services/aditivos-store.service';
+import { SimuladorStateStoreService, DadosRelatorio } from '../../services/simulador-state-store.service';
 
-import { SqueezeGeometry, Perfuracao, SqueezeHydraulicSimulation } from '../../models/squeeze.model';
-import { SlurryDesign, SlurryRecipe, Diagnostic, SlurryRecipeByVolume } from '../../models/pasta.model';
+import { SqueezeGeometry, SqueezeInputs, Perfuracao, SqueezeHydraulicSimulation } from '../../models/squeeze.model';
+import { CementSlurryRecipeRow, SlurryDesign, SlurryRecipe, Diagnostic, SlurryRecipeByVolume } from '../../models/pasta.model';
 import { ThickeningResult, UCAResult } from '../../models/reologia.model';
 import { ADITIVOS_CATALOGO, AditivoCatalogo, Aditivo, hydrateAditivosFromCatalog, unidadePadraoAditivo } from '../../models/aditivo.model';
 import { Rheology } from '../../models/reologia.model';
@@ -48,6 +52,7 @@ type TabId = 'recipe' | 'rheology' | 'simulations' | 'schematic';
     SqueezeOperationChartsComponent,
     AditivoModalComponent,
     SimuladorStateModalComponent,
+    RelatorioCapaModalComponent,
     TuiButton,
     TuiIcon,
     ...TuiAccordion,
@@ -74,6 +79,7 @@ export class SimuladorSqueezeComponent implements OnInit, OnDestroy {
   geom: SqueezeGeometry | null = null;
   slurry: SlurryDesign | null = null;
   recipe: SlurryRecipe | null = null;
+  squeezeInputsSnapshot: SqueezeInputs | null = null;
   tt: ThickeningResult | null = null;
   uca: UCAResult | null = null;
   rheoDiags: Diagnostic[] = [];
@@ -81,6 +87,7 @@ export class SimuladorSqueezeComponent implements OnInit, OnDestroy {
   fracResult: { fracPsi: number; porePsi: number; squeezePsi: number } | null = null;
   hydraulicSim: SqueezeHydraulicSimulation | null = null;
   rheologyResult: RheologyAdjustmentResult | null = null;
+  reverseCirculation: ReverseCirculationResult | null = null;
   freeWater = 0;
   geoFormula = '';
   opsPhases: OpsPhase[] = [];
@@ -88,10 +95,14 @@ export class SimuladorSqueezeComponent implements OnInit, OnDestroy {
   relatorioVisivel = false;
   relatorioTitulo = '';
   relatorioConteudo = '';
+  capaModalOpen = false;
   aditivosModalOpen = false;
   stateModalOpen = false;
 
   @ViewChild('stateModal') stateModal!: SimuladorStateModalComponent;
+  @ViewChild('reportSchematics') reportSchematics?: SqueezeSchematicsComponent;
+  @ViewChild('reportOpsChart') reportOpsChart?: OpsChartComponent;
+  @ViewChild('reportPressureCharts') reportPressureCharts?: SqueezeOperationChartsComponent;
 
   // Sidebar toggle
   sidebarOpen = true;
@@ -104,6 +115,9 @@ export class SimuladorSqueezeComponent implements OnInit, OnDestroy {
   sec5Open = false;
   sec6Open = false;
   sec7Open = false;
+  sec8Open = false;
+
+  dadosRelatorio: DadosRelatorio = {};
 
   readonly casingOptions: ApiTubular[] = API_CASING_SIZES;
   readonly tubingOptions: ApiTubular[] = API_TUBING_SIZES;
@@ -121,18 +135,22 @@ export class SimuladorSqueezeComponent implements OnInit, OnDestroy {
     private slurryCalc: SlurryCalculoService,
     private testsCalc: TestsCalculoService,
     private squeezeCalc: SqueezeCalculoService,
+    private reverseCirculationCalc: ReverseCirculationCalculoService,
     private squeezeHydraulics: SqueezeHydraulicSimulationService,
     private rheologyAdj: RheologyAdjustmentService,
     private aditivosStore: AditivosStoreService,
+    private relatorioBuilder: RelatorioBuilderService,
+    private stateStore: SimuladorStateStoreService,
   ) {}
 
   ngOnInit(): void {
+    this.dadosRelatorio = this.stateStore.loadDadosRelatorio('squeeze');
     this.buildForm();
     this.restoreAditivos();
     this.simulate();
     this.form.valueChanges
       .pipe(debounceTime(350), takeUntil(this.destroy$))
-      .subscribe(() => this.simulate());
+      .subscribe({ next: () => { try { this.simulate(); } catch (e) { console.error('[squeeze] simulate error:', e); } } });
     this.additivos.valueChanges
       .pipe(debounceTime(500), takeUntil(this.destroy$))
       .subscribe(() => this.aditivosStore.save('squeeze', this.additivos.getRawValue()));
@@ -174,6 +192,8 @@ export class SimuladorSqueezeComponent implements OnInit, OnDestroy {
       fracGrad: [16.0], poreGrad: [9.0], pumpRate: [2.0],
       surfacePressure: [0],
       squeezeTestPressure: [400],
+      pressaoOperacao: [2000],
+      volMaxInjetadoBbl: [2.0],
       expectedLoss: [0],
       pause1: [0], pause2: [0], pause3: [0],
       density: [15.8], cementClass: ['G'],
@@ -190,34 +210,51 @@ export class SimuladorSqueezeComponent implements OnInit, OnDestroy {
   }
 
   simulate(): void {
-    const v = this.form.getRawValue();
-    const perfs: Perfuracao[] = (v.perforacoes || []).map((p: any) => ({ top: +p.top, base: +p.base }));
+    try {
+      const v = this.form.getRawValue();
+      const perfs: Perfuracao[] = (v.perforacoes || []).map((p: any) => ({ top: +p.top, base: +p.base }));
 
-    const bht = this.coreCalc.calcBHT(v.surfaceTemp, v.geoGradient, v.sectionEndTVD);
-    this.form.patchValue({ bhst: bht.bhst, bhct: bht.bhct }, { emitEvent: false });
-    this.geoFormula = bht.formula;
+      const bht = this.coreCalc.calcBHT(v.surfaceTemp, v.geoGradient, v.sectionEndTVD);
+      this.form.patchValue({ bhst: bht.bhst, bhct: bht.bhct }, { emitEvent: false });
+      this.geoFormula = bht.formula;
 
-    const vWithBHT = { ...v, bhct: bht.bhct, bhst: bht.bhst };
+      const vWithBHT = { ...v, bhct: bht.bhct, bhst: bht.bhst };
 
-    this.geom = this.squeezeCalc.calcVolumes(v, perfs);
-    const thetaReadings = this.buildThetaReadings(v);
-    const aditivosRaw = hydrateAditivosFromCatalog((v.additivos || []) as Aditivo[]);
+      this.squeezeInputsSnapshot = v as SqueezeInputs;
+      this.geom = this.squeezeCalc.calcVolumes(v, perfs);
+      this.reverseCirculation = this.buildReverseCirculationResult(v);
+      const thetaReadings = this.buildThetaReadings(v);
+      const aditivosRaw = hydrateAditivosFromCatalog((v.additivos || []) as Aditivo[]);
 
-    this.slurry = this.slurryCalc.calculateSlurryDesign({ ...vWithBHT, additivos: aditivosRaw } as any);
-    this.recipe = this.slurryCalc.buildSlurryRecipe(this.geom.slurryTotal, this.slurry);
-    this.manualRecipeResult = this.slurryCalc.buildSlurryRecipe(this.manualVolumeBbl, this.slurry).volumeRecipe ?? null;
+      this.slurry = this.slurryCalc.calculateSlurryDesign({ ...vWithBHT, additivos: aditivosRaw } as any);
+      this.recipe = this.slurryCalc.buildSlurryRecipe(this.geom.slurryTotal, this.slurry);
+      this.manualRecipeResult = this.slurryCalc.buildSlurryRecipe(this.manualVolumeBbl, this.slurry).volumeRecipe ?? null;
 
-    this.tt = this.testsCalc.simulateThickening(this.slurry, v.sectionEndTVD, thetaReadings);
-    this.uca = this.testsCalc.simulateUCA(this.slurry, this.tt);
-    this.freeWater = this.testsCalc.estimateFreeWater(this.slurry);
-    this.rheoDiags = this.testsCalc.rheoDiagnostics(this.slurry, this.tt, this.freeWater);
-    this.fracResult = this.squeezeCalc.calcFractureGradient(this.geom, v);
+      this.tt = this.testsCalc.simulateThickening(this.slurry, v.sectionEndTVD, thetaReadings);
+      this.uca = this.testsCalc.simulateUCA(this.slurry, this.tt);
+      this.freeWater = this.testsCalc.estimateFreeWater(this.slurry);
+      this.rheoDiags = this.testsCalc.rheoDiagnostics(this.slurry, this.tt, this.freeWater);
+      this.fracResult = this.squeezeCalc.calcFractureGradient(this.geom, v);
 
-    this.rheologyResult = this.rheologyAdj.applyAdditiveRheologyEffects(BASE_SLURRY_RHEOLOGY, aditivosRaw, { thetaReadings });
-    this.hydraulicSim = this.squeezeHydraulics.simulate(this.geom, this.slurry, v, perfs, aditivosRaw, { thetaReadings });
+      this.rheologyResult = this.rheologyAdj.applyAdditiveRheologyEffects(BASE_SLURRY_RHEOLOGY, aditivosRaw, { thetaReadings });
+      this.hydraulicSim = this.squeezeHydraulics.simulate(this.geom, this.slurry, v, perfs, aditivosRaw, { thetaReadings });
 
-    this.buildOpsPhases();
-    this.buildRecipeDiags();
+      this.buildOpsPhases();
+      this.buildRecipeDiags();
+    } catch (e) {
+      console.error('[squeeze] simulate error:', e);
+    }
+  }
+
+  private buildReverseCirculationResult(v: any): ReverseCirculationResult | null {
+    try {
+      return this.reverseCirculationCalc.calculateReverseCirculation({
+        tubingIdIn: Number(v.tubingID),
+        openEndDepthM: Number(v.sectionEndMD),
+      });
+    } catch {
+      return null;
+    }
   }
 
   private buildOpsPhases(): void {
@@ -269,15 +306,32 @@ export class SimuladorSqueezeComponent implements OnInit, OnDestroy {
   closeAditivosModal(): void { this.aditivosModalOpen = false; }
 
   openStateModal(): void {
-    this.stateModal?.setCurrentForm(this.form.getRawValue());
+    this.stateModal?.setCurrentForm({
+      ...this.form.getRawValue(),
+      _dadosRelatorio: this.dadosRelatorio,
+      _manualVolumeBbl: this.manualVolumeBbl,
+      _manualYieldFt3: this.manualYieldFt3,
+      _manualFacGpc: this.manualFacGpc,
+      _manualFamGpc: this.manualFamGpc,
+    });
     this.stateModalOpen = true;
   }
 
   closeStateModal(): void { this.stateModalOpen = false; }
 
   onCarregarEstado(formValue: Record<string, unknown>): void {
-    const { additivos, perforacoes, ...rest } = formValue as any;
+    const { additivos, perforacoes, casingOD, casingID, tubingOD, tubingID, caliper,
+            _dadosRelatorio, _manualVolumeBbl, _manualYieldFt3, _manualFacGpc, _manualFamGpc,
+            ...rest } = formValue as any;
     this.form.patchValue(rest, { emitEvent: false });
+    if (_dadosRelatorio) {
+      this.dadosRelatorio = _dadosRelatorio;
+      this.saveDadosRelatorio();
+    }
+    if (_manualVolumeBbl != null) this.manualVolumeBbl = +_manualVolumeBbl;
+    if (_manualYieldFt3 != null) this.manualYieldFt3 = +_manualYieldFt3;
+    if (_manualFacGpc != null) this.manualFacGpc = +_manualFacGpc;
+    if (_manualFamGpc != null) this.manualFamGpc = +_manualFamGpc;
     while (this.additivos.length) this.additivos.removeAt(0);
     if (Array.isArray(additivos)) {
       additivos.forEach((d: any) => this.additivos.push(this.createAditivoGroup(d)));
@@ -382,6 +436,71 @@ export class SimuladorSqueezeComponent implements OnInit, OnDestroy {
     return v.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   }
 
+  kgFromLb(v: number | null | undefined): number | null {
+    return v == null || !Number.isFinite(v) ? null : v * 0.45359237;
+  }
+
+  litersFromGal(v: number | null | undefined): number | null {
+    return v == null || !Number.isFinite(v) ? null : v * 3.785411784;
+  }
+
+  recipeQuantity(row: CementSlurryRecipeRow, scaled = false): number {
+    if (this.isMassRecipeRow(row)) {
+      return scaled
+        ? (row.scaledMassKg ?? row.baseMassLb * 0.45359237)
+        : row.baseMassLb * 0.45359237;
+    }
+
+    const gal = scaled ? (row.scaledVolumeGal ?? row.baseVolumeGal) : row.baseVolumeGal;
+    return gal * 3.785411784;
+  }
+
+  recipeQuantityUnit(row: CementSlurryRecipeRow): 'kg' | 'L' {
+    return this.isMassRecipeRow(row) ? 'kg' : 'L';
+  }
+
+  recipeQuantityText(row: CementSlurryRecipeRow, scaled = false): string {
+    return `${this.fmt(this.recipeQuantity(row, scaled), scaled ? 1 : 3)} ${this.recipeQuantityUnit(row)}`;
+  }
+
+  recipeConcentrationText(row: CementSlurryRecipeRow): string {
+    if (row.concentration === 'base') return row.concentrationUnit;
+    const value = typeof row.concentration === 'number' ? this.fmt(row.concentration, 4) : row.concentration;
+    return `${value}${row.concentrationUnit}`;
+  }
+
+  recipeItemLabel(row: CementSlurryRecipeRow): string {
+    const labels: Record<string, string> = {
+      cement: 'Cimento',
+      water: 'Agua',
+      liquidAdditive: this.additiveCategoryLabel(row),
+      solidAdditive: this.additiveCategoryLabel(row),
+      salt: 'Sal',
+      silica: 'Silica',
+    };
+    return labels[row.type] ?? row.productName;
+  }
+
+  recipeCode(row: CementSlurryRecipeRow): string {
+    return row.type === 'liquidAdditive' || row.type === 'solidAdditive' || row.type === 'salt' || row.type === 'silica'
+      ? row.productName
+      : '';
+  }
+
+  private isMassRecipeRow(row: CementSlurryRecipeRow): boolean {
+    return row.type === 'cement' || row.type === 'solidAdditive' || row.type === 'salt' || row.type === 'silica';
+  }
+
+  private additiveCategoryLabel(row: CementSlurryRecipeRow): string {
+    const name = row.productName.toLowerCase();
+    if (name.includes('def') || name.includes('anti')) return 'Antiespumante';
+    if (name.includes('bqflux') || name.includes('bq-20') || name.includes('dispers')) return 'Dispersante';
+    if (name.includes('bqfl') || name.includes('fl-') || name.includes('polytrol')) return 'Controlador de filtrado';
+    if (name.includes('bqrt') || name.includes('retard')) return 'Retardador';
+    if (name.includes('bqac') || name.includes('aceler')) return 'Acelerador';
+    return 'Aditivo';
+  }
+
   fmtTime(h: number): string {
     if (!Number.isFinite(h)) return '-';
     const hh = Math.floor(h);
@@ -389,38 +508,119 @@ export class SimuladorSqueezeComponent implements OnInit, OnDestroy {
     return `${hh}h ${mm.toString().padStart(2, '0')}min`;
   }
 
-  abrirRelatorioReceita(): void {
-    if (!this.geom || !this.slurry || !this.recipe) return;
-    const rows = this.recipe.recipeItems
-      .map(i => `<tr><td>${i.name}</td><td>${i.conc}</td><td>${this.fmt(i.per, 4)}</td><td>${this.fmt(i.total, 2)}</td><td>${i.unit}</td></tr>`)
-      .join('');
-    this.relatorioConteudo = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Receita Squeeze</title>
-    <style>body{font-family:Arial,sans-serif;padding:24px;font-size:13px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f1f5f9}h2{color:#1e293b}</style></head>
-    <body><h2>Squeeze — Cálculo da Receita</h2>
-    <p><b>Volume total de pasta:</b> ${this.fmt(this.geom.slurryTotal)} bbl | <b>Sacos:</b> ${this.recipe.sacks} sk | <b>Densidade:</b> ${this.fmt(this.slurry.density)} ppg</p>
-    <p><b>Nota de reologia/aditivos:</b> efeitos baixo/medio/alto sao estimativas operacionais por familia quimica e concentracao. Nao substituem ensaio de laboratorio/API.</p>
-    <table><thead><tr><th>Item</th><th>Concentração</th><th>Por kg cem.</th><th>Total</th><th>Unidade</th></tr></thead><tbody>${rows}</tbody></table>
-    </body></html>`;
-    this.relatorioTitulo = 'Cálculo da Receita — Squeeze';
-    this.relatorioVisivel = true;
+  saveDadosRelatorio(): void {
+    this.stateStore.saveDadosRelatorio('squeeze', this.dadosRelatorio);
   }
 
-  resetForm(): void {
-    this.form.patchValue({
-      sectionStartMD: 1400, sectionEndMD: 1500, sectionStartTVD: 1400, sectionEndTVD: 1500,
-      wellFinalMD: 1500, wellFinalTVD: 1500,
-      caliper: 8.535, casingOD: 5.500, casingID: 4.778, tubingOD: 2.875, tubingID: 2.441,
-      backSpacerHeight: 50, surfaceTemp: 80.6, geoGradient: 1.50,
-      mudWeightFront: 9.5, mudWeightBack: 9.5, completionWeight: 9.5,
-      fracGrad: 16.0, poreGrad: 9.0, pumpRate: 2.0,
-      surfacePressure: 0, squeezeTestPressure: 400, expectedLoss: 0,
-      density: 15.8, cementClass: 'G', waterSplitFresh: 100, waterSplitSea: 0,
-      silica: 35, nacl: 0,
-      theta300: 181, theta200: 132, theta100: 79, theta60: 53, theta30: 31, theta20: 23,
-      theta10: 13, theta6: 9, theta3: 6,
-    });
-    while (this.additivos.length) this.additivos.removeAt(0);
-    while (this.perforacoes.length > 1) this.perforacoes.removeAt(this.perforacoes.length - 1);
-    this.perforacoes.at(0).patchValue({ top: 1420, base: 1440 });
+  onMechanicalSchematicSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Selecione uma imagem com no máximo 5 MB.');
+      input.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.dadosRelatorio.esquemaMecanicoNome = file.name;
+      this.dadosRelatorio.esquemaMecanicoImagem = String(reader.result || '');
+      this.saveDadosRelatorio();
+    };
+    reader.readAsDataURL(file);
   }
+
+  onCapaGerada(data: RelatorioCapaData): void {
+    const v = this.form.getRawValue();
+    this.dadosRelatorio.tipoReceitaRelatorio = data.tipoReceitaRelatorio ?? 'volume';
+    this.dadosRelatorio.esquematicosSelecionados = data.esquematicosSelecionados;
+    this.dadosRelatorio.sequenciaOperacional = data.sequenciaOperacional as any;
+    this.dadosRelatorio.esquemaMecanicoNome = data.esquemaMecanicoNome;
+    this.dadosRelatorio.esquemaMecanicoImagem = data.esquemaMecanicoImagem;
+    this.dadosRelatorio.secoesPersonalizadas = data.secoesPersonalizadas ?? [];
+    this.saveDadosRelatorio();
+    const tubingODFormatted = v.tubingOD ? `${this.fmt(v.tubingOD, 3)}"` : '';
+    const reverseCircBbl = this.reverseCirculation?.reverseCirculationVolumeBbl ?? 0;
+    this.captureGraficosImages(data.graficosOperacionaisSelecionados ?? []).then(graficosImages => {
+      const reportHtml = this.relatorioBuilder.buildCapa({
+        ...data,
+        zonaIsolarNome: data.zonaIsolarNome || this.dadosRelatorio.zonaIsolarNome,
+        zonaIsolarTopo: String(v.sectionStartTVD ?? ''),
+        zonaIsolarBase: String(v.sectionEndTVD ?? ''),
+        topoCimento: String(v.sectionStartMD ?? ''),
+        baseTampao: String(v.sectionEndMD ?? ''),
+        revestimento: this.formatCasing(v.casingOD, v.casingID),
+        geoGradient: v.geoGradient,
+        bhst: v.bhst,
+        bhct: v.bhct,
+        bombeioRows: this.buildRelatorioBombeioRows(v, data.tipoReceitaRelatorio ?? 'volume'),
+        receitaRows: this.buildRelatorioReceitaRows(data.tipoReceitaRelatorio ?? 'volume'),
+        esquematicoImages: this.reportSchematics?.getReportImages(data.esquematicosSelecionados),
+        graficosOperacionaisImages: graficosImages,
+        sequenciaOperacional: {
+          ...data.sequenciaOperacional,
+          colunaTrabalho: tubingODFormatted || data.sequenciaOperacional?.colunaTrabalho || '',
+          colunaProfundidadeM: v.sectionEndMD ?? data.sequenciaOperacional?.colunaProfundidadeM ?? '',
+          testeInjetividadeDefinidoPor: data.cliente || data.origem || 'ORIGEM',
+          pressaoTesteLinhasPsi: (Number(v.pressaoOperacao) || 2000) + 1000,
+          volumeCirculacaoReversaBbl: reverseCircBbl,
+          pressaoMaxSqueezePsi: Number(v.pressaoOperacao) || 2000,
+          volumeMaxInjetadoBbl: Number(v.volMaxInjetadoBbl) || 2,
+        },
+      });
+      this.relatorioBuilder.openInNewTab(reportHtml);
+    });
+  }
+
+  private buildRelatorioReceitaRows(tipo: RelatorioCapaData['tipoReceitaRelatorio']): RelatorioCapaData['receitaRows'] {
+    const useVolume = tipo === 'volume' && !!this.manualRecipeResult?.rows?.length;
+    const rows = useVolume ? this.manualRecipeResult!.rows : (this.recipe?.baseRecipe?.rows || []);
+    return rows.map(row => ({
+      aditivo: this.recipeItemLabel(row),
+      codigo: this.recipeCode(row),
+      concentracao: this.recipeConcentrationText(row),
+      quantidade: this.recipeQuantityText(row, useVolume),
+    }));
+  }
+
+  private buildRelatorioBombeioRows(v: any, tipoReceita?: string): RelatorioCapaData['bombeioRows'] {
+    const pumpRate = Number(v.pumpRate) || 0;
+    const slurryDensity = Number(this.slurry?.density ?? v.density);
+    const pastaLabel = Number.isFinite(slurryDensity) ? `Pasta ${this.fmt(slurryDensity, 1)} ppg` : 'Pasta';
+    const useManual = tipoReceita === 'volume' && !!this.manualRecipeResult?.targetSlurryVolumeBbl;
+    const slurryVolBbl = useManual ? this.manualRecipeResult!.targetSlurryVolumeBbl : (this.geom?.slurryTotal ?? 0);
+    return [
+      { fluido: 'Fluido a frente', volumeBbl: this.geom?.washVolFront ?? this.geom?.frontPhysicalVolumeBbl ?? 0, vazaoBpm: pumpRate, densidadePpg: v.mudWeightFront },
+      { fluido: pastaLabel, volumeBbl: slurryVolBbl, vazaoBpm: pumpRate, densidadePpg: slurryDensity },
+      { fluido: 'Fluido atras', volumeBbl: this.geom?.volBackSpacer ?? 0, vazaoBpm: pumpRate, densidadePpg: v.mudWeightBack },
+      { fluido: 'Deslocamento', volumeBbl: this.geom?.displacementVolume ?? this.geom?.operationalDisplacementVolumeBbl ?? 0, vazaoBpm: pumpRate, densidadePpg: v.completionWeight },
+    ];
+  }
+
+  private async captureGraficosImages(selecionados: GraficoOperacionalTipo[]): Promise<{ label: string; imagem: string }[]> {
+    const result: { label: string; imagem: string }[] = [];
+    if (selecionados.includes('cronograma') && this.reportOpsChart) {
+      const imgs = await this.reportOpsChart.renderForReport();
+      result.push(...imgs);
+    }
+    if (selecionados.includes('pressao') && this.reportPressureCharts) {
+      const imgs = await this.reportPressureCharts.renderForReport();
+      result.push(...imgs);
+    }
+    return result;
+  }
+
+  private formatCasing(od: unknown, id: unknown): string {
+    const odText = this.formatInches(od);
+    const idText = this.formatInches(id);
+    return [odText ? `OD ${odText}` : '', idText ? `ID ${idText}` : ''].filter(Boolean).join(' | ');
+  }
+
+  private formatInches(value: unknown): string {
+    const n = Number(value);
+    return Number.isFinite(n) ? `${this.fmt(n, 3)} in` : '';
+  }
+
 }

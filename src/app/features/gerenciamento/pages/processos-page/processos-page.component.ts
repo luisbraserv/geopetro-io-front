@@ -7,8 +7,9 @@ import { Store } from '@ngxs/store';
 
 import { RichTextEditorComponent } from '../../../../shared/rich-text-editor/rich-text-editor.component';
 import { ToastService } from '../../../../shared/toast/toast.service';
-import { Projeto, Setor, UnidadeSonda } from '../../../cadastros/models/cadastros.model';
+import { Projeto, Regional, Setor, UnidadeSonda } from '../../../cadastros/models/cadastros.model';
 import { ProjetoService } from '../../../cadastros/services/projeto.service';
+import { RegionalService } from '../../../cadastros/services/regional.service';
 import { SetorService } from '../../../cadastros/services/setor.service';
 import { UnidadeSondaService } from '../../../cadastros/services/unidade-sonda.service';
 import { AuthState } from '../../../auth/state/auth.state';
@@ -251,10 +252,16 @@ type GrupoProjetoProcessos = {
 
           <form class="modal-form" *ngIf="modalTipo() === 'processo'" (ngSubmit)="salvarProcesso()">
             <label>Título<input name="titulo" [(ngModel)]="form.titulo" required /></label>
+            <label>Regional
+              <select name="modalRegionalId" [ngModel]="formRegionalId()" (ngModelChange)="aoTrocarRegionalModal($event)">
+                <option [ngValue]="0">Selecione uma regional</option>
+                <option *ngFor="let r of regionaisDoModal()" [ngValue]="r.id">{{ r.nome }}</option>
+              </select>
+            </label>
             <label>Setor
               <select name="setorId" [(ngModel)]="form.setorId" required (ngModelChange)="sincronizarModalAoTrocarSetor()">
                 <option [ngValue]="0">Selecione</option>
-                <option *ngFor="let setor of setoresDisponiveisFiltro()" [ngValue]="setor.id">{{ setor.nome }}</option>
+                <option *ngFor="let setor of setoresDoModal()" [ngValue]="setor.id">{{ setor.nome }}</option>
               </select>
             </label>
             <label>Unidade/Sonda
@@ -421,6 +428,7 @@ export class ProcessosPageComponent {
   private readonly observacaoService = inject(ObservacaoService);
   private readonly unidadeService = inject(UnidadeSondaService);
   private readonly setorService = inject(SetorService);
+  private readonly regionalService = inject(RegionalService);
   private readonly projetoService = inject(ProjetoService);
   private readonly usuariosService = inject(UsuariosService);
   private readonly store = inject(Store);
@@ -430,6 +438,7 @@ export class ProcessosPageComponent {
   protected readonly currentUser = this.store.selectSignal(AuthState.currentUser);
   protected readonly unidades = signal<UnidadeSonda[]>([]);
   protected readonly setores = signal<Setor[]>([]);
+  protected readonly regionais = signal<Regional[]>([]);
   protected readonly processos = signal<Processo[]>([]);
   protected readonly projetos = signal<Projeto[]>([]);
   protected readonly usuariosInternos = signal<UsuarioResponse[]>([]);
@@ -455,12 +464,15 @@ export class ProcessosPageComponent {
   protected readonly anotacaoForm: AnotacaoPayload = { titulo: '', texto: '' };
   protected readonly formUnidadeId = signal<number>(0);
   protected readonly formSetorId = signal<number>(0);
+  protected readonly formRegionalId = signal<number>(0);
 
   protected readonly setorRestritoIds = computed(() => {
     const user = this.currentUser();
     if (!user || user.roles.includes('ADMIN')) return [];
     if (!user.roles.includes('INTERNO')) return [];
-    return user.setorIds?.length ? user.setorIds : user.setorId ? [user.setorId] : [];
+    const regionalId = user.regionalId;
+    if (!regionalId) return [];
+    return this.setores().filter((s) => s.regionalId === regionalId).map((s) => s.id);
   });
   protected readonly totalAltaPrioridade = computed(() => this.processos().filter((p) => p.prioridade === 'ALTA' || p.prioridade === 'CRITICA').length);
   protected readonly processosPorProjeto = computed<GrupoProjetoProcessos[]>(() => {
@@ -473,8 +485,8 @@ export class ProcessosPageComponent {
       const grupo = grupos.get(projetoId) ?? {
         projetoId,
         projetoNome: processo.projetoNome || projeto?.nome || 'Sem projeto',
-        setorNome: processo.setorNome || projeto?.setorNome || '-',
-        processos: [],
+        setorNome: projeto?.regionalNome || processo.setorNome || '-',
+        processos: [] as Processo[],
       };
 
       grupo.processos.push(processo);
@@ -483,6 +495,21 @@ export class ProcessosPageComponent {
 
     return Array.from(grupos.values()).sort((a, b) => a.projetoNome.localeCompare(b.projetoNome));
   });
+  // Regionais disponíveis para o modal: ADMIN vê todas, INTERNO vê só a sua
+  protected readonly regionaisDoModal = computed(() => {
+    const user = this.currentUser();
+    if (!user || user.roles.includes('ADMIN')) return this.regionais();
+    const regionalId = user.regionalId;
+    return regionalId ? this.regionais().filter((r) => r.id === regionalId) : [];
+  });
+
+  // Setores filtrados pela regional selecionada no modal
+  protected readonly setoresDoModal = computed(() => {
+    const regionalId = this.formRegionalId();
+    if (!regionalId) return [];
+    return this.setores().filter((s) => s.regionalId === regionalId);
+  });
+
   protected readonly unidadesDoModal = computed(() => {
     const setorId = this.formSetorId();
     if (!setorId) return [];
@@ -491,19 +518,22 @@ export class ProcessosPageComponent {
   protected readonly responsaveisDisponiveis = computed(() => {
     const unidade = this.unidades().find((u) => u.id === this.formUnidadeId());
     const setorId = unidade?.setorId ?? this.formSetorId();
-    if (!setorId) return [];
-    return this.filtrarUsuariosPorSetores(this.usuariosInternos(), [setorId]);
+    const setor = this.setores().find((s) => s.id === setorId);
+    return this.filtrarUsuariosPorRegional(this.usuariosInternos(), setor?.regionalId);
   });
   protected readonly responsaveisFiltro = computed(() => {
     const setorId = Number(this.filtros.setorId);
     const unidade = this.unidades().find((u) => u.id === Number(this.filtros.unidadeSondaId));
-    const setorIds = unidade?.setorId ? [unidade.setorId] : setorId ? [setorId] : this.setorRestritoIds();
-    return this.filtrarUsuariosPorSetores(this.usuariosInternos(), setorIds);
+    const setorIdEfetivo = unidade?.setorId || setorId || null;
+    const setor = setorIdEfetivo ? this.setores().find((s) => s.id === setorIdEfetivo) : null;
+    return this.filtrarUsuariosPorRegional(this.usuariosInternos(), setor?.regionalId);
   });
   protected readonly projetosDisponiveis = computed(() => {
     const unidade = this.unidades().find((u) => u.id === this.formUnidadeId());
     const setorId = unidade?.setorId ?? this.formSetorId();
-    return setorId ? this.projetos().filter((projeto) => projeto.setorId === setorId) : [];
+    const setor = this.setores().find((s) => s.id === setorId);
+    const regionalId = setor?.regionalId;
+    return regionalId ? this.projetos().filter((projeto) => projeto.regionalId === regionalId) : this.projetos();
   });
   protected readonly setoresDisponiveisFiltro = computed(() => {
     const setorIds = this.setorRestritoIds();
@@ -517,7 +547,13 @@ export class ProcessosPageComponent {
     const unidade = this.unidades().find((u) => u.id === Number(this.filtros.unidadeSondaId));
     const setorId = Number(this.filtros.setorId);
     const setorIds = unidade?.setorId ? [unidade.setorId] : setorId ? [setorId] : this.setorRestritoIds();
-    return this.projetos().filter((projeto) => !setorIds.length || setorIds.includes(projeto.setorId));
+    if (!setorIds.length) return this.projetos();
+    const regionalIds = new Set(
+      this.setores()
+        .filter((s) => setorIds.includes(s.id))
+        .map((s) => s.regionalId),
+    );
+    return this.projetos().filter((projeto) => !regionalIds.size || regionalIds.has(projeto.regionalId));
   });
 
   constructor() {
@@ -526,6 +562,7 @@ export class ProcessosPageComponent {
 
   protected carregarTudo(): void {
     this.setorService.listar().subscribe({ next: (setores) => this.setores.set(setores), error: (error: Error) => this.notificarErro(error) });
+    this.regionalService.listar().subscribe({ next: (regionais) => this.regionais.set(regionais), error: (error: Error) => this.notificarErro(error) });
     const user = this.currentUser();
     if (user?.roles.includes('ADMIN')) {
       this.usuariosService.listar(0, 200).subscribe({ next: (pagina) => this.usuariosInternos.set(pagina.conteudo.filter((u) => u.roles.includes('INTERNO'))), error: (error: Error) => this.notificarErro(error) });
@@ -602,6 +639,12 @@ export class ProcessosPageComponent {
     Object.assign(this.form, processo ? this.payloadDeProcesso(processo) : this.vazio());
     this.formSetorId.set(Number(this.form.setorId) || 0);
     this.formUnidadeId.set(Number(this.form.unidadeSondaId) || 0);
+    // Pré-preencher regional: do processo ou da regional do usuário logado
+    const user = this.currentUser();
+    const regionalInicial = processo
+      ? (this.setores().find((s) => s.id === processo.setorId)?.regionalId ?? 0)
+      : (user?.regionalId ?? 0);
+    this.formRegionalId.set(regionalInicial);
     this.modalTipo.set('processo');
   }
 
@@ -687,12 +730,10 @@ export class ProcessosPageComponent {
   protected abrirObservacao(obs?: Observacao): void {
     this.editandoObsId.set(obs?.id ?? null);
     this.obsAtual.set(obs ?? null);
-    const user = this.currentUser();
-    const setorIdUsuario = user?.setorIds?.length ? user.setorIds[0] : (user?.setorId ?? 0);
     const texto = obs?.texto ?? '';
     Object.assign(this.obsForm, obs
       ? { titulo: obs.titulo, texto, setorId: obs.setorId }
-      : { titulo: '', texto: '', setorId: setorIdUsuario });
+      : { titulo: '', texto: '', setorId: 0 });
     this.obsTexto.set(texto);
     this.modalTipo.set('observacao');
   }
@@ -731,6 +772,16 @@ export class ProcessosPageComponent {
     this.router.navigate(['/resumo-processos']);
   }
 
+  protected aoTrocarRegionalModal(regionalId: number): void {
+    this.formRegionalId.set(regionalId);
+    this.form.setorId = 0;
+    this.formSetorId.set(0);
+    this.form.unidadeSondaId = 0;
+    this.formUnidadeId.set(0);
+    this.form.projetoId = null;
+    this.form.responsavelUsername = null;
+  }
+
   protected sincronizarModalAoTrocarSetor(): void {
     this.formSetorId.set(Number(this.form.setorId) || 0);
     this.form.unidadeSondaId = 0;
@@ -754,11 +805,9 @@ export class ProcessosPageComponent {
     }
   }
 
-  private filtrarUsuariosPorSetores(usuarios: UsuarioResponse[], setorIds: number[]): UsuarioResponse[] {
-    return usuarios.filter((u) => {
-      const ids = u.setorIds?.length ? u.setorIds : u.setorId ? [u.setorId] : [];
-      return ids.some((id) => setorIds.includes(id));
-    });
+  private filtrarUsuariosPorRegional(usuarios: UsuarioResponse[], regionalId: number | undefined): UsuarioResponse[] {
+    if (!regionalId) return usuarios;
+    return usuarios.filter((u) => !u.regionalId || u.regionalId === regionalId);
   }
 
   protected fecharModal(): void {

@@ -1,5 +1,17 @@
 import { UserRole } from '../../auth/models/user.model';
 
+export interface RegionalVinculo {
+  id: number;
+  nome: string;
+}
+
+export interface SetorVinculo {
+  id: number;
+  nome: string;
+  regionalId: number | null;
+  regionalNome: string | null;
+}
+
 export interface UsuarioResponse {
   username: string;
   nome: string;
@@ -21,11 +33,10 @@ export interface UsuarioResponse {
   empresaId?: number | null;
   empresaNome?: string | null;
   matricula?: number | null;
-  setor?: string | null;
-  setorId?: number | null;
-  setorNome?: string | null;
-  setorIds?: number[];
-  setorNomes?: string[];
+  regionalId?: number | null;
+  regionalNome?: string | null;
+  regionais?: RegionalVinculo[] | null;
+  setores?: SetorVinculo[] | null;
 }
 
 export interface UsuarioPaginadoResponse {
@@ -65,8 +76,8 @@ export interface CriarUsuarioClientePayload extends UsuarioContatoPayload {
 
 export interface CriarUsuarioInternoPayload extends UsuarioContatoPayload {
   matricula: number;
-  setor?: string;
-  setorId: number;
+  regionalId: number;
+  regionalIds: number[];
   setorIds: number[];
   username: string;
   password: string;
@@ -79,8 +90,8 @@ export interface AtualizarUsuarioPayload extends UsuarioContatoPayload {
   empresa?: string;
   empresaId?: number;
   matricula?: number;
-  setor?: string;
-  setorId?: number;
+  regionalId?: number;
+  regionalIds?: number[];
   setorIds?: number[];
 }
 

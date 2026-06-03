@@ -104,6 +104,24 @@ export class SqueezeOperationChartsComponent implements AfterViewInit, OnChanges
     a.click();
   }
 
+  getImagesDataUrl(): { label: string; imagem: string }[] {
+    const canvases = [
+      { ref: this.envelope,     label: 'Envelope de Pressão' },
+      { ref: this.pressureTime, label: 'Pressão × Tempo' },
+      { ref: this.bhpEcd,       label: 'BHP e ECD' },
+      { ref: this.freeFall,     label: 'Free Fall' },
+    ];
+    return canvases
+      .map(c => ({ label: c.label, imagem: c.ref?.nativeElement?.toDataURL('image/png') ?? '' }))
+      .filter(c => !!c.imagem);
+  }
+
+  renderForReport(): Promise<{ label: string; imagem: string }[]> {
+    return new Promise(resolve => {
+      requestAnimationFrame(() => resolve(this.getImagesDataUrl()));
+    });
+  }
+
   private build(): void {
     if (!this.data || !this.envelope || !this.pressureTime || !this.bhpEcd || !this.freeFall) return;
     const pts = this.data.points;

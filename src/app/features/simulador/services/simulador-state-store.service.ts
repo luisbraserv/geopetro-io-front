@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 
+// Mantido para compatibilidade — formValue ainda é usado internamente
 export interface SimuladorStateSnapshot {
   id: string;
   name: string;
@@ -8,50 +9,87 @@ export interface SimuladorStateSnapshot {
   formValue: Record<string, unknown>;
 }
 
+// Tipos exportados para o modal
+export interface DadosRelatorio {
+  cliente?: string;
+  preparadoPara?: string;
+  documento?: string;
+  preparadoPor?: string;
+  revisadoPor?: string;
+  data?: string;
+  versao?: string;
+  origem?: string;
+  poco?: string;
+  campo?: string;
+  sonda?: string;
+  jobNum?: string;
+  pais?: string;
+  revestimento?: string;
+  zonaIsolarNome?: string;
+  tipoReceitaRelatorio?: 'pasta' | 'volume';
+  esquematicosSelecionados?: ('bombeio' | 'comTubing' | 'semTubing')[];
+  sequenciaOperacional?: Record<string, string | number>;
+  zonaIsolarTopo?: string;
+  zonaIsolarBase?: string;
+  baseTampao?: string;
+  topoCimento?: string;
+  esquemaMecanicoNome?: string;
+  esquemaMecanicoImagem?: string;
+  secoesPersonalizadas?: any[];
+}
+
+// Chave local de fallback (mantida apenas caso o usuário não esteja logado)
 const KEY_PREFIX = 'geopetro-state-v1-';
 
 @Injectable({ providedIn: 'root' })
 export class SimuladorStateStoreService {
 
-  list(operacao: 'tampao' | 'squeeze'): SimuladorStateSnapshot[] {
-    const key = KEY_PREFIX + operacao;
+  // ── Fallback local (não autenticado) ──
+  listLocal(operacao: 'tampao' | 'squeeze'): SimuladorStateSnapshot[] {
     try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      const raw = localStorage.getItem(KEY_PREFIX + operacao);
+      return raw ? JSON.parse(raw) : [];
     } catch { return []; }
   }
 
-  save(operacao: 'tampao' | 'squeeze', name: string, formValue: Record<string, unknown>): SimuladorStateSnapshot {
-    const snapshots = this.list(operacao);
-    const snapshot: SimuladorStateSnapshot = {
+  saveLocal(operacao: 'tampao' | 'squeeze', name: string, formValue: Record<string, unknown>): SimuladorStateSnapshot {
+    const list = this.listLocal(operacao);
+    const snap: SimuladorStateSnapshot = {
       id: Date.now().toString(),
-      name: name.trim() || `Cenário ${snapshots.length + 1}`,
+      name: name.trim() || `Cenário ${list.length + 1}`,
       operacao,
       savedAt: new Date().toISOString(),
       formValue,
     };
-    snapshots.unshift(snapshot);
-    this.persist(operacao, snapshots);
-    return snapshot;
+    list.unshift(snap);
+    this.persistLocal(operacao, list);
+    return snap;
   }
 
-  update(operacao: 'tampao' | 'squeeze', id: string, formValue: Record<string, unknown>): void {
-    const snapshots = this.list(operacao).map(s =>
+  updateLocal(operacao: 'tampao' | 'squeeze', id: string, formValue: Record<string, unknown>): void {
+    const list = this.listLocal(operacao).map(s =>
       s.id === id ? { ...s, formValue, savedAt: new Date().toISOString() } : s,
     );
-    this.persist(operacao, snapshots);
+    this.persistLocal(operacao, list);
   }
 
-  delete(operacao: 'tampao' | 'squeeze', id: string): void {
-    const snapshots = this.list(operacao).filter(s => s.id !== id);
-    this.persist(operacao, snapshots);
+  deleteLocal(operacao: 'tampao' | 'squeeze', id: string): void {
+    this.persistLocal(operacao, this.listLocal(operacao).filter(s => s.id !== id));
   }
 
-  private persist(operacao: 'tampao' | 'squeeze', snapshots: SimuladorStateSnapshot[]): void {
+  private persistLocal(operacao: string, list: SimuladorStateSnapshot[]): void {
+    try { localStorage.setItem(KEY_PREFIX + operacao, JSON.stringify(list)); } catch { }
+  }
+
+  // ── Dados do relatório (persistidos localmente por simplicidade) ──
+  saveDadosRelatorio(operacao: string, dados: DadosRelatorio): void {
+    try { localStorage.setItem(`geopetro-relatorio-${operacao}`, JSON.stringify(dados)); } catch { }
+  }
+
+  loadDadosRelatorio(operacao: string): DadosRelatorio {
     try {
-      localStorage.setItem(KEY_PREFIX + operacao, JSON.stringify(snapshots));
-    } catch { /* quota exceeded */ }
+      const raw = localStorage.getItem(`geopetro-relatorio-${operacao}`);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
   }
 }

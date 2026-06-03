@@ -240,13 +240,8 @@ export class ProcessosResumoPageComponent implements OnInit {
 
   ngOnInit(): void {
     const user = this.store.selectSnapshot(AuthState.currentUser);
-    const setorIds = user?.roles?.includes('ADMIN')
-      ? []
-      : user?.setorIds?.length
-        ? user.setorIds
-        : user?.setorId
-          ? [user.setorId]
-          : [];
+    // Para não-admin, filtra pelas unidades/sondas da regional do usuário
+    const setorIds: number[] = [];
 
     this.unidadeService.listar(setorIds.length ? setorIds : null).subscribe({
       next: (u) => this.unidades.set(u),
