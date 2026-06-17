@@ -102,7 +102,10 @@ export class MonitoramentoSondaPageComponent implements OnInit {
     if (p === '15m') inicio = new Date(fim.getTime() - 15 * 60 * 1000);
     else if (p === '1h') inicio = new Date(fim.getTime() - 60 * 60 * 1000);
     else if (p === '6h') inicio = new Date(fim.getTime() - 6 * 60 * 60 * 1000);
-    else return { inicio: this.inicioPeriodo(), fim: this.fimPeriodo() };
+    else return {
+      inicio: new Date(this.inicioPeriodo()).toISOString(),
+      fim: new Date(this.fimPeriodo()).toISOString(),
+    };
     return { inicio: inicio.toISOString(), fim: fim.toISOString() };
   }
 

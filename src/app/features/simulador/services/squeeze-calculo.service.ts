@@ -9,7 +9,7 @@ export class SqueezeCalculoService {
 
   constructor(private core: CoreCalculoService) {}
 
-  calcVolumes(inputs: SqueezeInputs, perfs: Perfuracao[]): SqueezeGeometry {
+  calcVolumes(inputs: SqueezeInputs, perfs: Perfuracao[], slurryVolumeOverrideBbl?: number | null): SqueezeGeometry {
     const top = Math.min(inputs.sectionStartMD, inputs.sectionEndMD);
     const base = Math.max(inputs.sectionStartMD, inputs.sectionEndMD);
     const len = Math.max(0, base - top);
@@ -38,8 +38,14 @@ export class SqueezeCalculoService {
     const finalCapacity_m = casingFull_m > 0 ? casingFull_m : annulusCasing_m;
     const annulusVolume = finalCapacity_m * len;
     const expectedLoss = Math.max(0, inputs.expectedLoss || 0);
-    const slurryPhysicalVolume = annulusVolume;
-    const slurryTotal = slurryPhysicalVolume + expectedLoss;
+    // Volume total de pasta (bombeado). Quando o usuário escolhe "Receita por Volume",
+    // o valor informado substitui o volume geométrico e a geometria é recalculada a partir dele.
+    const geometricSlurryTotal = annulusVolume + expectedLoss;
+    const slurryTotal = (slurryVolumeOverrideBbl != null && slurryVolumeOverrideBbl > 0)
+      ? slurryVolumeOverrideBbl
+      : geometricSlurryTotal;
+    // Volume físico = volume que ocupa o poço (total menos a perda esperada para a formação)
+    const slurryPhysicalVolume = Math.max(0, slurryTotal - expectedLoss);
     const cementPhysicalHeight = finalCapacity_m > 0 ? slurryPhysicalVolume / finalCapacity_m : 0;
     const workVolumeBbl = slurryPhysicalVolume;
     const capWithTubing = annulusCasing_m + tubingID_m;

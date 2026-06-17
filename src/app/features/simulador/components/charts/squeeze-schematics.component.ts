@@ -23,6 +23,7 @@ export interface SqueezeSchematicModel {
   showCasing: true;
   topPerfMD: number;
   basePerfMD: number;
+  perfs: { top: number; base: number }[];
   lanes: string[];
   segments: SqueezeSegment[];
   tubingSegments: SqueezeSegment[];
@@ -45,6 +46,10 @@ export function createSqueezeSchematicModel(
     showCasing: true,
     topPerfMD: simulation.summary.topPerfMD,
     basePerfMD: simulation.summary.basePerfMD,
+    perfs: (geom.perfs || [])
+      .map(p => ({ top: p.top, base: p.base }))
+      .filter(p => Number.isFinite(p.top) && Number.isFinite(p.base) && p.base > p.top)
+      .sort((a, b) => a.top - b.top),
     lanes: mode === 'withTubing'
       ? ['Dentro do tubing', 'Anular / poço']
       : ['Formação', 'Revestimento', 'Interior do poço', 'Revestimento', 'Formação'],
@@ -372,9 +377,26 @@ export class SqueezeSchematicsComponent implements AfterViewInit, OnChanges, OnD
     const wellVisualSegments = this.renderStack(cx, wellX, wellW, yTop, structureH, wellSegments);
     cx.strokeStyle = '#334155'; cx.lineWidth = 1.5; cx.strokeRect(wellX, yTop, wellW, structureH);
 
-    const yTopPerf = visualYForDepth(wellVisualSegments, model.topPerfMD, yTop);
-    const yBasePerf = visualYForDepth(wellVisualSegments, model.basePerfMD, yTop);
-    this.drawPerforations(cx, casingLX, casingRX + casingW, yTopPerf, yBasePerf);
+    // Cada intervalo de canhoneado é desenhado separadamente — não mescla o topo do
+    // primeiro com a base do último, e o vão entre intervalos não é hachurado.
+    // Usa a lista real digitada (atualiza ao adicionar/remover); cai para geom.perfs se ausente.
+    const rawPerfs = (((this.squeezeInputs as { perforacoes?: { top: number; base: number }[] } | null)?.perforacoes) ?? [])
+      .map(p => ({ top: +p.top, base: +p.base }))
+      .filter(p => Number.isFinite(p.top) && Number.isFinite(p.base) && p.base > p.top)
+      .sort((a, b) => a.top - b.top);
+    const perfIntervals = rawPerfs.length ? rawPerfs : model.perfs;
+    const multiplePerfs = perfIntervals.length > 1;
+    const perfAnnotations = perfIntervals.flatMap((perf, i) => {
+      const yPerfTop = visualYForDepth(wellVisualSegments, perf.top, yTop);
+      const yPerfBase = visualYForDepth(wellVisualSegments, perf.base, yTop);
+      this.drawPerforations(cx, casingLX, casingRX + casingW, yPerfTop, yPerfBase);
+      this.bracket(cx, structureRight + 8, yPerfTop, yPerfBase, multiplePerfs ? `CANH. ${i + 1}` : 'CANHONEADOS');
+      const suffix = multiplePerfs ? ` ${i + 1}` : '';
+      return [
+        { id: `topPerf-${i}`, label: `Topo canh.${suffix}\n${perf.top.toFixed(1)} m`, depthReal: perf.top, yReal: yPerfTop },
+        { id: `basePerf-${i}`, label: `Base canh.${suffix}\n${perf.base.toFixed(1)} m`, depthReal: perf.base, yReal: yPerfBase },
+      ];
+    });
     this.drawDepthAnnotations(cx, [
       ...this.segmentAnnotations('final', wellSegments, wellVisualSegments, yTop, [
         ['displacementFluid', 'top', 'Topo deslocamento'],
@@ -383,10 +405,8 @@ export class SqueezeSchematicsComponent implements AfterViewInit, OnChanges, OnD
         ['cement', 'top', 'Topo cimento'],
         ['cement', 'bottom', 'Base squeeze'],
       ]),
-      { id: 'topPerf', label: `Topo canh.\n${model.topPerfMD.toFixed(1)} m`, depthReal: model.topPerfMD, yReal: yTopPerf },
-      { id: 'basePerf', label: `Base canh.\n${model.basePerfMD.toFixed(1)} m`, depthReal: model.basePerfMD, yReal: yBasePerf },
+      ...perfAnnotations,
     ], PAD_L - 8, structureRight + 6, PAD_L - 12, PAD_T + 8, H - PAD_B - 8);
-    this.bracket(cx, structureRight + 8, yTopPerf, yBasePerf, 'CANHONEADOS');
     const legendBottom = this.legend(cx, legX, PAD_T, true);
     this.drawInfoPanel(cx, legX, legendBottom + 14, this.squeezeInfoSections(model.segments.find(segment => segment.key === 'cement')?.top ?? p.cementPhysicalTopMD));
   }

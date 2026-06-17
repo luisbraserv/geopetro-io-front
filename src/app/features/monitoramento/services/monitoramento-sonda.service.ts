@@ -27,9 +27,13 @@ export class MonitoramentoSondaService {
   private readonly telemetriaUrl = `${environment.telemetriaUrl}/api/monitoramentos`;
 
   listarMinhas(): Observable<SondaDisponivel[]> {
-    // Retorna lista estática enquanto não existe endpoint de sondas no backend-telemetria
+    // Retorna lista estática enquanto não existe endpoint de sondas no backend-telemetria.
+    // Estas unidades correspondem ao seed de telemetria no InfluxDB e ao cadastro em unidades_sondas.
     return new Observable(obs => {
-      obs.next([{ idSondaUnidade: 'SONDA-01', nome: 'Sonda 01', apelido: 'SONDA-01' }]);
+      obs.next([
+        { idSondaUnidade: 'SPT-144', nome: 'SPT-144', apelido: 'SPT-144' },
+        { idSondaUnidade: 'SPT-145', nome: 'SPT-145', apelido: 'SPT-145' },
+      ]);
       obs.complete();
     });
   }

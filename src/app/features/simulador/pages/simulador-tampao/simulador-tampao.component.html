@@ -456,6 +456,30 @@
       <!-- ══ Esquemático ══ -->
       @if (activeTab === 'schematic') {
 
+        <!-- Fonte do volume de pasta -->
+        <section class="card">
+          <div class="card-head">
+            <h3>Volume de pasta do esquemático</h3>
+            <span>Escolha qual volume de pasta o esquemático deve considerar</span>
+          </div>
+          <div class="vol-source">
+            <label class="vol-source-opt" [class.active]="cementVolumeSource === 'simulador'">
+              <input type="radio" name="cementVolumeSource" value="simulador"
+                [checked]="cementVolumeSource === 'simulador'"
+                (change)="onCementVolumeSourceChange('simulador')">
+              <span class="vol-source-title">Volume do simulador</span>
+              <span class="vol-source-val">{{ fmt(simuladorVolumeBbl) }} bbl</span>
+            </label>
+            <label class="vol-source-opt" [class.active]="cementVolumeSource === 'receita'">
+              <input type="radio" name="cementVolumeSource" value="receita"
+                [checked]="cementVolumeSource === 'receita'"
+                (change)="onCementVolumeSourceChange('receita')">
+              <span class="vol-source-title">Receita por Volume</span>
+              <span class="vol-source-val">{{ fmt(manualVolumeBbl) }} bbl</span>
+            </label>
+          </div>
+        </section>
+
         <!-- Distribuição de fluidos -->
         <section class="card">
           <div class="card-head"><h3>Distribuição de fluidos — Estado de bombeio</h3></div>

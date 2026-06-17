@@ -662,3 +662,44 @@ tr:hover td {
     width: 100%;
   }
 }
+
+/* Seletor de fonte do volume de pasta (esquemático) */
+.vol-source {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.vol-source-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px 12px 38px;
+  position: relative;
+  border: 1px solid var(--color-card-border, #e2e8f0);
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.vol-source-opt:hover { border-color: rgba(66, 145, 225, .35); }
+.vol-source-opt.active {
+  border-color: var(--color-primary, #4291e1);
+  background: #eef6ff;
+  box-shadow: 0 0 0 1px var(--color-primary, #4291e1) inset;
+}
+.vol-source-opt input[type="radio"] {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+.vol-source-title { font-size: 13px; font-weight: 650; color: #1e293b; }
+.vol-source-val { font-size: 13px; color: #475569; }
+
+@media (max-width: 620px) {
+  .vol-source { grid-template-columns: 1fr; }
+}

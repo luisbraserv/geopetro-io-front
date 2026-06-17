@@ -106,6 +106,10 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
   manualFamGpc: number | null = null;
   manualRecipeResult: SlurryRecipeByVolume | null = null;
 
+  // Fonte do volume de pasta usado no esquemático/geometria
+  cementVolumeSource: 'simulador' | 'receita' = 'simulador';
+  simuladorVolumeBbl = 0; // volume geométrico (referência exibida no seletor)
+
   // Cronograma
   opsPhases: OpsPhase[] = [];
 
@@ -228,11 +232,17 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
     const aditivosRaw = hydrateAditivosFromCatalog((v.additivos || []) as Aditivo[]);
 
     this.tampaoInputsSnapshot = inputs;
+    // Geometria base (volume do simulador) — referência exibida no seletor
     this.plug = this.tampaoCalc.calcPlug(inputs);
+    this.simuladorVolumeBbl = this.plug.volCementTotal;
+    // Se a fonte for "Receita por Volume", recalcula a geometria com o volume informado
+    if (this.cementVolumeSource === 'receita' && this.manualVolumeBbl > 0) {
+      this.plug = this.tampaoCalc.calcPlug(inputs, this.manualVolumeBbl);
+    }
     this.reverseCirculation = this.buildReverseCirculationResult(v);
     this.slurry = this.slurryCalc.calculateSlurryDesign({ ...vWithBHT, additivos: aditivosRaw } as any);
     this.recipe = this.slurryCalc.buildSlurryRecipe(this.plug.volCementTotal, this.slurry);
-    this.manualRecipeResult = this.slurryCalc.buildSlurryRecipe(this.manualVolumeBbl, this.slurry).volumeRecipe ?? null;
+    this.computeManualRecipe();
 
     this.tt = this.testsCalc.simulateThickening(this.slurry, v.sectionEndTVD, thetaReadings);
     this.uca = this.testsCalc.simulateUCA(this.slurry, this.tt);
@@ -304,6 +314,7 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
       _manualYieldFt3: this.manualYieldFt3,
       _manualFacGpc: this.manualFacGpc,
       _manualFamGpc: this.manualFamGpc,
+      _cementVolumeSource: this.cementVolumeSource,
     });
     this.stateModalOpen = true;
   }
@@ -312,7 +323,7 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
 
   onCarregarEstado(formValue: Record<string, unknown>): void {
     const { additivos, holeID, pipeOD, pipeID,
-            _dadosRelatorio, _manualVolumeBbl, _manualYieldFt3, _manualFacGpc, _manualFamGpc,
+            _dadosRelatorio, _manualVolumeBbl, _manualYieldFt3, _manualFacGpc, _manualFamGpc, _cementVolumeSource,
             ...rest } = formValue as any;
     this.form.patchValue(rest, { emitEvent: false });
     if (_dadosRelatorio) {
@@ -323,6 +334,7 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
     if (_manualYieldFt3 != null) this.manualYieldFt3 = +_manualYieldFt3;
     if (_manualFacGpc != null) this.manualFacGpc = +_manualFacGpc;
     if (_manualFamGpc != null) this.manualFamGpc = +_manualFamGpc;
+    if (_cementVolumeSource === 'simulador' || _cementVolumeSource === 'receita') this.cementVolumeSource = _cementVolumeSource;
     while (this.additivos.length) this.additivos.removeAt(0);
     if (Array.isArray(additivos)) {
       additivos.forEach((d: any) => this.additivos.push(this.createAditivoGroup(d)));
@@ -397,7 +409,17 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
   }
 
   calcManualRecipe(): void {
-    if (!this.slurry) return;
+    // Quando o esquemático usa o volume da receita, recalcula toda a geometria;
+    // caso contrário só atualiza a receita por volume.
+    if (this.cementVolumeSource === 'receita') {
+      this.simulate();
+    } else {
+      this.computeManualRecipe();
+    }
+  }
+
+  private computeManualRecipe(): void {
+    if (!this.slurry) { this.manualRecipeResult = null; return; }
     const fac   = this.manualFacGpc;
     const fam   = this.manualFamGpc;
     const yield3 = this.manualYieldFt3 ?? this.recipe?.baseRecipe?.yieldFt3PerFt3Cement ?? null;
@@ -414,6 +436,11 @@ export class SimuladorTampaoComponent implements OnInit, OnDestroy {
       const rec = this.slurryCalc.buildSlurryRecipe(this.manualVolumeBbl, this.slurry, this.manualYieldFt3);
       this.manualRecipeResult = rec.volumeRecipe ?? null;
     }
+  }
+
+  onCementVolumeSourceChange(source: 'simulador' | 'receita'): void {
+    this.cementVolumeSource = source;
+    this.simulate();
   }
 
   fmt(v: number | null | undefined, dec = 2): string {

@@ -19,6 +19,8 @@
   justify-content: space-between;
   padding: clamp(2rem, 5vw, 4rem);
   overflow: hidden;
+  /* Fallback da marca caso a imagem nao carregue */
+  background: linear-gradient(150deg, #212f33 0%, #2f4a52 45%, #528c9c 100%);
 }
 
 /* Imagem de fundo — ocupa tudo sem bordas */
@@ -94,13 +96,22 @@
   font-weight: 600;
 }
 
-[tuiTitle] {
+.login-page__hero [tuiTitle] {
   color: #ffffff;
   font-size: clamp(1.75rem, 3.5vw, 2.5rem);
   font-weight: 800;
   line-height: 1.15;
   margin: 0 0 1rem;
   text-shadow: 0 2px 20px rgba(0,0,0,0.45);
+}
+
+.login-card__header [tuiTitle] {
+  color: var(--color-text-primary);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0;
+  text-shadow: none;
 }
 
 .hero-text {
@@ -241,6 +252,10 @@
 .login-submit {
   width: 100%;
   margin-top: 0.25rem;
+  /* Usa a cor da marca (teal) em vez do roxo padrao do Taiga */
+  --tui-background-accent-1: var(--color-primary);
+  --tui-background-accent-1-hover: var(--color-primary-hover);
+  --tui-background-accent-1-pressed: var(--color-primary-hover);
 }
 
 /* ── Erro ── */

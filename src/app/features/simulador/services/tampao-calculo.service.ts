@@ -9,7 +9,7 @@ export class TampaoCalculoService {
 
   constructor(private core: CoreCalculoService) {}
 
-  calcPlug(inputs: TampaoInputs): PlugGeometry {
+  calcPlug(inputs: TampaoInputs, cementVolumeOverrideBbl?: number | null): PlugGeometry {
     const hID = inputs.holeID || 8.535;
     const pOD = inputs.pipeOD || 3.5;
     const pID = inputs.pipeID || 2.764;
@@ -36,7 +36,12 @@ export class TampaoCalculoService {
 
     // Volume total de pasta = capacidade do poço aberto × altura da seção
     // (é o volume que precisa ser preenchido sem tubing)
-    const volCementTotal = capHole * plugHeight;
+    const geometricVolCementTotal = capHole * plugHeight;
+    // Quando o usuário escolhe "Receita por Volume", o volume informado substitui
+    // o volume geométrico e toda a geometria (alturas/topos) é recalculada a partir dele.
+    const volCementTotal = (cementVolumeOverrideBbl != null && cementVolumeOverrideBbl > 0)
+      ? cementVolumeOverrideBbl
+      : geometricVolCementTotal;
 
     // ── Estado 1: Com tubing ──
     // Htci = Vp / (Can + Ctp)
