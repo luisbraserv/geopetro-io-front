@@ -26,21 +26,74 @@
     <aside class="sim-sidebar" [class.sim-sidebar--hidden]="!sidebarOpen">
       <tui-accordion [closeOthers]="false" size="s">
 
-        <!-- 1. Geometria -->
-        <button tuiAccordion type="button" [(tuiAccordion)]="sec1Open">
-          <tui-icon icon="@tui.ruler"></tui-icon> 1. Geometria da seção
+        <!-- 1. Dados do Relatório -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec8Open">
+          <tui-icon icon="@tui.file-text"></tui-icon> 1. Dados do Relatório
         </button>
-        <tui-expand [expanded]="sec1Open">
+        <tui-expand [expanded]="sec8Open">
           <div class="acc-body">
             <div class="g2">
-              <div><label>Início seção (MD, m)</label><input type="number" step="1" formControlName="sectionStartMD"></div>
-              <div><label>Fim seção (MD, m)</label><input type="number" step="1" formControlName="sectionEndMD"></div>
-              <div><label>TVD início (m)</label><input type="number" step="1" formControlName="sectionStartTVD"></div>
-              <div><label>TVD fim (m)</label><input type="number" step="1" formControlName="sectionEndTVD"></div>
+              <div class="col-span-2"><label>Cliente</label><input type="text" [ngModel]="dadosRelatorio.cliente" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.cliente=$event;saveDadosRelatorio()" placeholder="Nome do cliente"></div>
+              <div class="col-span-2"><label>Preparado para</label><input type="text" [ngModel]="dadosRelatorio.preparadoPara" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.preparadoPara=$event;saveDadosRelatorio()" placeholder="Destinatário"></div>
+              <div class="col-span-2"><label>Preparado por</label><input type="text" [ngModel]="dadosRelatorio.preparadoPor" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.preparadoPor=$event;saveDadosRelatorio()" placeholder="Autor"></div>
+              <div class="col-span-2"><label>Revisado por</label><input type="text" [ngModel]="dadosRelatorio.revisadoPor" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.revisadoPor=$event;saveDadosRelatorio()" placeholder="Revisor"></div>
+              <div><label>Origem / Operador</label><input type="text" [ngModel]="dadosRelatorio.origem" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.origem=$event;saveDadosRelatorio()" placeholder="ORIGEM"></div>
+              <div><label>Poço</label><input type="text" [ngModel]="dadosRelatorio.poco" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.poco=$event;saveDadosRelatorio()" placeholder="7-PIR-100-AL"></div>
+              <div><label>Campo</label><input type="text" [ngModel]="dadosRelatorio.campo" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.campo=$event;saveDadosRelatorio()" placeholder="Pilar"></div>
+              <div><label>Sonda</label><input type="text" [ngModel]="dadosRelatorio.sonda" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.sonda=$event;saveDadosRelatorio()" placeholder="SPT-145"></div>
+              <div><label>Versão</label><input type="text" [ngModel]="dadosRelatorio.versao" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.versao=$event;saveDadosRelatorio()" placeholder="01"></div>
+              <div><label>Job #</label><input type="text" [ngModel]="dadosRelatorio.jobNum" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.jobNum=$event;saveDadosRelatorio()" placeholder=""></div>
+              <div><label>País</label><input type="text" [ngModel]="dadosRelatorio.pais" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.pais=$event;saveDadosRelatorio()" placeholder="Brasil"></div>
+              <div class="col-span-2"><label>Zona a isolar</label><input type="text" [ngModel]="dadosRelatorio.zonaIsolarNome" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.zonaIsolarNome=$event;saveDadosRelatorio()" placeholder="CSO-6H"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 2. Sequência Operacional -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec10Open">
+          <tui-icon icon="@tui.list-ordered"></tui-icon> 2. Sequência Operacional
+        </button>
+        <tui-expand [expanded]="sec10Open">
+          <div class="acc-body">
+            <p class="acc-hint">⚙ Diâmetro/profundidade da coluna, "teste definido por" (Cliente) e pressão de teste (Pressão de operação + 1000 psi) são preenchidos automaticamente.</p>
+            <div class="g2">
+              <div><label>Tempo máx. pressurização</label><input type="text" [ngModel]="dadosRelatorio.sequenciaOperacional?.['tempoMaxPressurizacaoH']" [ngModelOptions]="{standalone:true}" (ngModelChange)="setSeqOp('tempoMaxPressurizacaoH', $event)" placeholder="01:00h"></div>
+              <div><label>Comprimento tubo (m)</label><input type="number" step="0.1" [ngModel]="dadosRelatorio.sequenciaOperacional?.['comprimentoTuboM']" [ngModelOptions]="{standalone:true}" (ngModelChange)="setSeqOp('comprimentoTuboM', $event)" placeholder="9.4"></div>
+              <div><label>Seções acima do topo</label><input type="number" [ngModel]="dadosRelatorio.sequenciaOperacional?.['secoesAcimaTopoCimento']" [ngModelOptions]="{standalone:true}" (ngModelChange)="setSeqOp('secoesAcimaTopoCimento', $event)" placeholder="2"></div>
+              <div><label>Tubos por seção</label>
+                <select [ngModel]="dadosRelatorio.sequenciaOperacional?.['tubosPorSecao']" [ngModelOptions]="{standalone:true}" (ngModelChange)="setSeqOp('tubosPorSecao', $event)">
+                  <option [ngValue]="2">2 tubos</option>
+                  <option [ngValue]="3">3 tubos</option>
+                </select>
+              </div>
+              <div><label>Min. por tubo</label><input type="number" [ngModel]="dadosRelatorio.sequenciaOperacional?.['minPrimeirosTubos']" [ngModelOptions]="{standalone:true}" (ngModelChange)="setSeqOp('minPrimeirosTubos', $event)" placeholder="3"></div>
+              <div><label>Min. por seção (auto)</label><input type="number" [value]="dadosRelatorio.sequenciaOperacional?.['minDemaisTubos']" disabled title="tubos por seção × min. por tubo"></div>
+              <div><label>Tempo bombeabilidade</label><input type="text" [ngModel]="dadosRelatorio.sequenciaOperacional?.['tempoBombeabilidade']" [ngModelOptions]="{standalone:true}" (ngModelChange)="setSeqOp('tempoBombeabilidade', $event)" placeholder="04:31 h"></div>
+              <div><label>Resistência compressiva</label><input type="text" [ngModel]="dadosRelatorio.sequenciaOperacional?.['tempoResistencia']" [ngModelOptions]="{standalone:true}" (ngModelChange)="setSeqOp('tempoResistencia', $event)" placeholder="08:00 h"></div>
+              <div><label>Pressão resistência (psi)</label><input type="number" [ngModel]="dadosRelatorio.sequenciaOperacional?.['pressaoResistenciaPsi']" [ngModelOptions]="{standalone:true}" (ngModelChange)="setSeqOp('pressaoResistenciaPsi', $event)" placeholder="1500"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 3. Dados da Operação -->
+        <button type="button" class="acc-group-label" [class.acc-group-label--open]="secDadosOpen"
+          (click)="secDadosOpen = !secDadosOpen">
+          <tui-icon icon="@tui.pencil-ruler"></tui-icon> 3. Dados da Operação
+          <tui-icon icon="@tui.chevron-down" class="acc-group-chevron"></tui-icon>
+        </button>
+        <div class="acc-group-collapse" [class.acc-group-collapse--open]="secDadosOpen">
+        <div class="acc-group-items">
+
+        <!-- 3.1 Geometria do Poço -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="secPocoOpen" class="acc-sub">
+          <tui-icon icon="@tui.circle-dot"></tui-icon> 3.1 Geometria do Poço
+        </button>
+        <tui-expand [expanded]="secPocoOpen">
+          <div class="acc-body">
+            <div class="g2">
               <div><label>Final poço (MD, m)</label><input type="number" step="1" formControlName="wellFinalMD"></div>
               <div><label>TVD final (m)</label><input type="number" step="1" formControlName="wellFinalTVD"></div>
-              <div><label>Caliper (pol)</label><input type="number" step="0.001" formControlName="caliper"></div>
-              <div><label>Altura fl. atrás (m)</label><input type="number" step="0.1" formControlName="backSpacerHeight"></div>
+              <div class="col-span-2"><label>Caliper (pol)</label><input type="number" step="0.001" formControlName="caliper"></div>
               <div class="col-span-2">
                 <label>Revestimento (API)</label>
                 <select (change)="onCasingSelect($any($event.target).value)">
@@ -71,14 +124,77 @@
           </div>
         </tui-expand>
 
-        <!-- 2. Canhoneados -->
-        <button tuiAccordion type="button" [(tuiAccordion)]="sec2Open">
-          <tui-icon icon="@tui.target"></tui-icon> 2. Canhoneados
+        <!-- 3.2 Geometria da Seção -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec1Open" class="acc-sub">
+          <tui-icon icon="@tui.ruler"></tui-icon> 3.2 Geometria da Seção
+        </button>
+        <tui-expand [expanded]="sec1Open">
+          <div class="acc-body">
+            <div class="g2">
+              <div><label>TVD início (m)</label><input type="number" step="1" formControlName="sectionStartTVD"></div>
+              <div><label>TVD fim (m)</label><input type="number" step="1" formControlName="sectionEndTVD"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 3.3 Geometria do Tampão -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="secTampaoOpen" class="acc-sub">
+          <tui-icon icon="@tui.layers"></tui-icon> 3.3 Geometria do Tampão
+        </button>
+        <tui-expand [expanded]="secTampaoOpen">
+          <div class="acc-body">
+            <p class="acc-hint">Intervalo do tampão que será feito para trabalhar o squeeze.</p>
+            <div class="g2">
+              <div><label>Início seção (MD, m)</label><input type="number" step="1" formControlName="sectionStartMD"></div>
+              <div><label>Fim seção (MD, m)</label><input type="number" step="1" formControlName="sectionEndMD"></div>
+            </div>
+            <label class="calc-mode-label">Cálculo do tampão por</label>
+            <div class="vol-source vol-source--stack">
+              <label class="vol-source-opt" [class.active]="cementVolumeSource === 'simulador'">
+                <input type="radio" name="cementVolumeSource" value="simulador"
+                  [checked]="cementVolumeSource === 'simulador'"
+                  (change)="onCementVolumeSourceChange('simulador')">
+                <span class="vol-source-title">Altura do tampão</span>
+                <span class="vol-source-val">{{ fmt(simuladorVolumeBbl) }} bbl</span>
+              </label>
+              <label class="vol-source-opt" [class.active]="cementVolumeSource === 'receita'">
+                <input type="radio" name="cementVolumeSource" value="receita"
+                  [checked]="cementVolumeSource === 'receita'"
+                  (change)="onCementVolumeSourceChange('receita')">
+                <span class="vol-source-title">Volume de pasta</span>
+                <span class="vol-source-val">{{ fmt(manualVolumeBbl) }} bbl</span>
+              </label>
+            </div>
+            <div class="g2">
+              <div class="col-span-2">
+                <label>Volume de pasta (bbl)</label>
+                <input type="number" step="0.5" [value]="manualVolumeBbl"
+                  (input)="onManualVolumeChange($any($event.target).value)">
+              </div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 3.4 Altura da Água Atrás -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="secAlturaOpen" class="acc-sub">
+          <tui-icon icon="@tui.move-vertical"></tui-icon> 3.4 Altura da Água Atrás
+        </button>
+        <tui-expand [expanded]="secAlturaOpen">
+          <div class="acc-body">
+            <div class="g2">
+              <div class="col-span-2"><label>Altura água atrás (m)</label><input type="number" step="0.1" formControlName="backSpacerHeight"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 3.5 Canhoneados -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec2Open" class="acc-sub">
+          <tui-icon icon="@tui.target"></tui-icon> 3.5 Canhoneados
         </button>
         <tui-expand [expanded]="sec2Open">
           <div class="acc-body">
             <div formArrayName="perforacoes" class="perfs-list">
-              @for (perf of perforacoes.controls; track $index; let i = $index) {
+              @for (perf of perforacoes.controls; track perf; let i = $index) {
                 <div [formGroupName]="i" class="perf-row">
                   <div><label>Topo (MD, m)</label><input type="number" step="0.5" formControlName="top"></div>
                   <div><label>Base (MD, m)</label><input type="number" step="0.5" formControlName="base"></div>
@@ -93,45 +209,122 @@
           </div>
         </tui-expand>
 
-        <!-- 3. Temperatura -->
-        <button tuiAccordion type="button" [(tuiAccordion)]="sec3Open">
-          <tui-icon icon="@tui.thermometer"></tui-icon> 3. Temperatura
+        </div>
+        </div>
+
+        <!-- 4. Condições operacionais -->
+        <button type="button" class="acc-group-label" [class.acc-group-label--open]="secCondOpen"
+          (click)="secCondOpen = !secCondOpen">
+          <tui-icon icon="@tui.gauge"></tui-icon> 4. Condições operacionais
+          <tui-icon icon="@tui.chevron-down" class="acc-group-chevron"></tui-icon>
+        </button>
+        <div class="acc-group-collapse" [class.acc-group-collapse--open]="secCondOpen">
+        <div class="acc-group-items">
+
+        <!-- 4.1 Peso dos Fluidos -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="secPesosOpen" class="acc-sub">
+          <tui-icon icon="@tui.scale"></tui-icon> 4.1 Peso dos Fluidos
+        </button>
+        <tui-expand [expanded]="secPesosOpen">
+          <div class="acc-body">
+            <div class="g2">
+              <div><label>Água frente (ppg)</label><input type="number" step="0.1" formControlName="mudWeightFront"></div>
+              <div><label>Água atrás (ppg)</label><input type="number" step="0.1" formControlName="mudWeightBack"></div>
+              <div class="col-span-2"><label>Fl. deslocamento (ppg)</label><input type="number" step="0.1" formControlName="completionWeight"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 4.2 Vazões de Bombeio -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="secVazoesOpen" class="acc-sub">
+          <tui-icon icon="@tui.waves"></tui-icon> 4.2 Vazões de Bombeio
+        </button>
+        <tui-expand [expanded]="secVazoesOpen">
+          <div class="acc-body">
+            <p class="acc-hint">Cada fluido é bombeado com sua própria vazão — usadas no cronograma e na simulação.</p>
+            <div class="g2">
+              <div><label>Água frente (bpm)</label><input type="number" step="0.1" [ngModel]="dadosRelatorio.vazoesBombeio?.fluidoFrenteBpm" [ngModelOptions]="{standalone:true}" (ngModelChange)="setVazaoBombeio('fluidoFrenteBpm', $event)" placeholder="Vazão geral"></div>
+              <div><label>Pasta (bpm)</label><input type="number" step="0.1" [ngModel]="dadosRelatorio.vazoesBombeio?.pastaBpm" [ngModelOptions]="{standalone:true}" (ngModelChange)="setVazaoBombeio('pastaBpm', $event)" placeholder="Vazão geral"></div>
+              <div><label>Água atrás (bpm)</label><input type="number" step="0.1" [ngModel]="dadosRelatorio.vazoesBombeio?.fluidoAtrasBpm" [ngModelOptions]="{standalone:true}" (ngModelChange)="setVazaoBombeio('fluidoAtrasBpm', $event)" placeholder="Vazão geral"></div>
+              <div><label>Deslocamento (bpm)</label><input type="number" step="0.1" [ngModel]="dadosRelatorio.vazoesBombeio?.deslocamentoBpm" [ngModelOptions]="{standalone:true}" (ngModelChange)="setVazaoBombeio('deslocamentoBpm', $event)" placeholder="Vazão geral"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 4.3 Gradientes -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="secGradOpen" class="acc-sub">
+          <tui-icon icon="@tui.trending-up"></tui-icon> 4.3 Gradientes
+        </button>
+        <tui-expand [expanded]="secGradOpen">
+          <div class="acc-body">
+            <div class="g2">
+              <div><label>Grad. fratura (ppg)</label><input type="number" step="0.1" formControlName="fracGrad"></div>
+              <div><label>Grad. poro (ppg)</label><input type="number" step="0.1" formControlName="poreGrad"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        <!-- 4.4 Temperatura -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="sec3Open" class="acc-sub">
+          <tui-icon icon="@tui.thermometer"></tui-icon> 4.4 Temperatura
         </button>
         <tui-expand [expanded]="sec3Open">
           <div class="acc-body">
             <div class="g2">
               <div><label>Temp. superfície (°F)</label><input type="number" step="0.1" formControlName="surfaceTemp"></div>
               <div><label>Gradiente (°F/100 ft)</label><input type="number" step="0.01" formControlName="geoGradient"></div>
+              <div>
+                <label>BHST manual</label>
+                <input type="number" step="0.1" [ngModel]="manualBhstValue"
+                  [ngModelOptions]="{standalone:true}"
+                  (ngModelChange)="setManualBhstValue($event)"
+                  [placeholder]="fmt(temperatureResult?.bhstF, 1)">
+              </div>
+              <div>
+                <label>Unidade</label>
+                <select [ngModel]="manualBhstUnit" [ngModelOptions]="{standalone:true}"
+                  (ngModelChange)="setManualBhstUnit($event)">
+                  <option value="F">°F</option>
+                  <option value="C">°C</option>
+                </select>
+              </div>
               <div><label>BHST (°F)</label><input type="number" formControlName="bhst" class="field-readonly"></div>
-              <div><label>BHCT (°F)</label><input type="number" formControlName="bhct" class="field-readonly"></div>
+              <div><label>SQT (°F)</label><input type="number" formControlName="bhct" class="field-readonly"></div>
             </div>
           </div>
         </tui-expand>
 
-        <!-- 4. Condições -->
-        <button tuiAccordion type="button" [(tuiAccordion)]="sec4Open">
-          <tui-icon icon="@tui.gauge"></tui-icon> 4. Condições operacionais
+        <!-- 4.5 Injeção -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="secInjecaoOpen" class="acc-sub">
+          <tui-icon icon="@tui.syringe"></tui-icon> 4.5 Injeção
         </button>
-        <tui-expand [expanded]="sec4Open">
+        <tui-expand [expanded]="secInjecaoOpen">
           <div class="acc-body">
+            <p class="acc-hint">A injeção acontece após o deslocamento: a Pressão de Operação é aplicada na superfície durante o tempo de pressurização, injetando o volume informado na formação. Esse volume soma ao total de pasta bombeado e desconta dos topos pós-injeção.</p>
             <div class="g2">
-              <div><label>Fl. frente (ppg)</label><input type="number" step="0.1" formControlName="mudWeightFront"></div>
-              <div><label>Fl. atrás (ppg)</label><input type="number" step="0.1" formControlName="mudWeightBack"></div>
-              <div><label>Fl. deslocamento (ppg)</label><input type="number" step="0.1" formControlName="completionWeight"></div>
-              <div><label>Grad. fratura (ppg)</label><input type="number" step="0.1" formControlName="fracGrad"></div>
-              <div><label>Grad. poro (ppg)</label><input type="number" step="0.1" formControlName="poreGrad"></div>
-              <div><label>Vazão (bbl/min)</label><input type="number" step="0.1" formControlName="pumpRate"></div>
-              <div><label>Pressão sup. (psi)</label><input type="number" step="50" formControlName="surfacePressure"></div>
-              <div><label>Teste squeeze (psi)</label><input type="number" step="50" formControlName="squeezeTestPressure"></div>
               <div><label>Pressão de Operação (psi)</label><input type="number" step="100" formControlName="pressaoOperacao"></div>
-              <div><label>Vol. máx. injetado (bbl)</label><input type="number" step="0.1" formControlName="volMaxInjetadoBbl"></div>
-              <div class="col-span-2"><label>Perda esperada formação (bbl)</label><input type="number" step="0.1" formControlName="expectedLoss"></div>
-              <div><label>Pausa 1 – fl. frente (min)</label><input type="number" step="1" formControlName="pause1"></div>
-              <div><label>Pausa 2 – pasta (min)</label><input type="number" step="1" formControlName="pause2"></div>
-              <div class="col-span-2"><label>Pausa 3 – fl. atrás (min)</label><input type="number" step="1" formControlName="pause3"></div>
+              <div><label>Vol. injetado p/ formação (bbl)</label><input type="number" step="0.1" formControlName="volMaxInjetadoBbl"></div>
+              <div class="col-span-2"><label>Tempo de pressurização (min)</label><input type="number" step="1" formControlName="tempoPressurizacaoMin"></div>
             </div>
           </div>
         </tui-expand>
+
+        <!-- 4.6 Pausas -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="secPausasOpen" class="acc-sub">
+          <tui-icon icon="@tui.pause"></tui-icon> 4.6 Pausas
+        </button>
+        <tui-expand [expanded]="secPausasOpen">
+          <div class="acc-body">
+            <div class="g2">
+              <div><label>Pausa 1 – água frente (min)</label><input type="number" step="1" formControlName="pause1"></div>
+              <div><label>Pausa 2 – pasta (min)</label><input type="number" step="1" formControlName="pause2"></div>
+              <div class="col-span-2"><label>Pausa 3 – água atrás (min)</label><input type="number" step="1" formControlName="pause3"></div>
+            </div>
+          </div>
+        </tui-expand>
+
+        </div>
+        </div>
 
         <!-- 5. Receita da pasta -->
         <button tuiAccordion type="button" [(tuiAccordion)]="sec5Open">
@@ -153,6 +346,29 @@
               <div><label>Água do mar (%)</label><input type="number" step="0.1" formControlName="waterSplitSea"></div>
               <div><label>Sílica (% BWOC)</label><input type="number" step="0.1" formControlName="silica"></div>
               <div><label>NaCl (% sobre água)</label><input type="number" step="0.1" formControlName="nacl"></div>
+              <div class="col-span-2">
+                <label>Rendimento da pasta (ft³/ft³)</label>
+                <input type="number" step="0.0001"
+                  [value]="manualYieldFt3 ?? recipe?.baseRecipe?.yieldFt3PerFt3Cement ?? ''"
+                  (input)="manualYieldFt3 = +$any($event.target).value || null; calcManualRecipe()">
+              </div>
+              <div>
+                <label>FAC (gpc)</label>
+                <input type="number" step="0.01" min="0"
+                  [value]="manualFacGpc ?? ''"
+                  (input)="manualFacGpc = +$any($event.target).value || null; calcManualRecipe()"
+                  [placeholder]="fmt(recipe?.baseRecipe?.facGpc) + ' auto'">
+              </div>
+              <div>
+                <label>FAM (gpc)</label>
+                <input type="number" step="0.01" min="0"
+                  [value]="manualFamGpc ?? ''"
+                  (input)="manualFamGpc = +$any($event.target).value || null; calcManualRecipe()"
+                  [placeholder]="fmt(recipe?.baseRecipe?.famGpc) + ' auto'">
+              </div>
+              <div class="col-span-2">
+                <button tuiButton class="btn btn--ghost btn--sm" type="button" (click)="calcManualRecipe(); setTab('manualRecipe')">Calcular receita por volume</button>
+              </div>
             </div>
           </div>
         </tui-expand>
@@ -200,25 +416,30 @@
           </div>
         </tui-expand>
 
-        <!-- 8. Dados do Relatório -->
-        <button tuiAccordion type="button" [(tuiAccordion)]="sec8Open">
-          <tui-icon icon="@tui.file-text"></tui-icon> 8. Dados do Relatório
+        <!-- 9. Simulador -->
+        <button tuiAccordion type="button" [(tuiAccordion)]="secSimuladorOpen">
+          <tui-icon icon="@tui.settings-2"></tui-icon> 9. Simulador
         </button>
-        <tui-expand [expanded]="sec8Open">
+        <tui-expand [expanded]="secSimuladorOpen">
           <div class="acc-body">
+            <p class="acc-hint">Variáveis do motor de simulação hidráulica. A rugosidade multiplica a fricção em regime turbulento (a correlação Petroguia F-40 assume tubo liso); não afeta o regime laminar.</p>
             <div class="g2">
-              <div class="col-span-2"><label>Cliente</label><input type="text" [ngModel]="dadosRelatorio.cliente" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.cliente=$event;saveDadosRelatorio()" placeholder="Nome do cliente"></div>
-              <div class="col-span-2"><label>Preparado para</label><input type="text" [ngModel]="dadosRelatorio.preparadoPara" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.preparadoPara=$event;saveDadosRelatorio()" placeholder="Destinatário"></div>
-              <div class="col-span-2"><label>Preparado por</label><input type="text" [ngModel]="dadosRelatorio.preparadoPor" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.preparadoPor=$event;saveDadosRelatorio()" placeholder="Autor"></div>
-              <div class="col-span-2"><label>Revisado por</label><input type="text" [ngModel]="dadosRelatorio.revisadoPor" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.revisadoPor=$event;saveDadosRelatorio()" placeholder="Revisor"></div>
-              <div><label>Origem / Operador</label><input type="text" [ngModel]="dadosRelatorio.origem" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.origem=$event;saveDadosRelatorio()" placeholder="ORIGEM"></div>
-              <div><label>Poço</label><input type="text" [ngModel]="dadosRelatorio.poco" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.poco=$event;saveDadosRelatorio()" placeholder="7-PIR-100-AL"></div>
-              <div><label>Campo</label><input type="text" [ngModel]="dadosRelatorio.campo" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.campo=$event;saveDadosRelatorio()" placeholder="Pilar"></div>
-              <div><label>Sonda</label><input type="text" [ngModel]="dadosRelatorio.sonda" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.sonda=$event;saveDadosRelatorio()" placeholder="SPT-145"></div>
-              <div><label>Versão</label><input type="text" [ngModel]="dadosRelatorio.versao" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.versao=$event;saveDadosRelatorio()" placeholder="01"></div>
-              <div><label>Job #</label><input type="text" [ngModel]="dadosRelatorio.jobNum" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.jobNum=$event;saveDadosRelatorio()" placeholder=""></div>
-              <div><label>País</label><input type="text" [ngModel]="dadosRelatorio.pais" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.pais=$event;saveDadosRelatorio()" placeholder="Brasil"></div>
-              <div class="col-span-2"><label>Zona a isolar</label><input type="text" [ngModel]="dadosRelatorio.zonaIsolarNome" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.zonaIsolarNome=$event;saveDadosRelatorio()" placeholder="CSO-6H"></div>
+              <div class="col-span-2">
+                <label>Estado do tubo (rugosidade)</label>
+                <select formControlName="roughness">
+                  @for (r of roughnessOptions; track r.value) { <option [value]="r.value">{{ r.label }}</option> }
+                </select>
+              </div>
+              <div><label>Viscosidade fl. aquosos (cP)</label><input type="number" step="0.1" min="0.2" formControlName="viscosidadeAguaCp"></div>
+              <div><label>Free fall máx. (× vazão)</label><input type="number" step="0.5" min="1" formControlName="freeFallMaxFactor"></div>
+              <div class="col-span-2"><label>Centralização / standoff (%)</label><input type="number" step="5" min="0" max="100" formControlName="standoffPct" title="100% = coluna concêntrica; excentricidade reduz a fricção anular (Petroguia F-40)"></div>
+            </div>
+            <p class="acc-hint" style="margin-top:10px">Limites do equipamento de bombeio — geram alertas quando a simulação os excede.</p>
+            <div class="g2">
+              <div><label>Potência motor (HP)</label><input type="number" step="10" formControlName="motorHP"></div>
+              <div><label>Eficiência bomba (%)</label><input type="number" step="1" min="0" max="100" formControlName="pumpEff"></div>
+              <div><label>Pressão máx. sup. (psi)</label><input type="number" step="100" formControlName="maxSurfacePressure"></div>
+              <div><label>Vazão máx. (bbl/min)</label><input type="number" step="0.5" formControlName="maxPumpRate"></div>
             </div>
           </div>
         </tui-expand>
@@ -235,17 +456,16 @@
         <!-- Métricas principais -->
         <section class="metrics">
           <div class="metric"><span>Vol. físico pasta</span><strong>{{ fmt(geom?.slurryPhysicalVolumeBbl) }} bbl</strong></div>
-          <div class="metric"><span>Perda formação</span><strong>{{ fmt(geom?.expectedLoss) }} bbl</strong></div>
           <div class="metric"><span>Total bombeado</span><strong>{{ fmt(geom?.slurryTotal) }} bbl</strong></div>
           <div class="metric"><span>Sacos</span><strong>{{ recipe?.sacks ?? '-' }} sk</strong></div>
           <div class="metric"><span>Alt. cem. c/ tubing</span><strong>{{ fmt(geom?.cementHeightWithTubing, 1) }} m</strong></div>
           <div class="metric"><span>Alt. cem. s/ tubing</span><strong>{{ fmt(geom?.cementHeightWithoutTubing, 1) }} m</strong></div>
-          <div class="metric"><span>Fl. Frente</span><strong>{{ fmt(geom?.frontPhysicalVolumeBbl) }} bbl</strong></div>
-          <div class="metric"><span>Fl. Atrás</span><strong>{{ fmt(geom?.volBackSpacer) }} bbl</strong></div>
+          <div class="metric"><span>Água Frente</span><strong>{{ fmt(geom?.frontPhysicalVolumeBbl) }} bbl</strong></div>
+          <div class="metric"><span>Água Atrás</span><strong>{{ fmt(geom?.volBackSpacer) }} bbl</strong></div>
           <div class="metric"><span>Deslocamento</span><strong>{{ fmt(geom?.operationalDisplacementVolumeBbl) }} bbl</strong></div>
           <div class="metric"><span>Densidade pasta</span><strong>{{ fmt(slurry?.density) }} ppg</strong></div>
           <div class="metric"><span>Rendimento da pasta</span><strong>{{ fmt(recipe?.baseRecipe?.yieldFt3PerFt3Cement, 3) }} ft³/ft³</strong></div>
-          <div class="metric"><span>BHCT est.</span><strong>{{ fmt(slurry?.bhct, 1) }} °F</strong></div>
+          <div class="metric"><span>SQT</span><strong>{{ fmt(slurry?.bhct, 1) }} °F</strong></div>
           <div class="metric"><span>TT 50 Bc</span><strong>{{ tt ? fmtTime(tt.t50) : '-' }}</strong></div>
         </section>
 
@@ -281,77 +501,16 @@
           </section>
         }
 
-        <!-- Receita por volume manual -->
-        <section class="card">
-          <div class="card-head">
-            <h3>Receita por Volume</h3>
-            <span>Quantidades totais para o volume de pasta da operação</span>
-          </div>
-          <div class="g2" style="max-width:780px; margin-bottom:.75rem">
-            <div>
-              <label>Volume de pasta (bbl)</label>
-              <input type="number" step="0.5" [(ngModel)]="manualVolumeBbl" [ngModelOptions]="{standalone:true}"
-                (input)="calcManualRecipe()">
-            </div>
-            <div>
-              <label>Rendimento da pasta (ft³/ft³)</label>
-              <input type="number" step="0.0001"
-                [value]="manualYieldFt3 ?? recipe?.baseRecipe?.yieldFt3PerFt3Cement ?? ''"
-                (input)="manualYieldFt3 = +$any($event.target).value || null; calcManualRecipe()">
-            </div>
-            <div>
-              <label>FAC (gpc) <span style="color:var(--tui-text-secondary);font-size:11px">— opcional</span></label>
-              <input type="number" step="0.01" min="0"
-                [value]="manualFacGpc ?? ''"
-                (input)="manualFacGpc = +$any($event.target).value || null; calcManualRecipe()"
-                [placeholder]="fmt(recipe?.baseRecipe?.facGpc) + ' gpc (auto)'">
-            </div>
-            <div>
-              <label>FAM (gpc) <span style="color:var(--tui-text-secondary);font-size:11px">— opcional</span></label>
-              <input type="number" step="0.01" min="0"
-                [value]="manualFamGpc ?? ''"
-                (input)="manualFamGpc = +$any($event.target).value || null; calcManualRecipe()"
-                [placeholder]="fmt(recipe?.baseRecipe?.famGpc) + ' gpc (auto)'">
-            </div>
-            <div style="display:flex;align-items:flex-end">
-              <button tuiButton class="btn btn--ghost" type="button" (click)="calcManualRecipe()">Calcular</button>
-            </div>
-          </div>
-          @if (manualRecipeResult) {
-            <div class="metrics" style="margin-bottom:12px">
-              <div class="metric"><span>Volume pasta</span><strong>{{ fmt(manualRecipeResult.targetSlurryVolumeBbl) }} bbl</strong></div>
-              <div class="metric"><span>Volume pasta</span><strong>{{ fmt(manualRecipeResult.targetSlurryVolumeFt3) }} ft³</strong></div>
-              <div class="metric"><span>Rendimento usado</span><strong>{{ fmt(manualRecipeResult.yieldFt3PerFt3Cement, 3) }} ft³/ft³</strong></div>
-              <div class="metric"><span>FAC</span><strong>{{ fmt(manualRecipeResult.facGpc) }} gpc</strong></div>
-              <div class="metric"><span>FAM</span><strong>{{ fmt(manualRecipeResult.famGpc) }} gpc</strong></div>
-              <div class="metric"><span>Volume cimento</span><strong>{{ fmt(manualRecipeResult.cementVolumeFt3) }} ft³</strong></div>
-              <div class="metric"><span>Sacos 94 lb</span><strong>{{ fmt(manualRecipeResult.sacks94lb) }} sk</strong></div>
-              <div class="metric"><span>Água total</span><strong>{{ fmt(litersFromGal(manualRecipeResult.totalMixWaterGal)) }} L</strong></div>
-            </div>
-            @if (manualRecipeResult.error) {
-              <div class="chip chip--danger">{{ manualRecipeResult.error }}</div>
-            }
-            <table>
-              <thead><tr><th>Aditivo</th><th>Código</th><th>Concentração</th><th>Quantidade</th></tr></thead>
-              <tbody>
-                @for (row of manualRecipeResult.rows; track $index) {
-                  <tr><td>{{ recipeItemLabel(row) }}</td><td>{{ recipeCode(row) }}</td><td>{{ recipeConcentrationText(row) }}</td><td>{{ recipeQuantityText(row, true) }}</td></tr>
-                }
-              </tbody>
-            </table>
-          }
-        </section>
-
         <!-- Sequência de bombeio -->
         <section class="card">
           <div class="card-head"><h3>Sequência de bombeio</h3></div>
           <table>
             <thead><tr><th>Fluido</th><th>Volume (bbl)</th><th>Vazão (bpm)</th><th>Dens. (ppg)</th></tr></thead>
             <tbody>
-              <tr><td>Fl. Deslocador à Frente</td><td>{{ fmt(geom?.frontPhysicalVolumeBbl) }}</td><td>{{ fmt(form.value.pumpRate, 1) }}</td><td>{{ fmt(form.value.mudWeightFront, 1) }}</td></tr>
-              <tr><td>Pasta de cimento</td><td>{{ fmt(geom?.slurryTotal) }}</td><td>{{ fmt(form.value.pumpRate, 1) }}</td><td>{{ fmt(slurry?.density) }}</td></tr>
-              <tr><td>Fl. Deslocador Atrás</td><td>{{ fmt(geom?.volBackSpacer) }}</td><td>{{ fmt(form.value.pumpRate, 1) }}</td><td>{{ fmt(form.value.mudWeightBack, 1) }}</td></tr>
-              <tr><td>Deslocamento</td><td>{{ fmt(geom?.operationalDisplacementVolumeBbl) }}</td><td>{{ fmt(form.value.pumpRate, 1) }}</td><td>{{ fmt(form.value.completionWeight, 1) }}</td></tr>
+              <tr><td>Água à Frente</td><td>{{ fmt(geom?.frontPhysicalVolumeBbl) }}</td><td>{{ fmt(vazaoFluido('fluidoFrenteBpm'), 1) }}</td><td>{{ fmt(form.value.mudWeightFront, 1) }}</td></tr>
+              <tr><td>Pasta de cimento</td><td>{{ fmt(geom?.slurryTotal) }}</td><td>{{ fmt(vazaoFluido('pastaBpm'), 1) }}</td><td>{{ fmt(slurry?.density) }}</td></tr>
+              <tr><td>Água Atrás</td><td>{{ fmt(geom?.volBackSpacer) }}</td><td>{{ fmt(vazaoFluido('fluidoAtrasBpm'), 1) }}</td><td>{{ fmt(form.value.mudWeightBack, 1) }}</td></tr>
+              <tr><td>Deslocamento</td><td>{{ fmt(geom?.operationalDisplacementVolumeBbl) }}</td><td>{{ fmt(vazaoFluido('deslocamentoBpm'), 1) }}</td><td>{{ fmt(form.value.completionWeight, 1) }}</td></tr>
             </tbody>
           </table>
         </section>
@@ -386,6 +545,58 @@
           </div>
           <app-ops-chart [phases]="opsPhases" [ttRequiredMin]="tt ? tt.t50 * 60 : 0" [tt100Min]="tt ? tt.t100 * 60 : 0"></app-ops-chart>
         </section>
+      }
+
+      <!-- ══════════ ABA 2: RECEITA POR VOLUME ══════════ -->
+      @if (activeTab === 'manualRecipe') {
+        @if (temperatureResult) {
+          <section class="metrics">
+            <div class="metric"><span>BHST utilizada</span><strong>{{ fmt(temperatureResult.bhstF, 1) }} °F</strong></div>
+            <div class="metric"><span>Origem da BHST</span><strong>{{ temperatureResult.source === 'manual' ? 'Manual' : 'Automática' }}</strong></div>
+            <div class="metric"><span>Gradiente geotérmico</span><strong>{{ fmt(temperatureResult.geoGradientFPer100Ft, 3) }} °F/100 ft</strong></div>
+            <div class="metric"><span>SQT</span><strong>{{ fmt(temperatureResult.sqtF, 1) }} °F</strong></div>
+            <div class="metric"><span>SQT</span><strong>{{ fmt(temperatureResult.sqtC, 1) }} °C</strong></div>
+          </section>
+        }
+
+        @if (manualRecipeResult) {
+          <section class="card">
+            <div class="card-head">
+              <div><h3>Receita por Volume</h3><span>Quantidades totais para o volume de pasta informado</span></div>
+            </div>
+            <section class="metrics" style="margin-bottom:12px">
+              <div class="metric"><span>Volume pasta</span><strong>{{ fmt(manualRecipeResult.targetSlurryVolumeBbl) }} bbl</strong></div>
+              <div class="metric"><span>Volume pasta</span><strong>{{ fmt(manualRecipeResult.targetSlurryVolumeFt3) }} ft³</strong></div>
+              <div class="metric"><span>Rendimento usado</span><strong>{{ fmt(manualRecipeResult.yieldFt3PerFt3Cement, 3) }} ft³/ft³</strong></div>
+              <div class="metric"><span>FAC</span><strong>{{ fmt(manualRecipeResult.facGpc) }} gpc</strong></div>
+              <div class="metric"><span>FAM</span><strong>{{ fmt(manualRecipeResult.famGpc) }} gpc</strong></div>
+              <div class="metric"><span>Volume cimento</span><strong>{{ fmt(manualRecipeResult.cementVolumeFt3) }} ft³</strong></div>
+              <div class="metric"><span>Sacos 94 lb</span><strong>{{ fmt(manualRecipeResult.sacks94lb) }} sk</strong></div>
+              <div class="metric"><span>Água total</span><strong>{{ fmt(litersFromGal(manualRecipeResult.totalMixWaterGal)) }} L</strong></div>
+            </section>
+            @if (manualRecipeResult.error) {
+              <div class="chip chip--danger">{{ manualRecipeResult.error }}</div>
+            }
+            <table>
+              <thead><tr><th>Aditivo</th><th>Código</th><th>Concentração</th><th>Quantidade</th></tr></thead>
+              <tbody>
+                @for (row of manualRecipeResult.rows; track $index) {
+                  <tr><td>{{ recipeItemLabel(row) }}</td><td>{{ recipeCode(row) }}</td><td>{{ recipeConcentrationText(row) }}</td><td>{{ recipeQuantityText(row, true) }}</td></tr>
+                }
+              </tbody>
+            </table>
+          </section>
+
+          @if (manualRecipeOpsPhases.length) {
+            <section class="card">
+              <div class="card-head">
+                <h3>Cronograma operacional</h3>
+                <span>Tempo de bombeio com o volume de pasta da Receita por Volume</span>
+              </div>
+              <app-ops-chart [phases]="manualRecipeOpsPhases" [ttRequiredMin]="tt ? tt.t50 * 60 : 0" [tt100Min]="tt ? tt.t100 * 60 : 0"></app-ops-chart>
+            </section>
+          }
+        }
       }
 
       <!-- ══════════ ABA 2: REOLOGIA ══════════ -->
@@ -453,6 +664,42 @@
 
       <!-- ══════════ ABA 3: SIMULAÇÕES ══════════ -->
       @if (activeTab === 'simulations') {
+        <section class="card">
+          <div class="card-head">
+            <h3>Cálculos do relatório</h3>
+            <span>Retirada de tubos, circulação reversa e conformidade operacional</span>
+          </div>
+          <div class="calc-actions">
+            <button tuiButton class="btn btn--ghost" type="button" (click)="gerarCalculoRetiradaTubos()">
+              Quantidade de tubos
+            </button>
+            <button tuiButton class="btn btn--ghost" type="button" (click)="gerarCalculoCirculacaoReversa()">
+              Circulação reversa
+            </button>
+            <button tuiButton class="btn btn--ghost" type="button" [disabled]="!hydraulicSim" (click)="gerarRelatorioConformidade('ecd')">
+              Confirmar ECD
+            </button>
+            <button tuiButton class="btn btn--ghost" type="button" [disabled]="!hydraulicSim" (click)="gerarRelatorioConformidade('bhp')">
+              Confirmar BHP
+            </button>
+            <button tuiButton class="btn btn--ghost" type="button" [disabled]="!hydraulicSim" (click)="gerarRelatorioConformidade('freefall')">
+              Confirmar Free Fall
+            </button>
+            <button tuiButton class="btn btn--ghost" type="button" [disabled]="!hydraulicSim" (click)="gerarRelatorioConformidade('injetividade')">
+              Confirmar Injetividade
+            </button>
+            <button tuiButton class="btn btn--primary" type="button" [disabled]="!hydraulicSim" (click)="gerarRelatorioConformidade('risco')">
+              Score de risco / otimização
+            </button>
+            <button tuiButton class="btn btn--ghost" type="button" [disabled]="!hydraulicSim" (click)="gerarRelatorioConformidade('interfaces')">
+              Movimento de interfaces
+            </button>
+            <button tuiButton class="btn btn--ghost" type="button" [disabled]="!hydraulicSim" (click)="gerarRelatorioConformidade('subdeslocamento')">
+              Sub-deslocamento
+            </button>
+          </div>
+        </section>
+
         @if (hydraulicSim) {
           <section class="metrics">
             <div class="metric"><span>Volume água frente</span><strong>{{ fmt(geom?.frontPhysicalVolumeBbl) }} bbl</strong></div>
@@ -470,6 +717,11 @@
             <div class="metric"><span>Tempo total</span><strong>{{ fmt(hydraulicSim.summary.totalTimeMin, 1) }} min</strong></div>
             <div class="metric"><span>Pausa/hesitação</span><strong>{{ fmt(hydraulicSim.summary.pauseTimeMin, 1) }} min</strong></div>
             <div class="metric"><span>Free fall acum.</span><strong>{{ fmt(hydraulicSim.summary.freeFallAccumBbl) }} bbl</strong></div>
+            <div class="metric"><span>HHP máx. exigido</span><strong>{{ fmt(hydraulicSim.summary.hhpMaxRequired, 0) }}</strong></div>
+            @if (hydraulicSim.summary.hhpAvailable != null) {
+              <div class="metric"><span>HHP disponível</span><strong>{{ fmt(hydraulicSim.summary.hhpAvailable, 0) }}</strong></div>
+              <div class="metric"><span>Uso da potência</span><strong>{{ fmt(hydraulicSim.summary.hhpUsePct, 0) }}%</strong></div>
+            }
           </section>
           <div class="chip-row">
             @if (hydraulicSim.summary.alert === 'inside-window') {
@@ -479,7 +731,14 @@
             } @else {
               <span class="chip chip--warn">BHP abaixo do poro na zona de squeeze</span>
             }
+            @for (alerta of hydraulicSim.summary.equipmentAlerts; track alerta) {
+              <span class="chip chip--danger">{{ alerta }}</span>
+            }
+            @if (hydraulicSim.summary.equipmentAlerts.length === 0 && hydraulicSim.summary.hhpAvailable != null) {
+              <span class="chip chip--ok">Equipamento atende ao programa</span>
+            }
           </div>
+
           <app-squeeze-operation-charts [data]="hydraulicSim"></app-squeeze-operation-charts>
         }
 
@@ -487,13 +746,13 @@
           <section class="metrics">
             <div class="metric"><span>Pressão de fratura</span><strong>{{ fmt(fracResult.fracPsi, 0) }} psi</strong></div>
             <div class="metric"><span>Pressão de poro</span><strong>{{ fmt(fracResult.porePsi, 0) }} psi</strong></div>
-            <div class="metric"><span>Pressão de squeeze</span><strong>{{ fmt(fracResult.squeezePsi, 0) }} psi</strong></div>
+            <div class="metric"><span>Pressão de fundo na injeção</span><strong>{{ fmt(fracResult.squeezePsi, 0) }} psi</strong></div>
           </section>
           <div class="chip-row">
             @if (fracResult.squeezePsi < fracResult.fracPsi) {
-              <span class="chip chip--ok">Pressão de squeeze abaixo da fratura</span>
+              <span class="chip chip--ok">Injeção abaixo da pressão de fratura</span>
             } @else {
-              <span class="chip chip--danger">Risco de fraturar a formação</span>
+              <span class="chip chip--danger">Risco de fraturar a formação na injeção</span>
             }
             @if (fracResult.squeezePsi > fracResult.porePsi) {
               <span class="chip chip--ok">Pressão acima do poro — squeeze possível</span>
@@ -521,71 +780,47 @@
       <!-- ══════════ ABA 4: ESQUEMÁTICO ══════════ -->
       @if (activeTab === 'schematic') {
 
-        <!-- Fonte do volume de pasta -->
-        <section class="card">
-          <div class="card-head">
-            <h3>Volume de pasta do esquemático</h3>
-            <span>Escolha qual volume de pasta o esquemático deve considerar</span>
-          </div>
-          <div class="vol-source">
-            <label class="vol-source-opt" [class.active]="cementVolumeSource === 'simulador'">
-              <input type="radio" name="cementVolumeSource" value="simulador"
-                [checked]="cementVolumeSource === 'simulador'"
-                (change)="onCementVolumeSourceChange('simulador')">
-              <span class="vol-source-title">Volume do simulador</span>
-              <span class="vol-source-val">{{ fmt(simuladorVolumeBbl) }} bbl</span>
-            </label>
-            <label class="vol-source-opt" [class.active]="cementVolumeSource === 'receita'">
-              <input type="radio" name="cementVolumeSource" value="receita"
-                [checked]="cementVolumeSource === 'receita'"
-                (change)="onCementVolumeSourceChange('receita')">
-              <span class="vol-source-title">Receita por Volume</span>
-              <span class="vol-source-val">{{ fmt(manualVolumeBbl) }} bbl</span>
-            </label>
-          </div>
-        </section>
-
         <!-- Distribuição de fluidos -->
         <section class="card">
           <div class="card-head"><h3>Distribuição de fluidos — Estado de bombeio</h3></div>
           <div class="fluidos-grid">
             <div class="fluido-card fluido-frente">
               <div class="fluido-label">Fluido à frente</div>
-              <div class="fluido-vol">{{ fmt(geom?.frontPhysicalVolumeBbl) }} bbl</div>
-              <div class="fluido-h">{{ fmt(geom?.frontPhysicalHeight, 1) }} m</div>
+              <div class="fluido-vol">{{ fmt(schematicGeom?.frontPhysicalVolumeBbl) }} bbl</div>
+              <div class="fluido-h">{{ fmt(schematicGeom?.frontPhysicalHeight, 1) }} m</div>
             </div>
             <div class="fluido-card fluido-pasta">
               <div class="fluido-label">Pasta cimento</div>
-              <div class="fluido-vol">{{ fmt(geom?.slurryTotal) }} bbl</div>
-              <div class="fluido-h">{{ fmt(geom?.cementPhysicalHeight, 1) }} m</div>
+              <div class="fluido-vol">{{ fmt(schematicGeom?.slurryTotal) }} bbl</div>
+              <div class="fluido-h">{{ fmt(schematicGeom?.cementPhysicalHeight, 1) }} m</div>
             </div>
             <div class="fluido-card fluido-atras">
-              <div class="fluido-label">Fluido atrás</div>
-              <div class="fluido-vol">{{ fmt(geom?.volBackSpacer) }} bbl</div>
-              <div class="fluido-h">{{ fmt(geom?.backPhysicalHeight, 1) }} m</div>
+              <div class="fluido-label">Água atrás</div>
+              <div class="fluido-vol">{{ fmt(schematicGeom?.volBackSpacer) }} bbl</div>
+              <div class="fluido-h">{{ fmt(schematicGeom?.backPhysicalHeight, 1) }} m</div>
             </div>
             <div class="fluido-card fluido-desl">
               <div class="fluido-label">Deslocamento</div>
-              <div class="fluido-vol">{{ fmt(geom?.operationalDisplacementVolumeBbl) }} bbl</div>
+              <div class="fluido-vol">{{ fmt(schematicGeom?.operationalDisplacementVolumeBbl) }} bbl</div>
             </div>
           </div>
         </section>
 
         <!-- Dados do esquemático -->
         <section class="metrics">
-          <div class="metric"><span>Cap. anular (bbl/m)</span><strong>{{ fmt(geom?.annulusCasing_m, 5) }}</strong></div>
-          <div class="metric"><span>Cap. tubing (bbl/m)</span><strong>{{ fmt(geom?.tubingID_m, 5) }}</strong></div>
-          <div class="metric"><span>Vol. físico pasta</span><strong>{{ fmt(geom?.slurryPhysicalVolumeBbl) }} bbl</strong></div>
-          <div class="metric"><span>Alt. cem. c/ tubing</span><strong>{{ fmt(geom?.cementHeightWithTubing, 1) }} m</strong></div>
-          <div class="metric"><span>Alt. cem. s/ tubing</span><strong>{{ fmt(geom?.cementHeightWithoutTubing, 1) }} m</strong></div>
-          <div class="metric"><span>Alt. cem. física</span><strong>{{ fmt(geom?.cementPhysicalHeight, 1) }} m</strong></div>
-          <div class="metric"><span>Topo físico (MD)</span><strong>{{ fmt(geom?.cementPhysicalTopMD, 1) }} m</strong></div>
-          <div class="metric"><span>Base física (MD)</span><strong>{{ fmt(geom?.cementPhysicalBaseMD, 1) }} m</strong></div>
+          <div class="metric"><span>Cap. anular (bbl/m)</span><strong>{{ fmt(schematicGeom?.annulusCasing_m, 5) }}</strong></div>
+          <div class="metric"><span>Cap. tubing (bbl/m)</span><strong>{{ fmt(schematicGeom?.tubingID_m, 5) }}</strong></div>
+          <div class="metric"><span>Vol. físico pasta</span><strong>{{ fmt(schematicGeom?.slurryPhysicalVolumeBbl) }} bbl</strong></div>
+          <div class="metric"><span>Alt. cem. c/ tubing</span><strong>{{ fmt(schematicGeom?.cementHeightWithTubing, 1) }} m</strong></div>
+          <div class="metric"><span>Alt. cem. s/ tubing</span><strong>{{ fmt(schematicGeom?.cementHeightWithoutTubing, 1) }} m</strong></div>
+          <div class="metric"><span>Alt. cem. física</span><strong>{{ fmt(schematicGeom?.cementPhysicalHeight, 1) }} m</strong></div>
+          <div class="metric"><span>Topo físico (MD)</span><strong>{{ fmt(schematicGeom?.cementPhysicalTopMD, 1) }} m</strong></div>
+          <div class="metric"><span>Base física (MD)</span><strong>{{ fmt(schematicGeom?.cementPhysicalBaseMD, 1) }} m</strong></div>
         </section>
 
         @if (hydraulicSim) {
           <app-squeeze-schematics
-            [geom]="geom"
+            [geom]="schematicGeom"
             [slurry]="slurry"
             [recipe]="recipe"
             [simulation]="hydraulicSim"
@@ -650,7 +885,7 @@
   <div style="position:fixed;left:-12000px;top:0;width:980px;pointer-events:none">
     <app-squeeze-schematics
       #reportSchematics
-      [geom]="geom"
+      [geom]="schematicGeom"
       [slurry]="slurry"
       [recipe]="recipe"
       [simulation]="hydraulicSim"

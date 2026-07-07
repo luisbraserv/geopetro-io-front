@@ -26,6 +26,22 @@ export interface BHTResult {
   formula: string;
 }
 
+export type TemperatureSource = 'automatica' | 'manual';
+export type TemperatureUnit = 'F' | 'C';
+
+export interface SqtTemperatureResult {
+  bhstF: number;
+  bhstC: number;
+  source: TemperatureSource;
+  inputValue: number;
+  inputUnit: TemperatureUnit;
+  geoGradientFPer100Ft: number;
+  sqtF: number;
+  sqtC: number;
+  hvertM: number;
+  formula: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CoreCalculoService {
 
@@ -99,14 +115,58 @@ export class CoreCalculoService {
     const dM = Number.isFinite(depthM) ? depthM : 0;
     const dRef = dM * M_TO_FT;
     const bhst = tSurf + grad * dRef / 100;
-    let bhct = tSurf + 0.70 * (bhst - tSurf);
     const table = schedule === 'D1' ? API_TEMP_D1_F : API_TEMP_D2_F;
     const api = this.interpolateApiTemperatureF(dRef, grad, table);
-    bhct = api.value;
+    const bhct = api.value;
     let formula = `BHST = ${tSurf.toFixed(1)} + ${grad.toFixed(2)} × ${dRef.toFixed(0)} / 100 = ${bhst.toFixed(1)} °F\nTemperatura de ensaio API ${schedule} = ${bhct.toFixed(1)} °F`;
     if (api.depthClamped || api.gradientClamped) {
       formula += `\nNota: tabela API limitada a 1000-22000 ft e 0.9-1.9 °F/100 ft; valor usado: ${api.depthUsed.toFixed(0)} ft / ${api.gradientUsed.toFixed(1)} °F/100 ft.`;
     }
     return { bhst: Math.round(bhst * 10) / 10, bhct: Math.round(bhct * 10) / 10, formula };
+  }
+
+  calcSqtFromBhst(
+    bhstValue: number,
+    inputUnit: TemperatureUnit,
+    hvertM: number,
+    source: TemperatureSource,
+  ): SqtTemperatureResult {
+    const input = Number.isFinite(bhstValue) ? bhstValue : 80;
+    const hvert = Number.isFinite(hvertM) && hvertM > 0 ? hvertM : 0;
+    const bhstF = inputUnit === 'C' ? (input * 1.8) + 32 : input;
+    const gg = hvert > 0 ? 30.48 * (bhstF - 80) / hvert : 0;
+    const denominator = 1 - (0.0000264711 * hvert);
+    const sqt = denominator !== 0
+      ? 80 + (((0.02509801 * hvert * gg) - 8.2021) / denominator)
+      : 80;
+    const sqtC = (sqt - 32) / 1.8;
+    const bhstC = (bhstF - 32) / 1.8;
+
+    const round = (value: number, decimals: number): number => {
+      const factor = 10 ** decimals;
+      return Math.round(value * factor) / factor;
+    };
+
+    const roundedBhstF = round(bhstF, 1);
+    const roundedBhstC = round(bhstC, 1);
+    const roundedGg = round(gg, 3);
+    const roundedSqtF = round(sqt, 1);
+    const roundedSqtC = round(sqtC, 1);
+
+    return {
+      bhstF: roundedBhstF,
+      bhstC: roundedBhstC,
+      source,
+      inputValue: input,
+      inputUnit,
+      geoGradientFPer100Ft: roundedGg,
+      sqtF: roundedSqtF,
+      sqtC: roundedSqtC,
+      hvertM: round(hvert, 1),
+      formula:
+        `BHST usada = ${roundedBhstF.toFixed(1)} °F (${source})\n` +
+        `GG = 30,48 × (${roundedBhstF.toFixed(1)} - 80) / ${round(hvert, 1).toFixed(1)} = ${roundedGg.toFixed(3)} °F/100 ft\n` +
+        `SQT = 80 + [(0,02509801 × ${round(hvert, 1).toFixed(1)} × ${roundedGg.toFixed(3)}) - 8,2021] / [1 - (0,0000264711 × ${round(hvert, 1).toFixed(1)})] = ${roundedSqtF.toFixed(1)} °F`,
+    };
   }
 }

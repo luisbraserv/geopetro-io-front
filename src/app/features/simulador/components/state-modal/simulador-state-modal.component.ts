@@ -79,9 +79,14 @@ type View = 'list' | 'nova-pasta' | 'novo-cenario';
                         [(ngModel)]="editandoPastaNome"
                         (keydown.enter)="confirmarRenomear(p)"
                         (keydown.escape)="editandoPastaId = null"
+                        [disabled]="busyPastaId === p.id"
                         style="flex:1;min-width:0" />
-                      <button class="sm-btn sm-btn--primary sm-btn--xs" type="button" (click)="confirmarRenomear(p)">Ok</button>
-                      <button class="sm-btn sm-btn--xs" type="button" (click)="editandoPastaId = null">✕</button>
+                      @if (busyPastaId === p.id) {
+                        <span class="sm-spinner"></span>
+                      } @else {
+                        <button class="sm-btn sm-btn--primary sm-btn--xs" type="button" (click)="confirmarRenomear(p)">Ok</button>
+                        <button class="sm-btn sm-btn--xs" type="button" (click)="editandoPastaId = null">✕</button>
+                      }
                     } @else {
                       <button
                         class="sm-pasta-item"
@@ -92,12 +97,16 @@ type View = 'list' | 'nova-pasta' | 'novo-cenario';
                         <span class="sm-pasta-nome">{{ p.nome }}</span>
                         <span class="sm-badge">{{ p.totalCenarios }}</span>
                       </button>
-                      <button class="sm-icon-btn sm-icon-btn--xs" type="button" (click)="iniciarRenomear(p)" title="Renomear">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button class="sm-icon-btn sm-icon-btn--xs sm-icon-btn--danger" type="button" (click)="excluirPasta(p)" title="Excluir pasta">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-                      </button>
+                      @if (busyPastaId === p.id) {
+                        <span class="sm-spinner"></span>
+                      } @else {
+                        <button class="sm-icon-btn sm-icon-btn--xs" type="button" (click)="iniciarRenomear(p)" title="Renomear">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button class="sm-icon-btn sm-icon-btn--xs sm-icon-btn--danger" type="button" (click)="excluirPasta(p)" title="Excluir pasta">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                        </button>
+                      }
                     }
                   </div>
                 }
@@ -139,15 +148,19 @@ type View = 'list' | 'nova-pasta' | 'novo-cenario';
                       <span>{{ formatDate(c.atualizadoEm) }} · {{ c.criadoPor }}</span>
                     </div>
                     <div class="sm-cenario-actions">
-                      <button class="sm-btn sm-btn--primary sm-btn--xs" type="button" (click)="carregar(c); $event.stopPropagation()">
-                        Carregar
-                      </button>
-                      <button class="sm-icon-btn sm-icon-btn--xs sm-icon-btn--blue" type="button" title="Atualizar com dados atuais" (click)="atualizarCenario(c); $event.stopPropagation()">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                      </button>
-                      <button class="sm-icon-btn sm-icon-btn--xs sm-icon-btn--danger" type="button" title="Excluir" (click)="excluirCenario(c); $event.stopPropagation()">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                      </button>
+                      @if (busyId === c.id) {
+                        <span class="sm-spinner" title="Processando..."></span>
+                      } @else {
+                        <button class="sm-btn sm-btn--primary sm-btn--xs" type="button" (click)="carregar(c); $event.stopPropagation()">
+                          Carregar
+                        </button>
+                        <button class="sm-icon-btn sm-icon-btn--xs sm-icon-btn--blue" type="button" title="Atualizar com dados atuais" (click)="atualizarCenario(c); $event.stopPropagation()">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                        </button>
+                        <button class="sm-icon-btn sm-icon-btn--xs sm-icon-btn--danger" type="button" title="Excluir" (click)="excluirCenario(c); $event.stopPropagation()">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                        </button>
+                      }
                     </div>
                   </div>
                 }
@@ -283,6 +296,13 @@ type View = 'list' | 'nova-pasta' | 'novo-cenario';
     .sm-input:focus { border-color: #4291e1; }
     .sm-input--sm { padding: 5px 8px; font-size: .8rem; }
     .sm-erro { background:#fef2f2; color:#dc2626; font-size:.8rem; padding:8px 20px; border-bottom:1px solid #fecaca; flex-shrink:0; }
+
+    .sm-spinner {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid #dbeafe; border-top-color: #4291e1;
+      animation: sm-spin .6s linear infinite; flex-shrink: 0; margin: 5px;
+    }
+    @keyframes sm-spin { to { transform: rotate(360deg); } }
   `],
 })
 export class SimuladorStateModalComponent implements OnChanges {
@@ -304,6 +324,8 @@ export class SimuladorStateModalComponent implements OnChanges {
   selectedId: number | null = null;
   view: View = 'list';
   loading = false;
+  busyId: number | null = null;
+  busyPastaId: number | null = null;
   erro = '';
 
   private pendingFormValue: Record<string, unknown> = {};
@@ -410,21 +432,27 @@ export class SimuladorStateModalComponent implements OnChanges {
 
   confirmarRenomear(pasta: PastaApi): void {
     if (!this.editandoPastaNome.trim()) return;
-    this.api.renomearPasta(pasta.id, this.editandoPastaNome.trim(), this.operacao).subscribe({
-      next: updated => {
-        this.pastas = this.pastas.map(p => p.id === pasta.id ? updated : p).sort((a, b) => a.nome.localeCompare(b.nome));
-        if (this.pastaAtiva?.id === pasta.id) this.pastaAtiva = updated;
-        this.editandoPastaId = null;
-        this.toast.success('Pasta renomeada com sucesso.');
-        this.cdr.detectChanges();
-      },
-      error: (e) => { this.setErro(`Erro ao renomear pasta (${e?.status ?? 'sem conexão'})`); this.cdr.detectChanges(); },
-    });
+    this.busyPastaId = pasta.id;
+    this.cdr.detectChanges();
+    this.api.renomearPasta(pasta.id, this.editandoPastaNome.trim(), this.operacao)
+      .pipe(finalize(() => { this.busyPastaId = null; this.cdr.detectChanges(); }))
+      .subscribe({
+        next: updated => {
+          this.pastas = this.pastas.map(p => p.id === pasta.id ? updated : p).sort((a, b) => a.nome.localeCompare(b.nome));
+          if (this.pastaAtiva?.id === pasta.id) this.pastaAtiva = updated;
+          this.editandoPastaId = null;
+          this.toast.success('Pasta renomeada com sucesso.');
+          this.cdr.detectChanges();
+        },
+        error: (e) => { this.setErro(`Erro ao renomear pasta (${e?.status ?? 'sem conexão'})`); this.cdr.detectChanges(); },
+      });
   }
 
   excluirPasta(pasta: PastaApi): void {
     if (!confirm(`Excluir pasta "${pasta.nome}" e todos os cenários dentro?`)) return;
-    this.api.excluirPasta(pasta.id).subscribe({
+    this.busyPastaId = pasta.id;
+    this.cdr.detectChanges();
+    this.api.excluirPasta(pasta.id).pipe(finalize(() => { this.busyPastaId = null; this.cdr.detectChanges(); })).subscribe({
       next: () => {
         this.pastas = this.pastas.filter(p => p.id !== pasta.id);
         if (this.pastaAtiva?.id === pasta.id) this.selecionarPasta(null);
@@ -475,13 +503,16 @@ export class SimuladorStateModalComponent implements OnChanges {
   }
 
   atualizarCenario(c: CenarioApi): void {
+    if (!confirm(`Atualizar o cenário "${c.nome}" com os dados atuais? Os dados salvos serão substituídos.`)) return;
+    this.busyId = c.id;
+    this.cdr.detectChanges();
     this.api.atualizarCenario(c.id, {
       nome: c.nome,
       operacao: this.operacao,
       pastaId: c.pastaId,
       formValue: JSON.stringify(this.pendingFormValue),
       dadosRelatorio: c.dadosRelatorio,
-    }).subscribe({
+    }).pipe(finalize(() => { this.busyId = null; this.cdr.detectChanges(); })).subscribe({
       next: updated => {
         this.cenarios = this.cenarios.map(x => x.id === c.id ? updated : x);
         this.toast.success('Cenário atualizado com sucesso.');
@@ -492,7 +523,10 @@ export class SimuladorStateModalComponent implements OnChanges {
   }
 
   excluirCenario(c: CenarioApi): void {
-    this.api.excluirCenario(c.id).subscribe({
+    if (!confirm(`Excluir o cenário "${c.nome}"? Esta ação não pode ser desfeita.`)) return;
+    this.busyId = c.id;
+    this.cdr.detectChanges();
+    this.api.excluirCenario(c.id).pipe(finalize(() => { this.busyId = null; this.cdr.detectChanges(); })).subscribe({
       next: () => {
         this.cenarios = this.cenarios.filter(x => x.id !== c.id);
         if (this.selectedId === c.id) this.selectedId = null;

@@ -45,6 +45,12 @@ export interface SlurryEngineInput {
   /** NaCl %BWOW (sobre água doce) */
   naclPct: number;
 
+  /**
+   * Volume absoluto do cimento por saco em gal (cv da classe API).
+   * Padrão: 3,5908 (classes A/B/G). Classes C e D/E/F/H têm cv próprio.
+   */
+  cementAbsVolGal?: number;
+
   /** Aditivos já calculados na base unitária */
   adds: AditivoCalc[];
 }
@@ -87,6 +93,11 @@ export interface SlurryEngineResult {
 export function calcSlurryEngine(input: SlurryEngineInput): SlurryEngineResult {
   const { targetDensityPpg, freshWaterFraction, seaWaterFraction, silicaPct, naclPct, adds } = input;
 
+  // Volume absoluto do cimento: cv da classe quando informado, senão base A/B/G
+  const cementVolGal = Number.isFinite(input.cementAbsVolGal) && (input.cementAbsVolGal as number) > 0
+    ? (input.cementAbsVolGal as number)
+    : CEMENT_BASE_VOL_GAL;
+
   // ── Volume absoluto misto da água ──────────────────────────────────────────
   const waterAbsVolGalPerLb =
     freshWaterFraction * VOL_WATER_FRESH + seaWaterFraction * VOL_WATER_SEA;
@@ -108,7 +119,32 @@ export function calcSlurryEngine(input: SlurryEngineInput): SlurryEngineResult {
 
   // Pesos e volumes fixos (sem água e sem sal e sem aditivos dependentes da água)
   const fixedWeightLb  = CEMENT_WEIGHT + silicaWeightLb + fixedAddsWt;
-  const fixedVolumeGal = CEMENT_BASE_VOL_GAL + silicaVolumeGal + fixedAddsVol;
+  const fixedVolumeGal = cementVolGal + silicaVolumeGal + fixedAddsVol;
+
+  // Recalcula um aditivo dependente da água para uma massa de água candidata,
+  // preservando a razão volume/massa (densidade ou volume absoluto) do pré-cálculo.
+  const recalcDepAdd = (a: AditivoCalc, wF: number, wS: number, slurryVolGalSemDep: number): { wt: number; vol: number } => {
+    const volPerWt = a.wt > 0 ? a.vol / a.wt : 0;
+    const wtPerVol = a.vol > 0 ? a.wt / a.vol : 0;
+    if (a.dosageUnit === 'percentBWOW') {
+      const wt = (wF + wS) * a.conc / 100;
+      return { wt, vol: wt * volPerWt };
+    }
+    if (a.dosageUnit === 'galPerBbl') {
+      const baseBbl = (wF * VOL_WATER_FRESH + wS * VOL_WATER_SEA) / GAL_PER_BBL;
+      const vol = baseBbl * a.conc;
+      return { wt: vol * wtPerVol, vol };
+    }
+    // lbPerBbl — volume de pasta aproximado (sem os próprios dependentes)
+    const wt = a.conc * slurryVolGalSemDep / GAL_PER_BBL;
+    return { wt, vol: wt * volPerWt };
+  };
+
+  const sumDepAdds = (wF: number, wS: number, slurryVolGalSemDep: number): { wt: number; vol: number } =>
+    waterDependentAdds.reduce((acc, a) => {
+      const r = recalcDepAdd(a, wF, wS, slurryVolGalSemDep);
+      return { wt: acc.wt + r.wt, vol: acc.vol + r.vol };
+    }, { wt: 0, vol: 0 });
 
   let waterWeightLb: number;
 
@@ -131,10 +167,10 @@ export function calcSlurryEngine(input: SlurryEngineInput): SlurryEngineResult {
       const wF  = mid * freshWaterFraction;
       const wS  = mid * seaWaterFraction;
       const nacl = wF * naclPct / 100;
-      const depAddsWt  = waterDependentAdds.reduce((s, a) => s + a.wt, 0);
-      const depAddsVol = waterDependentAdds.reduce((s, a) => s + a.vol, 0);
-      const tw = fixedWeightLb + wF + wS + nacl + depAddsWt;
-      const tv = fixedVolumeGal + wF * VOL_WATER_FRESH + wS * VOL_WATER_SEA + nacl * VOL_NACL + depAddsVol;
+      const volSemDep = fixedVolumeGal + wF * VOL_WATER_FRESH + wS * VOL_WATER_SEA + nacl * VOL_NACL;
+      const dep = sumDepAdds(wF, wS, volSemDep);
+      const tw = fixedWeightLb + wF + wS + nacl + dep.wt;
+      const tv = volSemDep + dep.vol;
       const rho = tw / tv;
       if (rho > targetDensityPpg) lo = mid; else hi = mid;
     }
@@ -151,8 +187,18 @@ export function calcSlurryEngine(input: SlurryEngineInput): SlurryEngineResult {
   const naclWeightLb  = waterFreshLb * naclPct / 100;
   const naclVolumeGal = naclWeightLb * VOL_NACL;
 
-  // Aditivos dependentes da água (recalculo com água real — neste engine os
-  // valores já foram passados pré-calculados; mantemos como estão)
+  // Aditivos dependentes da água: consolidar com a água real convergida e
+  // gravar de volta nos AditivoCalc para receita/FAM usarem valores coerentes.
+  const volSemDepFinal = fixedVolumeGal + waterVolumeGal + naclVolumeGal;
+  for (const a of waterDependentAdds) {
+    const r = recalcDepAdd(a, waterFreshLb, waterSeaLb, volSemDepFinal);
+    const volScale = a.vol > 0 ? r.vol / a.vol : 0;
+    a.absoluteVolumeGal = a.absoluteVolumeGal != null && Number.isFinite(a.absoluteVolumeGal)
+      ? a.absoluteVolumeGal * volScale
+      : r.vol;
+    a.wt  = r.wt;
+    a.vol = r.vol;
+  }
   const depAddsWt  = waterDependentAdds.reduce((s, a) => s + a.wt, 0);
   const depAddsVol = waterDependentAdds.reduce((s, a) => s + a.vol, 0);
 

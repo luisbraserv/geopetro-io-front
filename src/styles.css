@@ -234,7 +234,7 @@ tbody tr:hover td {
 }
 
 button.primary-button,
-button:not([tuiButton]):not(.app-toast__close):not(.sidebar__toggle):not(.nav-item) {
+button:not([tuiButton]):not(.app-toast__close):not(.sidebar__toggle):not(.nav-item):not(.acc-group-label) {
   min-height: 36px;
   border: 0;
   border-radius: 6px;
@@ -245,7 +245,7 @@ button:not([tuiButton]):not(.app-toast__close):not(.sidebar__toggle):not(.nav-it
 }
 
 button.primary-button:hover,
-button:not([tuiButton]):not(.app-toast__close):not(.sidebar__toggle):not(.nav-item):hover {
+button:not([tuiButton]):not(.app-toast__close):not(.sidebar__toggle):not(.nav-item):not(.acc-group-label):hover {
   background: var(--color-primary-hover);
 }
 

@@ -28,6 +28,13 @@ export interface DadosRelatorio {
   zonaIsolarNome?: string;
   tipoReceitaRelatorio?: 'pasta' | 'volume';
   esquematicosSelecionados?: ('bombeio' | 'comTubing' | 'semTubing')[];
+  graficosOperacionaisSelecionados?: ('cronograma' | 'pressao')[];
+  vazoesBombeio?: {
+    fluidoFrenteBpm?: number | string;
+    pastaBpm?: number | string;
+    fluidoAtrasBpm?: number | string;
+    deslocamentoBpm?: number | string;
+  };
   sequenciaOperacional?: Record<string, string | number>;
   zonaIsolarTopo?: string;
   zonaIsolarBase?: string;
@@ -36,6 +43,7 @@ export interface DadosRelatorio {
   esquemaMecanicoNome?: string;
   esquemaMecanicoImagem?: string;
   secoesPersonalizadas?: any[];
+  operacao?: string;
 }
 
 // Chave local de fallback (mantida apenas caso o usuário não esteja logado)

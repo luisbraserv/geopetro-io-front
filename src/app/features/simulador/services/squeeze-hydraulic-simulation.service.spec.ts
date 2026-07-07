@@ -55,17 +55,63 @@ describe('SqueezeHydraulicSimulationService', () => {
     expect(pause.bhpPsi).toBeCloseTo(pause.surfacePressurePsi + pause.hydrostaticPsi, 6);
   });
 
-  it('subtracts friction while pumping', () => {
+  it('subtracts tubing friction and adds annular return friction while pumping', () => {
     const sim = service.simulate(geom, slurry, inputs, geom.perfs);
     const pumping = sim.points.find(p => p.programmedRateBpm > 0)!;
-    expect(pumping.bhpPsi).toBeCloseTo(pumping.surfacePressurePsi + pumping.hydrostaticPsi - pumping.frictionPsi, 6);
+    expect(pumping.annularFrictionPsi).toBeGreaterThan(0);
+    expect(pumping.bhpPsi).toBeCloseTo(
+      pumping.surfacePressurePsi + pumping.hydrostaticPsi - pumping.frictionPsi + pumping.annularFrictionPsi, 6);
+  });
+
+  it('reduces annular friction with lower standoff (Petroguia F-40 eccentricity)', () => {
+    const concentrico = service.simulate(geom, slurry, { ...inputs, standoffPct: 100 }, geom.perfs);
+    const excentrico = service.simulate(geom, slurry, { ...inputs, standoffPct: 60 }, geom.perfs);
+    const pC = concentrico.points.find(p => p.phase === 'Água frente' && p.annularFrictionPsi > 0)!;
+    const pE = excentrico.points.find(p => p.phase === 'Água frente' && p.annularFrictionPsi > 0)!;
+    // Água é newtoniana (n=1): pf/pfo = 1 − (0,44 + 0,18)·(1 − 60/100) = 0,752
+    expect(pE.annularFrictionPsi).toBeCloseTo(pC.annularFrictionPsi * (1 - (0.44 + 0.18) * 0.4), 6);
   });
 
   it('reports pressure envelope alerts above fracture and below pore', () => {
-    const above = service.simulate(geom, slurry, { ...inputs, surfacePressure: 5000 }, geom.perfs);
-    const below = service.simulate(geom, slurry, { ...inputs, surfacePressure: -1000 }, geom.perfs);
+    // Acima da fratura: pressão de operação alta aplicada na fase de injeção
+    const above = service.simulate(geom, slurry, { ...inputs, pressaoOperacao: 5000, volMaxInjetadoBbl: 2 }, geom.perfs);
+    // Abaixo do poro: fluido do poço leve demais (hidrostática inicial < poro)
+    const below = service.simulate(geom, slurry, { ...inputs, completionWeight: 7 }, geom.perfs);
     expect(above.summary.alert).toBe('above-fracture');
     expect(below.summary.alert).toBe('below-pore');
+  });
+
+  it('flags equipment limits when HHP, surface pressure or rate are exceeded', () => {
+    const ok = service.simulate(geom, slurry, { ...inputs, motorHP: 1000, pumpEff: 90, maxPumpRate: 8 }, geom.perfs);
+    expect(ok.summary.hhpAvailable).toBe(900);
+    expect(ok.summary.equipmentAlerts).toEqual([]);
+    const excedido = service.simulate(geom, slurry, { ...inputs, maxPumpRate: 1 }, geom.perfs);
+    expect(excedido.summary.equipmentAlerts.some(a => a.includes('Vazão programada'))).toBe(true);
+  });
+
+  it('increases turbulent friction with pipe roughness', () => {
+    const novo = service.simulate(geom, slurry, { ...inputs, rugosidadeTubo: 'low' }, geom.perfs);
+    const fimVida = service.simulate(geom, slurry, { ...inputs, rugosidadeTubo: 'high' }, geom.perfs);
+    // Água frente a 2 bpm em 2.441" está em regime turbulento — rugosidade deve elevar a fricção
+    const fNovo = novo.points.find(p => p.phase === 'Água frente' && p.frictionPsi > 0)!;
+    const fFim = fimVida.points.find(p => p.phase === 'Água frente' && p.frictionPsi > 0)!;
+    expect(fFim.frictionPsi).toBeCloseTo(fNovo.frictionPsi * 1.35, 6);
+  });
+
+  it('omits the injection phase and applied pressure in tampao mode', () => {
+    const sim = service.simulate(geom, slurry, { ...inputs, modoOperacao: 'tampao', pressaoOperacao: 2000, volMaxInjetadoBbl: 2 }, geom.perfs);
+    expect(sim.points.some(p => p.phase === 'Injeção/pressurização final')).toBe(false);
+    expect(sim.summary.maxSurfacePressurePsi).toBe(0);
+  });
+
+  it('applies the operating pressure only during the final injection phase', () => {
+    const sim = service.simulate(geom, slurry, { ...inputs, pressaoOperacao: 2000, volMaxInjetadoBbl: 2, tempoPressurizacaoMin: 10 }, geom.perfs);
+    const pumping = sim.points.find(p => p.phase === 'Pasta de cimento')!;
+    const injection = sim.points.find(p => p.phase === 'Injeção/pressurização final')!;
+    expect(pumping.surfacePressurePsi).toBe(0);
+    expect(injection.surfacePressurePsi).toBe(2000);
+    expect(sim.summary.maxSurfacePressurePsi).toBe(2000);
+    expect(injection.bhpPsi).toBeCloseTo(2000 + injection.hydrostaticPsi - injection.frictionPsi, 6);
   });
 
   it('renders the same operational chart categories and avoids invalid free fall values', () => {

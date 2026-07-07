@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { CoreCalculoService } from './core-calculo.service';
 import { BBL_M, HYDRO_M } from '../models/constantes';
-import { TampaoInputs, PlugGeometry, PressureProfile, PressurePoint, BalanceResult } from '../models/tampao.model';
+import { TampaoInputs, PlugGeometry, PressureProfile, PressurePoint } from '../models/tampao.model';
 import { SlurryDesign } from '../models/pasta.model';
 
 @Injectable({ providedIn: 'root' })
@@ -117,22 +117,6 @@ export class TampaoCalculoService {
     };
   }
 
-  calcBalance(plug: PlugGeometry, inputs: TampaoInputs): BalanceResult {
-    const mwFront = inputs.mudWeightFront || 9.5;
-    const mwBack = inputs.mudWeightBack || 9.5;
-    const mwComp = inputs.completionWeight || 9.5;
-    const K = HYDRO_M;
-
-    const insidePsi = K * mwComp * plug.topWashInPipe + K * mwBack * plug.backPhysicalHeight + K * (plug.slurryDensity ?? 15.8) * plug.cementHeightWithTubing;
-    const outsidePsi = K * mwComp * plug.topWashInPipe + K * mwFront * plug.frontPhysicalHeight + K * (plug.slurryDensity ?? 15.8) * plug.cementHeightWithTubing;
-    const deltaPsi = Math.abs(insidePsi - outsidePsi);
-    const tol = inputs.hydroBalanceTolerancePsi ?? 10;
-    const balanced = deltaPsi <= tol;
-    const state = balanced ? 'Balanceado' : deltaPsi <= tol * 3 ? 'Próximo do balanceamento' : 'Desequilibrado';
-
-    return { balanced, deltaPsi, insidePsi, outsidePsi, state };
-  }
-
   calcPressureProfile(plug: PlugGeometry, slurry: SlurryDesign, inputs: TampaoInputs): PressureProfile {
     const fracGrad = inputs.fracGrad || 16.0;
     const poreGrad = inputs.poreGrad || 9.0;
@@ -146,12 +130,48 @@ export class TampaoCalculoService {
       inputs.sectionStartTVD, inputs.sectionEndTVD,
     );
 
-    // pontos de profundidade relevantes para o perfil de pressão
-    const totalTVD = Math.max(plug.pBase, inputs.sectionEndTVD || plug.pBase);
-    // topo do cimento no anular = base do tampão - altura com tubing
-    const topCemAnn = Math.max(0, plug.pTop - plug.cementHeightWithTubing);
-    // topo do fluido à frente = topo do cimento - altura do fluido frente
-    const topFront = Math.max(0, topCemAnn - plug.frontPhysicalHeight);
+    // Conversão MD → TVD: linear até o início da seção, razão da seção dali em diante
+    const ratioAbove = section.startMD > 0 ? section.startTVD / section.startMD : 1;
+    const ratioSection = section.mdToTvdRatio > 0 ? section.mdToTvdRatio : 1;
+    const mdToTvd = (md: number): number => md <= section.startMD
+      ? md * ratioAbove
+      : section.startTVD + (md - section.startMD) * ratioSection;
+    const tvdToMd = (tvd: number): number => tvd <= section.startTVD
+      ? (ratioAbove > 0 ? tvd / ratioAbove : tvd)
+      : section.startMD + (tvd - section.startTVD) / ratioSection;
+
+    // Fronteiras das camadas (MD → TVD). Estado: coluna imersa, pasta balanceada.
+    const topCemAnnTVD = mdToTvd(Math.max(0, plug.topCementWithTubing));
+    const topFrontTVD = mdToTvd(Math.max(0, plug.topFrontSpacer));
+    const topBackTVD = mdToTvd(Math.max(0, plug.topBackSpacer));
+    const baseTVD = mdToTvd(plug.pBase);
+    const totalTVD = baseTVD;
+
+    // Integra a hidrostática de uma pilha de camadas [topoTVD→baseTVD, densidade]
+    const stackPsi = (tvd: number, layers: Array<{ from: number; to: number; den: number }>): number => {
+      let psi = 0;
+      for (const layer of layers) {
+        const h = Math.max(0, Math.min(tvd, layer.to) - layer.from);
+        psi += K * layer.den * h;
+      }
+      return psi;
+    };
+
+    // Anular (fora da coluna), de cima para baixo: fluido do poço → fl. frente → pasta.
+    // Abaixo da base do tampão volta a ser o fluido do poço.
+    const annulusLayers = [
+      { from: 0, to: topFrontTVD, den: mwComp },
+      { from: topFrontTVD, to: topCemAnnTVD, den: mwFront },
+      { from: topCemAnnTVD, to: baseTVD, den: cementDen },
+      { from: baseTVD, to: Number.POSITIVE_INFINITY, den: mwComp },
+    ];
+    // Coluna (dentro do tubing), de cima para baixo: deslocamento → água atrás → pasta
+    const insideLayers = [
+      { from: 0, to: topBackTVD, den: mwComp },
+      { from: topBackTVD, to: topCemAnnTVD, den: mwBack },
+      { from: topCemAnnTVD, to: baseTVD, den: cementDen },
+      { from: baseTVD, to: Number.POSITIVE_INFINITY, den: mwComp },
+    ];
 
     const points: PressurePoint[] = [];
     const steps = 40;
@@ -159,28 +179,15 @@ export class TampaoCalculoService {
       const tvd = totalTVD * i / steps;
       const fracPsi = K * fracGrad * tvd;
       const porePsi = K * poreGrad * tvd;
-
-      // BHP coluna (dentro do tubing): deslocamento até topo cimento, depois pasta
-      const psiInside = K * mwComp * tvd;
-
-      // BHP anular: fl.frente → pasta → fl.atrás por camadas
-      let bhpAnn: number;
-      if (tvd <= topFront) {
-        bhpAnn = K * mwComp * tvd;
-      } else if (tvd <= topCemAnn) {
-        bhpAnn = K * mwComp * topFront + K * mwFront * (tvd - topFront);
-      } else if (tvd <= plug.pBase) {
-        bhpAnn = K * mwComp * topFront + K * mwFront * (topCemAnn - topFront) + K * cementDen * (tvd - topCemAnn);
-      } else {
-        bhpAnn = K * mwComp * topFront + K * mwFront * (topCemAnn - topFront) + K * cementDen * (plug.pBase - topCemAnn) + K * mwBack * (tvd - plug.pBase);
-      }
+      const psiInside = stackPsi(tvd, insideLayers);
+      const bhpAnn = stackPsi(tvd, annulusLayers);
 
       const ecdPpg = tvd > 0 ? bhpAnn / (K * tvd) : mwFront;
       // Free fall: propensão da coluna de cimento cair antes do puxamento (zona de cimento)
-      const inCementZone = tvd >= topCemAnn && tvd <= plug.pBase;
+      const inCementZone = tvd >= topCemAnnTVD && tvd <= baseTVD;
       const freeFallPct = inCementZone ? Math.max(0, Math.min(100, ((cementDen - mwBack) / cementDen) * 100)) : 0;
 
-      const md = tvd; // simplificado — seção vertical
+      const md = tvdToMd(tvd);
       points.push({
         md, tvd, psiInside, psiOutside: bhpAnn, fracPsi, porePsi,
         ecdInside: tvd > 0 ? psiInside / (K * tvd) : mwComp,
@@ -192,29 +199,6 @@ export class TampaoCalculoService {
     return { points, fracGradPpg: fracGrad, poreGradPpg: poreGrad };
   }
 
-  calcOperationalSummary(plug: PlugGeometry, slurry: SlurryDesign, inputs: TampaoInputs, sacks: number, tt50: number): {
-    pumpTime: number; ttRequired: number; hhp: number; hhpAvailable: number; hhpUsePct: number; pressureUsePct: number; rateUsePct: number;
-  } {
-    const pumpRate = inputs.pumpRate || 3.0;
-    const totalVol = plug.volWashTotal + plug.volCementTotal + plug.volBackSpacer + plug.volDisplacement;
-    const pumpTime = pumpRate > 0 ? totalVol / pumpRate / 60 : 0;
-    const ttRequired = tt50;
-    const hhp = (5000 * pumpRate) / 40.8;
-    const motorHP = 1000;
-    const pumpEff = 90 / 100;
-    const maxSurfacePressure = 5000;
-    const maxPumpRate = 8.0;
-    const hhpAvailable = motorHP * pumpEff;
-    return {
-      pumpTime,
-      ttRequired,
-      hhp,
-      hhpAvailable,
-      hhpUsePct: hhpAvailable > 0 ? (hhp / hhpAvailable) * 100 : 0,
-      pressureUsePct: maxSurfacePressure > 0 ? (5000 / maxSurfacePressure) * 100 : 0,
-      rateUsePct: maxPumpRate > 0 ? (pumpRate / maxPumpRate) * 100 : 0,
-    };
-  }
 }
 
 // Extend PlugGeometry locally for slurryDensity

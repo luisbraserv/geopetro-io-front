@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { RelatorioCapaData, SecaoPersonalizada, GraficoOperacionalImage } from './relatorio-capa-modal.component';
+import { RelatorioCapaData, RelatorioBombeioRow, SecaoPersonalizada, GraficoOperacionalImage } from './relatorio-capa-modal.component';
 
 @Injectable({ providedIn: 'root' })
 export class RelatorioBuilderService {
@@ -67,14 +67,15 @@ ${this.extractBodyContent(html)}
   }
 
   buildCapa(d: RelatorioCapaData): string {
+    const reportData = this.withVazoesBombeio(d);
     const dataFmt = d.data
       ? new Date(d.data + 'T12:00:00').toLocaleDateString('pt-BR')
       : '';
     const op = d.operacao || 'SQUEEZE';
     const base = window.location.origin;
     const logoUrl = `${base}/logo.png`;
-    const indiceRows = this.buildIndiceRows(d, op);
-    const technicalPages = this.buildTechnicalPages(d, op, logoUrl, dataFmt);
+    const indiceRows = this.buildIndiceRows(reportData, op);
+    const technicalPages = this.buildTechnicalPages(reportData, op, logoUrl, dataFmt);
 
     const fichaRows = [
       { label: 'Cliente',        value: `<span class="v-cliente">${d.cliente || '—'}</span>` },
@@ -508,16 +509,17 @@ td.fv{
   width:100%;
   display:flex;
   justify-content:center;
+  align-items:center;
   margin-top:4mm;
 }
 .mechanical-img{
-  max-width:170mm;
-  max-height:245mm;
+  max-width:100%;
+  max-height:100%;
   object-fit:contain;
   border:1px solid #111827;
 }
 .mechanical-empty{
-  width:170mm;
+  width:100%;
   min-height:180mm;
   display:grid;
   place-items:center;
@@ -576,8 +578,16 @@ td.fv{
   font-size:7pt;
   color:#64748b;
 }
+.mechanical-page .tech-subsection{
+  height:100%;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+}
 .mechanical-page .mechanical-wrap{
-  margin-top:8mm;
+  flex:1 1 auto;
+  min-height:0;
+  margin-top:6mm;
 }
 .operation-table{
   border-collapse:collapse;
@@ -610,21 +620,34 @@ td.fv{
   border-top:2px solid #2d5a8e;
   padding-top:2mm;
 }
+.pump-schematic-page .tech-subsection{
+  height:100%;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+}
 .report-schematic-figure{
-  width:153mm;
-  margin:8mm auto 0;
+  flex:1 1 auto;
+  min-height:0;
+  width:100%;
+  margin:6mm 0 0;
+  display:flex;
+  flex-direction:column;
   break-inside:avoid;
   page-break-inside:avoid;
 }
 .report-schematic-img{
+  flex:1 1 auto;
+  min-height:0;
   display:block;
-  max-width:153mm;
-  max-height:103mm;
+  width:100%;
+  height:100%;
   object-fit:contain;
   margin:0 auto;
   border:1px solid #dbe3ef;
 }
 .report-schematic-figure figcaption{
+  flex:0 0 auto;
   text-align:center;
   margin-top:2mm;
   color:#2d5a8e;
@@ -1021,7 +1044,7 @@ ${secoesPages}`;
   }
 
   private buildOperationPage(d: RelatorioCapaData): string {
-    const bombeioRows = (d.bombeioRows || [])
+    const bombeioRows = this.bombeioRowsWithVazoes(d)
       .map(row => `
         <tr>
           <td>${this.escape(row.fluido)}</td>
@@ -1080,19 +1103,9 @@ ${secoesPages}`;
     const images = (d.esquematicoImages || []).filter(item => item.imagem);
     if (!images.length) return '';
 
-    const pages: string[] = [];
-    for (let i = 0; i < images.length; i += 2) {
-      const blocks = images.slice(i, i + 2)
-        .map(item => `
-          <figure class="report-schematic-figure">
-            <img class="report-schematic-img" src="${item.imagem}" alt="${this.escape(item.label)}" />
-            <figcaption>${this.escape(item.label)}</figcaption>
-          </figure>
-        `)
-        .join('');
+    return images.map((item, i) => {
       const continuation = i > 0 ? '<span class="section-continuation">continuação</span>' : '';
-
-      pages.push(`
+      return `
 <div class="page tech-page pump-schematic-page">
   <section class="tech-subsection">
     <div class="tech-section-title schematic-title-line">
@@ -1100,17 +1113,18 @@ ${secoesPages}`;
       <h1>Esquematico de bombeio</h1>
       ${continuation}
     </div>
-    ${blocks}
+    <figure class="report-schematic-figure">
+      <img class="report-schematic-img" src="${item.imagem}" alt="${this.escape(item.label)}" />
+      <figcaption>${this.escape(item.label)}</figcaption>
+    </figure>
   </section>
-</div>`);
-    }
-
-    return pages.join('');
+</div>`;
+    }).join('');
   }
 
   private buildOperationalSequencePages(d: RelatorioCapaData): string {
     const seq = d.sequenciaOperacional;
-    const bombeio = d.bombeioRows || [];
+    const bombeio = this.bombeioRowsWithVazoes(d);
     const receitaRows = d.receitaRows || [];
     const recipeTable = this.buildSequenceRecipeTable(receitaRows);
     const injectivityTable = this.buildInjectivityTable();
@@ -1126,8 +1140,8 @@ ${secoesPages}`;
     const sectionsAboveTop = this.toNumber(seq?.secoesAcimaTopoCimento, 2);
     const tubesPerSection = this.toNumber(seq?.tubosPorSecao, 2);
     const baseDepth = this.toNumber(d.baseTampao, this.toNumber(seq?.colunaProfundidadeM, 0));
-    const cementTopDepth = this.toNumber(d.topoCimento, baseDepth);
-    const tampaoTubesCount = Math.max(0, Math.ceil(Math.abs(baseDepth - cementTopDepth) / tubeLengthM));
+    const cementTopDepth = this.toNumber(seq?.topoCimentoRetiradaM, this.toNumber(d.topoCimento, baseDepth));
+    const tampaoTubesCount = Math.max(0, Math.round(Math.abs(baseDepth - cementTopDepth) / tubeLengthM));
     const sectionTubesCount = Math.max(0, Math.round(sectionsAboveTop * tubesPerSection));
     const totalTubesCount = tampaoTubesCount + sectionTubesCount;
     const approxDepthM = totalTubesCount > 0 ? baseDepth - (totalTubesCount * tubeLengthM) : NaN;
@@ -1170,9 +1184,9 @@ ${secoesPages}`;
       </li>
       <li>Realizar reuniao de seguranca e programacao da operacao entre todos os participantes da operacao e ao final;</li>
       <li>Realizar teste de linhas com <strong>${lineTest} psi</strong>;</li>
-      <li>Unidade de Cimentacao bombeia <strong>${frontVol || '-'} bbl</strong> de agua industrial a frente;</li>
+      <li>Unidade de Cimentacao bombeia <strong>${frontVol || '-'} bbl</strong> de agua industrial a frente @ <strong>${frontRate || '-'} bpm</strong>;</li>
       <li>Misturar <strong>${waterQty || '-'}</strong> de agua com <strong>${cementQty || '-'}</strong> de cimento G e aditivos para <strong>${slurryVol || '-'} bbl</strong> pasta de cimento <strong>${density || '-'} ppg</strong>, bombear com Unidade de Cimentacao @ <strong>${slurryRate || '-'} bpm</strong>;</li>
-      <li>Unidade de Cimentacao bombeia <strong>${backVol || '-'} bbl</strong> de agua industrial atras;</li>
+      <li>Unidade de Cimentacao bombeia <strong>${backVol || '-'} bbl</strong> de agua industrial atras @ <strong>${backRate || '-'} bpm</strong>;</li>
       <li>Unidade de Cimentacao realiza o deslocamento com <strong>${displacementVol || '-'} bbl</strong> fluido de completacao @ <strong>${displacementRate || '-'} bpm</strong>;</li>
       <li>Para o bombeio e aguardar balanco do tampao, observar volume nos tanques de deslocamento, tanto por retorno de fluido como por reducao de volume para o balanceio;</li>
     </ol>
@@ -1192,7 +1206,7 @@ ${secoesPages}`;
           <li>Retirar os demais tubos com velocidade normal.</li>
         </ul>
       </li>
-      <li>Realizar circulacao reversa com ${reverseVol} bbl de fluido de completacao para garantir a limpeza da coluna de trabalho;</li>
+      <li>Realizar circulacao reversa com <strong>${reverseVol} bbl</strong> de fluido de completacao para garantir a limpeza da coluna de trabalho;</li>
       <li>Realizar o fechamento do BOP/Packer;</li>
       <li>Iniciar o SQUEEZE de acordo com os dados do teste de injetividade, limitando o volume injetado ate <strong>${maxInjected} bbl</strong> e a pressao ate <strong>${maxPressure} psi</strong>, por ate <strong>${maxTime}</strong>;
         <ul class="sequence-bullets">
@@ -1275,7 +1289,7 @@ ${secoesPages}`;
     // Esquemático de bombeio (condicional)
     if (hasEsquematicos) {
       sections.push(['Esquemático de bombeio', String(pg)]);
-      pg += Math.ceil(esquematicoImages.length / 2);            // 2 por página
+      pg += esquematicoImages.length;                           // 1 por página
     }
 
     // Gráficos operacionais (condicional — um por página)
@@ -1303,11 +1317,7 @@ ${secoesPages}`;
   }
 
   private buildZoneText(d: RelatorioCapaData): string {
-    const name = this.escape(d.zonaIsolarNome || 'CSO-6H');
-    const top = this.formatNumber(d.zonaIsolarTopo);
-    const base = this.formatNumber(d.zonaIsolarBase);
-    if (!top && !base) return name;
-    return `${name}(${top || '-'} - ${base || '-'})m`;
+    return this.escape(d.zonaIsolarNome || '-');
   }
 
   private extractDensity(d: RelatorioCapaData): string {
@@ -1319,6 +1329,32 @@ ${secoesPages}`;
   private extractRecipeQuantity(rows: NonNullable<RelatorioCapaData['receitaRows']>, label: string): string {
     const normalized = label.toLowerCase();
     return rows.find(row => row.aditivo.toLowerCase() === normalized)?.quantidade || '';
+  }
+
+  private withVazoesBombeio(d: RelatorioCapaData): RelatorioCapaData {
+    return {
+      ...d,
+      bombeioRows: this.bombeioRowsWithVazoes(d),
+    };
+  }
+
+  private bombeioRowsWithVazoes(d: RelatorioCapaData): RelatorioBombeioRow[] {
+    const rows = d.bombeioRows || [];
+    const vazoes = [
+      d.vazoesBombeio?.fluidoFrenteBpm,
+      d.vazoesBombeio?.pastaBpm,
+      d.vazoesBombeio?.fluidoAtrasBpm,
+      d.vazoesBombeio?.deslocamentoBpm,
+    ];
+
+    return rows.map((row, index) => ({
+      ...row,
+      vazaoBpm: this.hasValue(vazoes[index]) ? vazoes[index]! : row.vazaoBpm,
+    }));
+  }
+
+  private hasValue(value: unknown): boolean {
+    return value != null && String(value).trim() !== '';
   }
 
   private toNumber(value: unknown, fallback = 0): number {

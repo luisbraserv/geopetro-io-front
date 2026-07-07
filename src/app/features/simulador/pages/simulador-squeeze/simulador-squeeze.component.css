@@ -112,6 +112,12 @@
   font-size: 0.74rem;
 }
 
+.calc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .sim-tabs {
   display: flex;
   gap: 6px;
@@ -174,6 +180,90 @@
 
 .acc-body {
   padding: 10px 12px 14px;
+}
+
+/* Cabeçalho de grupo do menu (colapsável), alinhado aos botões do acordeão
+   (TuiButton size s usa padding horizontal de .625rem) */
+.acc-group-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 0.625rem;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  text-align: left;
+  color: var(--color-text-strong, #1e293b);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.acc-group-label:hover {
+  background: var(--color-surface-muted, #f5f7f7);
+}
+.acc-group-label--open {
+  color: var(--color-primary, #528c9c);
+}
+.acc-group-chevron {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+.acc-group-label--open .acc-group-chevron {
+  transform: rotate(180deg);
+}
+/* Colapso do grupo em CSS puro — não usar tui-expand aqui: o tui-accordion
+   pareia botões e tui-expand filhos diretos por índice, e um expand extra
+   desalinharia esse pareamento */
+.acc-group-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+.acc-group-collapse--open {
+  grid-template-rows: 1fr;
+}
+.acc-group-items {
+  overflow: hidden;
+  min-height: 0;
+  visibility: hidden;
+  background: var(--color-primary-soft, #eef6f8);
+  box-shadow: inset 3px 0 0 rgba(82, 140, 156, 0.35);
+  transition: visibility 0.25s;
+}
+.acc-group-collapse--open .acc-group-items {
+  visibility: visible;
+}
+:host ::ng-deep .sim-sidebar button[tuiAccordion].acc-sub {
+  padding-left: 26px;
+  font-weight: 600;
+}
+.calc-mode-label {
+  display: block;
+  margin: 10px 0 6px;
+  font-size: 11px;
+  font-weight: 650;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+.vol-source--stack {
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.acc-hint {
+  margin: 0 0 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 7px 9px;
 }
 
 :host ::ng-deep .sim-sidebar button[tuiAccordion] {
@@ -399,6 +489,54 @@ select:focus {
   background: rgba(87, 124, 161, 0.13);
   border-color: rgba(87, 124, 161, 0.24);
   color: var(--color-primary-muted);
+}
+
+.side-result-grid {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.side-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(77, 87, 97, 0.14);
+  border-radius: 8px;
+  background: rgba(238, 242, 246, 0.62);
+}
+
+.side-result span {
+  color: var(--color-text-body);
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.side-result strong {
+  color: var(--color-text-strong);
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.sidebar-table-wrap {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+.sidebar-table {
+  min-width: 440px;
+  font-size: 0.72rem;
+}
+
+.sidebar-table th,
+.sidebar-table td {
+  padding: 6px 7px;
 }
 
 .card {

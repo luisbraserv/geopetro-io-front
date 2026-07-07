@@ -4,22 +4,35 @@ import {
 import { CommonModule } from '@angular/common';
 import { Chart, ChartConfiguration, registerables } from 'chart.js';
 import { PressureProfile } from '../../models/tampao.model';
+import { ChartZoomModalComponent } from './chart-zoom-modal.component';
 
 Chart.register(...registerables);
 
 @Component({
   selector: 'app-pressure-chart',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ChartZoomModalComponent],
   template: `
     <div class="p-charts">
 
       <!-- 1. Envelope de Pressão -->
       <div class="p-chart-block">
-        <div class="p-chart-title">Envelope de Pressão</div>
-        <div class="p-chart-sub">Fratura, Poro, BHP coluna e BHP anular + ECD ao longo do poço</div>
+        <div class="p-chart-head">
+          <div>
+            <div class="p-chart-title">Envelope de Pressão</div>
+            <div class="p-chart-sub">Fratura, Poro, BHP coluna e BHP anular + ECD ao longo do poço</div>
+          </div>
+          <button class="zoom-btn" type="button" (click)="openZoom()" title="Ampliar gráfico">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            Ampliar
+          </button>
+        </div>
         <div class="p-chart-box"><canvas #cvEnvelope></canvas></div>
       </div>
+
+      @if (zoom) {
+        <app-chart-zoom-modal [title]="zoom.title" [config]="zoom.config" (close)="zoom = null"></app-chart-zoom-modal>
+      }
 
       <!-- 2. Free Fall — indicador numérico -->
       @if (freeFallPct !== null) {
@@ -58,8 +71,11 @@ Chart.register(...registerables);
   styles: [`
     .p-charts { display: flex; flex-direction: column; gap: 20px; }
     .p-chart-block { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; }
+    .p-chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
     .p-chart-title { font-size: .88rem; font-weight: 600; color: #1e293b; margin-bottom: 2px; }
     .p-chart-sub { font-size: .72rem; color: #64748b; margin-bottom: 10px; }
+    .zoom-btn { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 5px 10px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; color: #64748b; font: inherit; font-size: .72rem; font-weight: 650; cursor: pointer; transition: background .15s, color .15s; }
+    .zoom-btn:hover { background: #eef6ff; color: #4291e1; border-color: rgba(66,145,225,.3); }
     .p-chart-box { position: relative; height: clamp(260px, 42vh, 380px); min-height: 0; overflow: hidden; }
     .p-chart-box canvas { display: block; width: 100% !important; height: 100% !important; }
 
@@ -91,6 +107,15 @@ export class PressureChartComponent implements AfterViewInit, OnChanges {
   @ViewChild('cvEnvelope') cvEnvelope!: ElementRef<HTMLCanvasElement>;
 
   private chart?: Chart;
+  private envelopeConfig: ChartConfiguration | null = null;
+
+  /** Gráfico aberto no modal de ampliação (null = fechado). */
+  zoom: { title: string; config: ChartConfiguration } | null = null;
+
+  openZoom(): void {
+    if (!this.envelopeConfig) return;
+    this.zoom = { title: 'Envelope de Pressão', config: this.envelopeConfig };
+  }
 
   get freeFallPct(): number | null {
     if (!this.data) return null;
@@ -99,7 +124,7 @@ export class PressureChartComponent implements AfterViewInit, OnChanges {
   }
 
   ngAfterViewInit(): void { this.build(); }
-  ngOnChanges(): void { if (this.chart) { this.chart.destroy(); this.build(); } }
+  ngOnChanges(): void { if (this.chart) { this.zoom = null; this.chart.destroy(); this.build(); } }
 
   getImageDataUrl(): string | null {
     return this.cvEnvelope?.nativeElement?.toDataURL('image/png') ?? null;
@@ -116,9 +141,7 @@ export class PressureChartComponent implements AfterViewInit, OnChanges {
     const pts = this.data?.points ?? [];
     const labels = pts.map(p => p.tvd.toFixed(0));
 
-    this.chart = new Chart(
-      this.cvEnvelope.nativeElement.getContext('2d')!,
-      {
+    this.envelopeConfig = {
         type: 'line',
         data: {
           labels,
@@ -169,7 +192,8 @@ export class PressureChartComponent implements AfterViewInit, OnChanges {
             },
           },
         },
-      } as ChartConfiguration,
-    );
+    } as ChartConfiguration;
+
+    this.chart = new Chart(this.cvEnvelope.nativeElement.getContext('2d')!, this.envelopeConfig);
   }
 }

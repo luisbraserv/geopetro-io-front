@@ -175,6 +175,7 @@ export class SlurryCalculoService {
       seaWaterFraction:   seaFrac,
       silicaPct,
       naclPct,
+      cementAbsVolGal:    cementClass.cv,
       adds,
     });
 

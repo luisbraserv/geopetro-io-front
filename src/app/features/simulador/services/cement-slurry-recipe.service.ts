@@ -22,6 +22,9 @@ export class CementSlurryRecipeService {
 
   calculateRecipeBase(slurryDesign: SlurryDesign): SlurryRecipeBase {
     const { freshFrac, seaFrac } = this.waterFractions(slurryDesign);
+    const cementVolGal = this.finite(slurryDesign.cementClassCv) > 0
+      ? this.finite(slurryDesign.cementClassCv)
+      : CEMENT_BASE_VOL_GAL;
 
     // Engine centralizado — fonte única de verdade para FAC/FAM/rendimento
     const eng = calcSlurryEngine({
@@ -30,6 +33,7 @@ export class CementSlurryRecipeService {
       seaWaterFraction:   seaFrac,
       silicaPct:          this.finite(slurryDesign.silica),
       naclPct:            this.naclPct(slurryDesign),
+      cementAbsVolGal:    cementVolGal,
       adds:               slurryDesign.adds || [],
     });
 
@@ -42,8 +46,8 @@ export class CementSlurryRecipeService {
       concentration:          'base',
       concentrationUnit:      '94 lb/sk',
       baseMassLb:             CEMENT_WEIGHT,
-      baseVolumeGal:          CEMENT_BASE_VOL_GAL,
-      absoluteVolumeGalLb:    CEMENT_BASE_VOL_GAL / CEMENT_WEIGHT,
+      baseVolumeGal:          cementVolGal,
+      absoluteVolumeGalLb:    cementVolGal / CEMENT_WEIGHT,
       operationalNote:        'Base: 1 saco de 94 lb / 1 ft³ de cimento.',
     });
 
@@ -156,6 +160,9 @@ export class CementSlurryRecipeService {
       seaWaterFraction:   seaFrac,
       silicaPct:          this.finite(slurryDesign.silica),
       naclPct:            this.naclPct(slurryDesign),
+      cementAbsVolGal:    this.finite(slurryDesign.cementClassCv) > 0
+        ? this.finite(slurryDesign.cementClassCv)
+        : CEMENT_BASE_VOL_GAL,
       adds:               slurryDesign.adds || [],
     });
 

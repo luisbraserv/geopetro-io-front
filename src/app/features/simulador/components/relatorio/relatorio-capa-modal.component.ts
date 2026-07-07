@@ -35,6 +35,7 @@ export interface RelatorioCapaData {
   graficosOperacionaisSelecionados?: GraficoOperacionalTipo[];
   graficosOperacionaisImages?: GraficoOperacionalImage[];
   secoesPersonalizadas?: SecaoPersonalizada[];
+  vazoesBombeio: RelatorioVazoesBombeioData;
   sequenciaOperacional: RelatorioSequenciaOperacionalData;
   operacao: string;
 }
@@ -51,6 +52,13 @@ export interface RelatorioReceitaRow {
   codigo: string;
   concentracao: string;
   quantidade: string;
+}
+
+export interface RelatorioVazoesBombeioData {
+  fluidoFrenteBpm: number | string;
+  pastaBpm: number | string;
+  fluidoAtrasBpm: number | string;
+  deslocamentoBpm: number | string;
 }
 
 export type RelatorioEsquematicoTipo = 'bombeio' | 'comTubing' | 'semTubing';
@@ -84,6 +92,7 @@ export interface RelatorioSequenciaOperacionalData {
   volumeMaxInjetadoBbl: number | string;
   tempoMaxPressurizacaoH: string;
   comprimentoTuboM: number | string;
+  topoCimentoRetiradaM?: number | string;
   secoesAcimaTopoCimento: number | string;
   tubosPorSecao: 2 | 3 | number | string;
   minPrimeirosTubos: number | string;
@@ -156,6 +165,26 @@ export interface RelatorioSequenciaOperacionalData {
                     <span>Gráficos de pressão</span>
                   </label>
                 </div>
+              </div>
+            </div>
+
+            <div class="section section--bpm">
+              <div class="section-title">Vazoes de Bombeio</div>
+              <div class="field">
+                <label>Água a frente (bpm)</label>
+                <input type="number" step="0.1" [(ngModel)]="form.vazoesBombeio.fluidoFrenteBpm" placeholder="Vazao geral" />
+              </div>
+              <div class="field">
+                <label>Pasta (bpm)</label>
+                <input type="number" step="0.1" [(ngModel)]="form.vazoesBombeio.pastaBpm" placeholder="Vazao geral" />
+              </div>
+              <div class="field">
+                <label>Água atrás (bpm)</label>
+                <input type="number" step="0.1" [(ngModel)]="form.vazoesBombeio.fluidoAtrasBpm" placeholder="Vazao geral" />
+              </div>
+              <div class="field">
+                <label>Deslocamento (bpm)</label>
+                <input type="number" step="0.1" [(ngModel)]="form.vazoesBombeio.deslocamentoBpm" placeholder="Vazao geral" />
               </div>
             </div>
 
@@ -248,18 +277,21 @@ export interface RelatorioSequenciaOperacionalData {
               </div>
               <div class="field">
                 <label>Tubos por secao</label>
-                <select [(ngModel)]="form.sequenciaOperacional.tubosPorSecao">
+                <select [ngModel]="form.sequenciaOperacional.tubosPorSecao"
+                        (ngModelChange)="form.sequenciaOperacional.tubosPorSecao = $event; syncMinPorSecao()">
                   <option [ngValue]="2">2 tubos</option>
                   <option [ngValue]="3">3 tubos</option>
                 </select>
               </div>
               <div class="field">
                 <label>Min. por tubo</label>
-                <input type="number" [(ngModel)]="form.sequenciaOperacional.minPrimeirosTubos" placeholder="3" />
+                <input type="number" [ngModel]="form.sequenciaOperacional.minPrimeirosTubos"
+                       (ngModelChange)="form.sequenciaOperacional.minPrimeirosTubos = $event; syncMinPorSecao()" placeholder="3" />
               </div>
               <div class="field">
-                <label>Min. por secao</label>
-                <input type="number" [(ngModel)]="form.sequenciaOperacional.minDemaisTubos" placeholder="6" />
+                <label>Min. por secao (auto)</label>
+                <input type="number" [value]="form.sequenciaOperacional.minDemaisTubos" disabled
+                       title="Calculado automaticamente: tubos por seção × min. por tubo" />
               </div>
               <div class="field">
                 <label>Tempo bombeabilidade</label>
@@ -316,7 +348,7 @@ export interface RelatorioSequenciaOperacionalData {
 
           <div class="modal-footer">
             <button class="btn-cancel" type="button" (click)="fechar()">Cancelar</button>
-            <button class="btn-gerar" type="button" (click)="gerar()">
+            <button class="btn-gerar" type="button" [disabled]="isGenerating" (click)="gerar()">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               Gerar Relatório
             </button>
@@ -364,6 +396,17 @@ export interface RelatorioSequenciaOperacionalData {
       background: #f8fafc;
     }
     .section--options .section-title { grid-column: 1 / -1; }
+    .section--bpm {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid #dbe3ef;
+      border-radius: 10px;
+      background: #fff;
+    }
+    .section--bpm .section-title { grid-column: 1 / -1; }
     .section--sequence {
       grid-column: 1 / -1;
       display: grid;
@@ -420,6 +463,7 @@ export interface RelatorioSequenciaOperacionalData {
       transition: background .15s;
     }
     .btn-gerar:hover { background: #2563eb; }
+    .btn-gerar:disabled { opacity: .7; cursor: wait; }
     textarea {
       width: 100%; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
       font-size: .85rem; color: #1e293b; outline: none; box-sizing: border-box;
@@ -472,29 +516,54 @@ export class RelatorioCapaModalComponent implements OnChanges {
   @Output() gerado = new EventEmitter<RelatorioCapaData>();
 
   form: RelatorioCapaData = this.defaultForm();
+  isGenerating = false;
+
+  private pendingMechanicalSchematicRead: Promise<void> = Promise.resolve();
+  private mechanicalSchematicReadVersion = 0;
 
   ngOnChanges(): void {
     if (this.open) {
+      this.mechanicalSchematicReadVersion++;
+      this.pendingMechanicalSchematicRead = Promise.resolve();
       const defaults = this.defaultForm();
       this.form = {
         ...defaults,
         ...this.prefill,
         graficosOperacionaisSelecionados: (this.prefill as Partial<RelatorioCapaData>).graficosOperacionaisSelecionados ?? [],
-      secoesPersonalizadas: (this.prefill as Partial<RelatorioCapaData>).secoesPersonalizadas ?? [],
+        secoesPersonalizadas: (this.prefill as Partial<RelatorioCapaData>).secoesPersonalizadas ?? [],
+        vazoesBombeio: {
+          ...defaults.vazoesBombeio,
+          ...(this.prefill as Partial<RelatorioCapaData>).vazoesBombeio,
+        },
         sequenciaOperacional: {
           ...defaults.sequenciaOperacional,
           ...(this.prefill as Partial<RelatorioCapaData>).sequenciaOperacional,
         },
         operacao: this.operacaoLabel,
       };
+      this.syncMinPorSecao();
     }
+  }
+
+  // Min. por seção = tubos por seção × min. por tubo (sempre automático)
+  syncMinPorSecao(): void {
+    const seq = this.form?.sequenciaOperacional;
+    if (!seq) return;
+    const tubos = Number(seq.tubosPorSecao) || 0;
+    const minPorTubo = Number(seq.minPrimeirosTubos) || 0;
+    seq.minDemaisTubos = tubos * minPorTubo;
   }
 
   fechar(): void { this.closed.emit(); }
 
-  gerar(): void {
+  async gerar(): Promise<void> {
+    if (this.isGenerating) return;
+
+    this.isGenerating = true;
+    await this.pendingMechanicalSchematicRead;
     this.gerado.emit({ ...this.form });
     this.closed.emit();
+    this.isGenerating = false;
   }
 
   onMechanicalSchematicSelected(event: Event): void {
@@ -508,12 +577,23 @@ export class RelatorioCapaModalComponent implements OnChanges {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.form.esquemaMecanicoNome = file.name;
-      this.form.esquemaMecanicoImagem = String(reader.result || '');
-    };
-    reader.readAsDataURL(file);
+    const readVersion = ++this.mechanicalSchematicReadVersion;
+    this.pendingMechanicalSchematicRead = new Promise<void>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (readVersion === this.mechanicalSchematicReadVersion) {
+          this.form = {
+            ...this.form,
+            esquemaMecanicoNome: file.name,
+            esquemaMecanicoImagem: String(reader.result || ''),
+          };
+        }
+        resolve();
+      };
+      reader.onerror = () => resolve();
+      reader.onabort = () => resolve();
+      reader.readAsDataURL(file);
+    });
   }
 
   isSchematicSelected(tipo: RelatorioEsquematicoTipo): boolean {
@@ -584,6 +664,12 @@ export class RelatorioCapaModalComponent implements OnChanges {
       esquematicosSelecionados: ['bombeio', 'comTubing', 'semTubing'],
       graficosOperacionaisSelecionados: [],
       secoesPersonalizadas: [],
+      vazoesBombeio: {
+        fluidoFrenteBpm: '',
+        pastaBpm: '',
+        fluidoAtrasBpm: '',
+        deslocamentoBpm: '',
+      },
       sequenciaOperacional: {
         colunaTrabalho: '2 7/8" EU',
         colunaProfundidadeM: 1225,

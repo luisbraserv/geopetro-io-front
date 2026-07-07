@@ -91,8 +91,8 @@ function createWithTubingSegments(geom: SqueezeGeometry, simulation: SqueezeHydr
   const annCap  = Math.max(geom.annulusCasing_m || 0, 0.0001);
   const capWithTubing = tubeCap + annCap;
 
-  // ── Altura do cimento = valor do painel lateral (fonte única de verdade) ──
-  const cementTubeHeight = Math.max(0, geom.cementHeightWithTubing || 0);
+  // ── Altura do cimento com a coluna imersa: pasta no anular + interior da coluna ──
+  const cementTubeHeight = Math.max(0, (geom.slurryPhysicalVolumeBbl || 0) / capWithTubing);
 
   // Volume proporcional à capacidade de cada coluna
   const slurryPhysical  = geom.slurryPhysicalVolumeBbl || 0;
@@ -342,7 +342,7 @@ export class SqueezeSchematicsComponent implements AfterViewInit, OnChanges, OnD
       ]),
     ], PAD_L - 8, annX + annW + 6, PAD_L - 12, PAD_T + 8, H - PAD_B - 8);
     const legendBottom = this.legend(cx, legX, PAD_T, false);
-    this.drawInfoPanel(cx, legX, legendBottom + 14, this.squeezeInfoSections(model.annulusSegments.find(segment => segment.key === 'cementAnnulus')?.top ?? p.cementPhysicalTopMD));
+    this.drawInfoPanel(cx, legX, legendBottom + 14, this.squeezeInfoSections());
   }
 
   private drawWithoutTubing(canvas: HTMLCanvasElement, model: SqueezeSchematicModel): void {
@@ -408,7 +408,7 @@ export class SqueezeSchematicsComponent implements AfterViewInit, OnChanges, OnD
       ...perfAnnotations,
     ], PAD_L - 8, structureRight + 6, PAD_L - 12, PAD_T + 8, H - PAD_B - 8);
     const legendBottom = this.legend(cx, legX, PAD_T, true);
-    this.drawInfoPanel(cx, legX, legendBottom + 14, this.squeezeInfoSections(model.segments.find(segment => segment.key === 'cement')?.top ?? p.cementPhysicalTopMD));
+    this.drawInfoPanel(cx, legX, legendBottom + 14, this.squeezeInfoSections());
   }
 
   private extendSegmentsToVisibleBase(segments: SqueezeSegment[], visibleBase: number): SqueezeSegment[] {
@@ -572,11 +572,20 @@ export class SqueezeSchematicsComponent implements AfterViewInit, OnChanges, OnD
     return key === 'cement' || key === 'cementTubing' || key === 'cementAnnulus';
   }
 
-  private squeezeInfoSections(topCement: number): SchematicInfoSection[] {
+  private squeezeInfoSections(): SchematicInfoSection[] {
     const p = this.geom!;
     const slurry = this.slurry;
     const summary = this.simulation?.summary;
     const pressureWindow = summary ? summary.fracturePsi - summary.porePsi : null;
+
+    // Base do cimento, volume injetado e topos (fonte única: serviço de cálculo)
+    const baseMD = Math.max(0, p.base || p.cementPhysicalBaseMD || 0);
+    const injected = p.slurryInjectedVolumeBbl || p.expectedLoss || 0;        // squeeze para a formação
+    const topImmersedBefore = p.topCementImmersedMD ?? baseMD;                  // antes, c/ tubing
+    const topFullBefore = p.topCementAfterPullMD ?? baseMD;                     // antes, s/ tubing
+    const topImmersedAfter = p.topCementImmersedAfterInjectionMD ?? baseMD;     // depois, c/ tubing
+    const topFullAfter = p.topCementAfterInjectionMD ?? baseMD;                 // depois, s/ tubing
+
     return [
       visibleInfoRows({
         title: 'Dados do esquemático',
@@ -586,19 +595,28 @@ export class SqueezeSchematicsComponent implements AfterViewInit, OnChanges, OnD
           { label: 'Água de Deslocamento', value: joinInfoParts(formatBbl(p.operationalDisplacementVolumeBbl || p.displacementVolume), formatPpg(slurry?.density)) },
           { label: 'Água frente', value: joinInfoParts(formatM(p.frontPhysicalHeight || p.frontOperationalHeight, 0), formatBbl(p.frontPhysicalVolumeBbl || p.washVolFront)) },
           { label: 'Água trás', value: joinInfoParts(formatM(p.backPhysicalHeight || p.backOperationalHeight, 0), formatBbl(p.backPhysicalVolumeBbl || p.volBackSpacer)) },
-          { label: 'Cimento na formação', value: formatBbl(p.slurryInjectedVolumeBbl || p.expectedLoss) },
+          { label: 'Cimento na formação', value: formatBbl(injected) },
           { label: 'Janela', value: formatPsi(pressureWindow) },
         ],
       }),
       visibleInfoRows({
         title: 'Profundidade da pasta',
         rows: [
-          { label: 'Volume total de pasta', value: formatBbl(p.slurryTotal) },
-          { label: 'Altura com coluna', value: formatM(p.cementHeightWithTubing) },
-          { label: 'Altura sem coluna', value: formatM(p.cementHeightWithoutTubing) },
-          { label: 'Topo antes da injeção', value: formatM(topCement) },
-          { label: 'Volume a ser injetado', value: formatBbl(p.slurryInjectedVolumeBbl || p.expectedLoss) },
-          { label: 'Topo após injeção', value: formatM(p.cementPhysicalTopMD) },
+          { label: 'Base do cimento', value: formatM(baseMD) },
+        ],
+      }),
+      visibleInfoRows({
+        title: 'Antes de injetar o cimento',
+        rows: [
+          { label: 'Topo do cimento c/ tubing', value: formatM(topImmersedBefore) },
+          { label: 'Topo do cimento s/ tubing', value: formatM(topFullBefore) },
+        ],
+      }),
+      visibleInfoRows({
+        title: 'Depois de injetar o cimento',
+        rows: [
+          { label: 'Topo do cimento c/ tubing', value: formatM(topImmersedAfter) },
+          { label: 'Topo do cimento s/ tubing', value: formatM(topFullAfter) },
         ],
       }),
     ];
