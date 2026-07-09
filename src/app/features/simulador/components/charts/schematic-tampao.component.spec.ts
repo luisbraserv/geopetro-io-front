@@ -75,16 +75,17 @@ describe('createWithoutTubingSchematic', () => {
     ]);
   });
 
-  it('creates the final well segments in the required order', () => {
+  it('merges displacement + front/back spacers into a single "Deslocamento" fluid', () => {
     const model = createWithoutTubingSchematic(plug);
 
     expect(model.segments.map(segment => segment.name)).toEqual([
       'Fluido de Completação do poço',
-      'Fluido de Deslocamento',
-      'Água Frente',
-      'Água Trás',
+      'Deslocamento',
       'Cimento',
     ]);
+    // Volume do bloco fundido = soma dos três (deslocamento + frente + trás)
+    const displacement = model.segments.find(segment => segment.name === 'Deslocamento')!;
+    expect(displacement.sub).toContain(`${(plug.volDisplacement + plug.volWashTotal + plug.volBackSpacer).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} bbl`);
   });
 
   it('keeps cement last and each fluid immediately above the next one', () => {
@@ -93,9 +94,7 @@ describe('createWithoutTubingSchematic', () => {
 
     expect(names.at(0)).toBe('Fluido de Completação do poço');
     expect(names.at(-1)).toBe('Cimento');
-    expect(names[names.length - 2]).toBe('Água Trás');
-    expect(names[names.length - 3]).toBe('Água Frente');
-    expect(names[names.length - 4]).toBe('Fluido de Deslocamento');
+    expect(names[names.length - 2]).toBe('Deslocamento');
     for (let i = 1; i < model.segments.length; i += 1) {
       expect(model.segments[i].top).toBeCloseTo(model.segments[i - 1].bottom, 6);
     }
@@ -110,9 +109,10 @@ describe('createWithoutTubingSchematic', () => {
     };
     const model = createWithoutTubingSchematic(withoutDisplacement);
 
+    // Sobra apenas a altura do espaçador de frente dentro do bloco "Deslocamento".
     expect(model.segments.map(segment => segment.name)).toEqual([
       'Fluido de Completação do poço',
-      'Água Frente',
+      'Deslocamento',
       'Cimento',
     ]);
     for (let i = 1; i < model.segments.length; i += 1) {

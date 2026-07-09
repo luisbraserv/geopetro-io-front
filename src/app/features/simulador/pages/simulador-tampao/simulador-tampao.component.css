@@ -117,6 +117,31 @@
   font-size: 0.74rem;
 }
 
+.file-name {
+  display: block;
+  margin: 0 0 6px;
+  color: var(--color-text-body);
+  font-size: 12px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.logo-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.logo-preview img {
+  width: 76px;
+  height: 40px;
+  object-fit: contain;
+  border: 1px solid var(--color-card-border);
+  border-radius: 6px;
+  background: #fff;
+}
+
 .calc-actions {
   display: flex;
   flex-wrap: wrap;
@@ -816,3 +841,6 @@ tr:hover td {
 @media (max-width: 620px) {
   .vol-source { grid-template-columns: 1fr; }
 }
+
+.op-index { color: var(--color-primary); font-size: 42px; font-weight: 900; line-height: 1; }
+.op-index-note { margin: 8px 0 0; color: var(--color-text-body); font-size: .78rem; }

@@ -26,16 +26,6 @@
           </div>
         </a>
       }
-      @if (isAdmin()) {
-        <a
-          class="header-action"
-          routerLink="/app/configuracoes"
-          routerLinkActive="header-action--active"
-          title="Configurações"
-        >
-          <tui-icon icon="@tui.settings"></tui-icon>
-        </a>
-      }
       <button class="header-action header-action--logout" type="button" (click)="logout()" title="Sair">
         <tui-icon icon="@tui.log-out"></tui-icon>
       </button>

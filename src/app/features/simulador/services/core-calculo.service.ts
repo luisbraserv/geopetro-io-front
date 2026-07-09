@@ -134,6 +134,9 @@ export class CoreCalculoService {
     const input = Number.isFinite(bhstValue) ? bhstValue : 80;
     const hvert = Number.isFinite(hvertM) && hvertM > 0 ? hvertM : 0;
     const bhstF = inputUnit === 'C' ? (input * 1.8) + 32 : input;
+    // O SQT acompanha a BHST usada (manual ou automática): o gradiente é derivado
+    // da própria BHST com base API de 80 °F — mesma regra da planilha de referência.
+    // (BHST manual de teste de poço mais fria ⇒ SQT proporcionalmente mais frio.)
     const gg = hvert > 0 ? 30.48 * (bhstF - 80) / hvert : 0;
     const denominator = 1 - (0.0000264711 * hvert);
     const sqt = denominator !== 0

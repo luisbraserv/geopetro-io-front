@@ -87,6 +87,8 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
   recipeDiags: Diagnostic[] = [];
   fracResult: { fracPsi: number; porePsi: number; squeezePsi: number } | null = null;
   hydraulicSim: SqueezeHydraulicSimulation | null = null;
+  /** Limiar de injetividade sugerido p/ o cenário (2 × Q ÷ janela poro→fratura). */
+  limiarInjetividadeSugerido: number | null = null;
   reverseCirculation: ReverseCirculationResult | null = null;
   freeWater = 0;
   geoFormula = '';
@@ -96,6 +98,7 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
   relatorioTitulo = '';
   relatorioConteudo = '';
   capaModalOpen = false;
+  relatorioPrefill: Partial<RelatorioCapaData> | Record<string, any> = {};
   stateModalOpen = false;
 
   @ViewChild('stateModal') stateModal!: SimuladorStateModalComponent;
@@ -192,11 +195,12 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
       surfaceTemp: [80.6], geoGradient: [1.50],
       bhst: [{ value: null, disabled: true }],
       bhct: [{ value: null, disabled: true }],
-      mudWeightFront: [8.4], mudWeightBack: [8.4], completionWeight: [8.4],
+      mudWeightFront: [8.4], mudWeightBack: [8.4], completionWeight: [8.4], displacementWeight: [8.4],
       fracGrad: [16.0], poreGrad: [9.0], pumpRate: [2.0],
       pressaoOperacao: [2000],
       volMaxInjetadoBbl: [2.0],
       tempoPressurizacaoMin: [0],
+      limiarInjetividadeBpmPsi: [0.001],
       roughness: ['low'],
       viscosidadeAguaCp: [1.0],
       freeFallMaxFactor: [3.5],
@@ -276,6 +280,11 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
         vazaoDeslocamentoBpm: this.vazaoFluido('deslocamentoBpm'),
       }, perfs, aditivosRaw, { thetaReadings });
 
+      // Limiar de injetividade sugerido p/ o cenário (arredondado a 2 algarismos
+      // significativos p/ exibição/aplicação); null quando faltam volume/tempo.
+      const limiarRaw = this.conformidadeReport.limiarInjetividadeSugerido(this.hydraulicSim, v);
+      this.limiarInjetividadeSugerido = limiarRaw != null ? +limiarRaw.toPrecision(2) : null;
+
       this.buildOpsPhases();
       this.buildManualRecipeOpsPhases();
       this.buildRecipeDiags();
@@ -323,11 +332,28 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
     return this.retiradaReport.buildCalculation(v, topoCimentoRetiradaM, sequencia).openEndDepthM;
   }
 
-  private getReportTemperature(v: any, tipoReceita: RelatorioCapaData['tipoReceitaRelatorio']): SqtTemperatureResult {
-    const automaticBhst = this.coreCalc.calcBHT(v.surfaceTemp, v.geoGradient, v.sectionEndTVD).bhst;
-    return tipoReceita === 'volume'
-      ? this.resolveTemperatureResult(v, automaticBhst)
-      : this.coreCalc.calcSqtFromBhst(automaticBhst, 'F', Number(v.sectionEndTVD), 'automatica');
+  private getReportTemperature(v: any): SqtTemperatureResult {
+    const depthTVD = Number(v.sectionEndTVD);
+    const automaticBhst = this.coreCalc.calcBHT(v.surfaceTemp, v.geoGradient, depthTVD).bhst;
+    const manualOk = this.manualBhstValue != null && Number.isFinite(this.manualBhstValue) && this.manualBhstValue > 0;
+    // A fonte da temperatura no relatório segue o seletor da sidebar:
+    // 'manual' usa a BHST informada (cai no automático se não houver).
+    return this.reportTemperatureMode === 'manual' && manualOk
+      ? this.coreCalc.calcSqtFromBhst(this.manualBhstValue!, this.manualBhstUnit, depthTVD, 'manual')
+      : this.coreCalc.calcSqtFromBhst(automaticBhst, 'F', depthTVD, 'automatica');
+  }
+
+  pastaBombeioVolumeBbl(): number {
+    return this.resolvePastaBombeioVolumeBbl(this.schematicGeom ?? this.geom);
+  }
+
+  private resolvePastaBombeioVolumeBbl(geom?: SqueezeGeometry | null): number {
+    if (!geom) return 0;
+    const physical = Number(geom.slurryPhysicalVolumeBbl);
+    if (Number.isFinite(physical) && physical > 0) return physical;
+    const work = Number(geom.workVolumeBbl);
+    if (Number.isFinite(work) && work > 0) return work;
+    return Number(geom.slurryTotal) || 0;
   }
 
   private buildOpsPhases(): void {
@@ -342,7 +368,7 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
     this.opsPhases = [
       { label: 'Água Frente', durationMin: bbl2min(this.geom.frontPhysicalVolumeBbl, this.vazaoFluido('fluidoFrenteBpm')), color: '#bae6fd' },
       ...(pause1 > 0 ? [{ label: 'Pausa 1', durationMin: pause1, color: '#cbd5e1' }] : []),
-      { label: 'Pasta', durationMin: bbl2min(this.geom.slurryTotal, this.vazaoFluido('pastaBpm')), color: '#bbf7d0' },
+      { label: 'Pasta', durationMin: bbl2min(this.pastaBombeioVolumeBbl(), this.vazaoFluido('pastaBpm')), color: '#bbf7d0' },
       ...(pause2 > 0 ? [{ label: 'Pausa 2', durationMin: pause2, color: '#94a3b8' }] : []),
       { label: 'Água Atrás', durationMin: bbl2min(this.geom.volBackSpacer, this.vazaoFluido('fluidoAtrasBpm')), color: '#e9d5ff' },
       ...(pause3 > 0 ? [{ label: 'Pausa 3', durationMin: pause3, color: '#64748b' }] : []),
@@ -417,6 +443,17 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
     if (this.perforacoes.length > 1) this.perforacoes.removeAt(i);
   }
 
+  /** Rótulo pt-BR do limiar sugerido (ex.: "0,000075"). */
+  get limiarSugeridoLabel(): string {
+    const s = this.limiarInjetividadeSugerido;
+    return s == null ? '' : s.toLocaleString('pt-BR', { maximumFractionDigits: 6 });
+  }
+
+  aplicarLimiarSugerido(): void {
+    if (this.limiarInjetividadeSugerido == null) return;
+    this.form.patchValue({ limiarInjetividadeBpmPsi: this.limiarInjetividadeSugerido });
+  }
+
   gerarRelatorioConformidade(fator: FatorConformidade): void {
     if (!this.hydraulicSim || !this.geom) return;
     const geom = this.geom;
@@ -426,12 +463,14 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
       sim: this.hydraulicSim,
       dadosRelatorio: this.dadosRelatorio,
       v: this.form.getRawValue(),
+      // Topo planejado da pasta = topo sem coluna antes da injeção (redistribuída
+      // no revestimento cheio) — cementPhysicalTopMD é o topo da seção, não da pasta.
       placement: {
-        cementTopMD: geom.cementPhysicalTopMD,
-        cementBaseMD: geom.cementPhysicalBaseMD,
+        cementTopMD: geom.topCementAfterPullMD,
+        cementBaseMD: geom.base,
         capBblM: geom.cementPhysicalCapacityBblM,
         displacementBbl: geom.operationalDisplacementVolumeBbl,
-        targetTopMD: geom.cementPhysicalTopMD,
+        targetTopMD: geom.topCementAfterPullMD,
       },
       reSimulate: (o) => this.reSimulateHidraulica(o),
     });
@@ -472,9 +511,11 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
       _manualYieldFt3: this.manualYieldFt3,
       _manualFacGpc: this.manualFacGpc,
       _manualFamGpc: this.manualFamGpc,
+      _pastaParametrosSource: this.pastaParametrosSource,
       _manualBhstValue: this.manualBhstValue,
       _manualBhstUnit: this.manualBhstUnit,
       _cementVolumeSource: this.cementVolumeSource,
+      _reportTemperatureMode: this.reportTemperatureMode,
     });
     this.stateModalOpen = true;
   }
@@ -486,10 +527,12 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
     // (revestimento/tubing/caliper) também seja restaurada ao carregar o cenário.
     const { additivos, perforacoes,
             _dadosRelatorio, _manualVolumeBbl, _manualYieldFt3, _manualFacGpc, _manualFamGpc,
-            _manualBhstValue, _manualBhstUnit, _cementVolumeSource,
+            _pastaParametrosSource, _manualBhstValue, _manualBhstUnit, _cementVolumeSource, _reportTemperatureMode,
             ...rest } = formValue as any;
     // Padrões primeiro: campos que não existiam quando o cenário foi salvo
     // não herdam o valor da tela — voltam ao padrão do simulador.
+    // Cenários antigos usavam completionWeight também como fluido de deslocamento.
+    if (rest.displacementWeight == null && rest.completionWeight != null) rest.displacementWeight = rest.completionWeight;
     this.form.patchValue(this.formDefaults, { emitEvent: false });
     this.form.patchValue(rest, { emitEvent: false });
     if (_dadosRelatorio) {
@@ -501,9 +544,11 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
     this.manualYieldFt3 = _manualYieldFt3 != null ? +_manualYieldFt3 : null;
     this.manualFacGpc = _manualFacGpc != null ? +_manualFacGpc : null;
     this.manualFamGpc = _manualFamGpc != null ? +_manualFamGpc : null;
+    this.pastaParametrosSource = _pastaParametrosSource === 'manual' ? 'manual' : 'simulador';
     this.manualBhstValue = _manualBhstValue != null ? +_manualBhstValue : null;
     this.manualBhstUnit = _manualBhstUnit === 'C' ? 'C' : 'F';
     this.cementVolumeSource = _cementVolumeSource === 'receita' ? 'receita' : 'simulador';
+    this.reportTemperatureMode = _reportTemperatureMode === 'automatica' ? 'automatica' : 'manual';
     while (this.additivos.length) this.additivos.removeAt(0);
     if (Array.isArray(additivos)) {
       additivos.forEach((d: any) => this.additivos.push(this.createAditivoGroup(d)));
@@ -531,12 +576,37 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
     this.form.patchValue({ tubingOD: t.odIn, tubingID: t.idIn });
   }
 
+  openCapaModal(): void {
+    const v = this.form.getRawValue();
+    const tipoReceita = this.dadosRelatorio.tipoReceitaRelatorio ?? 'volume';
+    const vazoesBombeio = this.mergeVazoesBombeio(this.dadosRelatorio.vazoesBombeio as RelatorioCapaData['vazoesBombeio']);
+    const reportTemperature = this.getReportTemperature(v);
+    const reportGeom = this.schematicGeom ?? this.geom;
+    this.relatorioPrefill = {
+      ...this.dadosRelatorio,
+      tipoReceitaRelatorio: tipoReceita,
+      vazoesBombeio,
+      calculoTampaoPor: this.cementVolumeSource === 'receita' ? 'volume' : 'altura',
+      inicioTampao: String(v.sectionStartMD ?? ''),
+      fimTampao: String(v.sectionEndMD ?? ''),
+      topoCimento: String(reportGeom?.topCementAfterInjectionMD ?? v.sectionStartMD ?? ''),
+      baseTampao: String(reportGeom?.base ?? v.sectionEndMD ?? ''),
+      geoGradient: v.geoGradient,
+      bhst: reportTemperature.bhstF,
+      bhct: reportTemperature.sqtF,
+      bombeioRows: this.buildRelatorioBombeioRows(v, tipoReceita, vazoesBombeio),
+      receitaRows: this.buildRelatorioReceitaRows(),
+      pastaResumo: this.buildRelatorioPastaResumo(tipoReceita),
+    };
+    this.capaModalOpen = true;
+  }
+
   onCapaGerada(data: RelatorioCapaData): void {
     const v = this.form.getRawValue();
     const tipoReceita = data.tipoReceitaRelatorio ?? 'volume';
-    const reportTemperature = this.getReportTemperature(v, tipoReceita);
+    const reportTemperature = this.getReportTemperature(v);
     const vazoesBombeio = this.mergeVazoesBombeio(data.vazoesBombeio);
-    const tubingODFormatted = v.tubingOD ? `${this.fmt(v.tubingOD, 3)}"` : '';
+    const tubingODFormatted = v.tubingOD ? this.fmtInches(v.tubingOD) : '';
     const topoCimentoRetiradaM = this.geom
       ? this.geom.deepestPerf - this.geom.cementHeightWithoutTubing
       : v.sectionStartMD;
@@ -559,20 +629,25 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
     this.persistDadosRelatorioFromCapa(data, vazoesBombeio, sequenciaOperacional);
     this.saveDadosRelatorio();
     this.captureGraficosImages(data.graficosOperacionaisSelecionados ?? []).then(graficosImages => {
+      const reportGeom = this.schematicGeom ?? this.geom;
       const reportHtml = this.relatorioBuilder.buildCapa({
         ...data,
         vazoesBombeio,
         zonaIsolarNome: data.zonaIsolarNome || this.dadosRelatorio.zonaIsolarNome,
         zonaIsolarTopo: String(v.sectionStartTVD ?? ''),
         zonaIsolarBase: String(v.sectionEndTVD ?? ''),
-        topoCimento: String(this.geom?.topCementAfterInjectionMD ?? v.sectionStartMD ?? ''),
-        baseTampao: String(this.geom?.base ?? v.sectionEndMD ?? ''),
+        calculoTampaoPor: this.cementVolumeSource === 'receita' ? 'volume' : 'altura',
+        inicioTampao: String(v.sectionStartMD ?? ''),
+        fimTampao: String(v.sectionEndMD ?? ''),
+        topoCimento: String(reportGeom?.topCementAfterInjectionMD ?? v.sectionStartMD ?? ''),
+        baseTampao: String(reportGeom?.base ?? v.sectionEndMD ?? ''),
         revestimento: this.formatCasing(v.casingOD, v.casingID),
         geoGradient: v.geoGradient,
         bhst: reportTemperature.bhstF,
         bhct: reportTemperature.sqtF,
         bombeioRows: this.buildRelatorioBombeioRows(v, tipoReceita, vazoesBombeio),
-        receitaRows: this.buildRelatorioReceitaRows(tipoReceita),
+        receitaRows: this.buildRelatorioReceitaRows(),
+        pastaResumo: this.buildRelatorioPastaResumo(tipoReceita),
         esquematicoImages: this.reportSchematics?.getReportImages(data.esquematicosSelecionados),
         graficosOperacionaisImages: graficosImages,
         sequenciaOperacional,
@@ -581,20 +656,13 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
     });
   }
 
-  private buildRelatorioReceitaRows(tipo: RelatorioCapaData['tipoReceitaRelatorio']): RelatorioCapaData['receitaRows'] {
-    const useVolume = tipo === 'volume' && !!this.manualRecipeResult?.rows?.length;
-    const rows = useVolume ? this.manualRecipeResult!.rows : (this.recipe?.baseRecipe?.rows || []);
-    return rows.map(row => ({
-      aditivo: this.recipeItemLabel(row),
-      codigo: this.recipeCode(row),
-      concentracao: this.recipeConcentrationText(row),
-      quantidade: this.recipeReportQuantityText(row, useVolume),
-    }));
+  private buildRelatorioReceitaRows(): RelatorioCapaData['receitaRows'] {
+    return this.buildRelatorioReceitaRowsPorVolume(this.pastaBombeioVolumeBbl());
   }
 
   private buildRelatorioBombeioRows(
     v: any,
-    tipoReceita?: string,
+    _tipoReceita?: string,
     vazoes?: RelatorioCapaData['vazoesBombeio'],
   ): RelatorioCapaData['bombeioRows'] {
     const pumpRate = Number(v.pumpRate) || 0;
@@ -604,13 +672,12 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
     };
     const slurryDensity = Number(this.slurry?.density ?? v.density);
     const pastaLabel = Number.isFinite(slurryDensity) ? `Pasta ${this.fmt(slurryDensity, 1)} ppg` : 'Pasta';
-    const useManual = tipoReceita === 'volume' && !!this.manualRecipeResult?.targetSlurryVolumeBbl;
-    const slurryVolBbl = useManual ? this.manualRecipeResult!.targetSlurryVolumeBbl : (this.geom?.slurryTotal ?? 0);
+    const slurryVolBbl = this.pastaBombeioVolumeBbl();
     return [
       { fluido: 'Água a frente', volumeBbl: this.geom?.washVolFront ?? this.geom?.frontPhysicalVolumeBbl ?? 0, vazaoBpm: vazao(vazoes?.fluidoFrenteBpm), densidadePpg: v.mudWeightFront },
       { fluido: pastaLabel, volumeBbl: slurryVolBbl, vazaoBpm: vazao(vazoes?.pastaBpm), densidadePpg: slurryDensity },
       { fluido: 'Água atrás', volumeBbl: this.geom?.volBackSpacer ?? 0, vazaoBpm: vazao(vazoes?.fluidoAtrasBpm), densidadePpg: v.mudWeightBack },
-      { fluido: 'Deslocamento', volumeBbl: this.geom?.operationalDisplacementVolumeBbl ?? this.geom?.displacementVolume ?? 0, vazaoBpm: vazao(vazoes?.deslocamentoBpm), densidadePpg: v.completionWeight },
+      { fluido: 'Deslocamento', volumeBbl: this.geom?.operationalDisplacementVolumeBbl ?? this.geom?.displacementVolume ?? 0, vazaoBpm: vazao(vazoes?.deslocamentoBpm), densidadePpg: v.displacementWeight ?? v.completionWeight },
     ];
   }
 
@@ -647,7 +714,9 @@ export class SimuladorSqueezeComponent extends SimuladorBaseComponent implements
 
   private formatInches(value: unknown): string {
     const n = Number(value);
-    return Number.isFinite(n) ? `${this.fmt(n, 3)} in` : '';
+    if (!Number.isFinite(n)) return '';
+    const frac = this.inchFraction(n);
+    return frac != null ? `${frac} in` : `${this.fmt(n, 3)} in`;
   }
 
 }

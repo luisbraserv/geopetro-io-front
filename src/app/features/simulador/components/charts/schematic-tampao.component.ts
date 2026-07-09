@@ -66,6 +66,10 @@ export function createWithoutTubingSchematic(plug: PlugGeometry): WithoutTubingS
   const topFront = Math.max(0, topBack - frontHeight);
   const topDisplacement = Math.max(0, topFront - displacementHeight);
   const totalDepth = Math.max(base, 1);
+  // Deslocamento = fluido de deslocamento + espaçador frente + espaçador trás
+  // apresentados como um único fluido (volume e altura = soma dos três).
+  const displacementVolTotal = (plug.volDisplacement || 0) + (plug.volWashTotal || 0) + (plug.volBackSpacer || 0);
+  const displacementHeightTotal = Math.max(0, topCement - topDisplacement);
   const allSegments: SchematicSegment[] = [
     {
       key: 'completionFluid',
@@ -77,27 +81,11 @@ export function createWithoutTubingSchematic(plug: PlugGeometry): WithoutTubingS
     },
     {
       key: 'displacementFluid',
-      name: 'Fluido de Deslocamento',
-      sub: `${formatPt(plug.volDisplacement)} bbl | ${formatPt(displacementHeight, 0)} m`,
+      name: 'Deslocamento',
+      sub: `${formatPt(displacementVolTotal)} bbl | ${formatPt(displacementHeightTotal, 0)} m`,
       top: topDisplacement,
-      bottom: topFront,
-      color: '#93c5fd',
-    },
-    {
-      key: 'frontWater',
-      name: 'Espaçador Frente',
-      sub: `${formatPt(plug.volWashTotal)} bbl | ${formatPt(frontHeight, 0)} m`,
-      top: topFront,
-      bottom: topBack,
-      color: '#d8b4fe',
-    },
-    {
-      key: 'backWater',
-      name: 'Espaçador Trás',
-      sub: `${formatPt(plug.volBackSpacer)} bbl | ${formatPt(backHeight, 0)} m`,
-      top: topBack,
       bottom: topCement,
-      color: '#d8b4fe',
+      color: '#93c5fd',
     },
     {
       key: 'cement',
@@ -126,8 +114,6 @@ export function createWithoutTubingSchematic(plug: PlugGeometry): WithoutTubingS
     segments,
     depthMarkers: distributeMarkerLabels([
       { key: 'displacementTop', label: `Topo deslocamento\n${topDisplacement.toFixed(1)} m`, depth: topDisplacement },
-      { key: 'frontTop', label: `Topo água frente\n${topFront.toFixed(1)} m`, depth: topFront },
-      { key: 'backTop', label: `Topo água trás\n${topBack.toFixed(1)} m`, depth: topBack },
       { key: 'cementTop', label: `Topo cimento\n${topCement.toFixed(1)} m`, depth: topCement },
       { key: 'plugBase', label: `Base tampão\n${base.toFixed(0)} m`, depth: base },
     ], totalDepth, 30),
@@ -246,15 +232,14 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
   saveTubing(): void { this.saveRef(this.cvTubing, 'tampao-com-tubing'); }
   saveNoTub(): void { this.saveRef(this.cvNoTub, 'tampao-sem-tubing'); }
 
-  getReportImages(selected: string[] = ['bombeio', 'comTubing', 'semTubing']): { tipo: string; label: string; imagem: string }[] {
+  // Ordem no relatório: 1º o esquemático de bombeio (poço com revestimento e
+  // tubing), 2º o "Sem Tubing / final". O "Com Tubing" não entra no relatório.
+  getReportImages(selected: string[] = ['bombeio', 'semTubing']): { tipo: string; label: string; imagem: string }[] {
     this.draw();
     const images: { tipo: string; label: string; imagem: string }[] = [];
     if (selected.includes('bombeio')) {
       const image = this.wellboreComponent?.toImage();
       if (image) images.push({ tipo: 'bombeio', label: 'Esquemático de bombeio', imagem: image });
-    }
-    if (selected.includes('comTubing') && this.cvTubing) {
-      images.push({ tipo: 'comTubing', label: 'Com tubing', imagem: this.cvTubing.nativeElement.toDataURL('image/png') });
     }
     if (selected.includes('semTubing') && this.cvNoTub) {
       images.push({ tipo: 'semTubing', label: 'Sem tubing / final', imagem: this.cvNoTub.nativeElement.toDataURL('image/png') });
@@ -489,9 +474,7 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
 
     const legendBottom = this.drawLegend(cx, legX, PAD_T, [
       { color: '#bae6fd', label: 'Fl. Completação' },
-      { color: '#93c5fd', label: 'Fl. Deslocamento' },
-      { color: '#d8b4fe', label: 'Espaçador Frente' },
-      { color: '#d8b4fe', label: 'Espaçador Trás' },
+      { color: '#93c5fd', label: 'Deslocamento' },
       { color: '#fb923c', label: 'Cimento' },
       { color: '#d4b896', label: 'Formação' },
       { color: '#94a3b8', label: 'Revestimento' },
@@ -502,9 +485,13 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
   private prepareCanvas(cv: HTMLCanvasElement): { cx: CanvasRenderingContext2D; W: number; H: number } {
     const H = 740;
     const W = Math.max(420, (cv.parentElement?.clientWidth || 520) - 24);
-    cv.width = W;
-    cv.height = H;
+    // Super-amostragem: backing store 3× maior (mesmo layout lógico W×H) para
+    // exportar/imprimir o esquemático nítido no relatório/PDF.
+    const scale = 3;
+    cv.width = Math.round(W * scale);
+    cv.height = Math.round(H * scale);
     const cx = cv.getContext('2d')!;
+    cx.setTransform(scale, 0, 0, scale, 0, 0);
     cx.clearRect(0, 0, W, H);
     return { cx, W, H };
   }
@@ -657,14 +644,13 @@ export class SchematicTampaoComponent implements AfterViewInit, OnChanges, OnDes
 
   private tampaoInfoSections(topCement: number): SchematicInfoSection[] {
     const p = this.plug!;
-    const slurry = this.slurry;
     return [
       visibleInfoRows({
         title: 'Dados do esquemático',
         rows: [
           { label: 'Zona trabalho', value: formatM(p.plugHeight, 0) },
           { label: 'Cimento', value: formatBbl(p.volCementTotal) },
-          { label: 'Água de Deslocamento', value: joinInfoParts(formatBbl(p.volDisplacement), formatPpg(slurry?.density)) },
+          { label: 'Água de Deslocamento', value: joinInfoParts(formatBbl(p.volDisplacement), formatPpg(this.inputs?.displacementWeight ?? this.inputs?.completionWeight)) },
           { label: 'Água frente', value: joinInfoParts(formatM(p.frontPhysicalHeight, 0), formatBbl(p.volWashTotal)) },
           { label: 'Água trás', value: joinInfoParts(formatM(p.backPhysicalHeight, 0), formatBbl(p.volBackSpacer)) },
         ],

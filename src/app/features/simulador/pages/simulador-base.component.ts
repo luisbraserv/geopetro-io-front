@@ -45,8 +45,16 @@ export abstract class SimuladorBaseComponent {
   manualYieldFt3: number | null = null;
   manualFacGpc: number | null = null;
   manualFamGpc: number | null = null;
+  pastaParametrosSource: 'simulador' | 'manual' = 'simulador';
   manualBhstValue: number | null = null;
   manualBhstUnit: TemperatureUnit = 'F';
+
+  /**
+   * Fonte da temperatura na seção "3.1 Temperatura" do relatório:
+   * 'manual' usa a BHST manual informada (cai no automático se não houver);
+   * 'automatica' força a BHST/SQT simuladas.
+   */
+  reportTemperatureMode: 'automatica' | 'manual' = 'manual';
 
   cementVolumeSource: 'simulador' | 'receita' = 'simulador';
   simuladorVolumeBbl = 0;
@@ -66,6 +74,31 @@ export abstract class SimuladorBaseComponent {
     const hh = Math.floor(h);
     const mm = Math.round((h - hh) * 60);
     return `${hh}h ${mm.toString().padStart(2, '0')}min`;
+  }
+
+  /**
+   * Diâmetro em polegadas como fração de campo (2,875 → "2 7/8") quando o valor
+   * casa com uma fração limpa de 1/16" (tolerância ~0,01"). Caso contrário
+   * devolve null — ex.: IDs arbitrários como 4,778.
+   */
+  inchFraction(value: number | null | undefined): string | null {
+    if (value == null || !Number.isFinite(value) || value <= 0) return null;
+    const denom = 16;
+    const scaled = value * denom;
+    const rounded = Math.round(scaled);
+    if (Math.abs(scaled - rounded) > 0.16) return null; // não é múltiplo limpo de 1/16"
+    const whole = Math.floor(rounded / denom);
+    let num = rounded - whole * denom;
+    if (num === 0) return `${whole}`;
+    let d = denom;
+    while (num % 2 === 0) { num /= 2; d /= 2; }
+    return whole > 0 ? `${whole} ${num}/${d}` : `${num}/${d}`;
+  }
+
+  /** Polegadas em fração de campo quando possível; senão decimal, com `suffix`. */
+  fmtInches(value: number | null | undefined, suffix = '"'): string {
+    const frac = this.inchFraction(value);
+    return frac != null ? `${frac}${suffix}` : `${this.fmt(value, 3)}${suffix}`;
   }
 
   kgFromLb(v: number | null | undefined): number | null {
@@ -252,22 +285,131 @@ export abstract class SimuladorBaseComponent {
 
   protected computeManualRecipe(): void {
     if (!this.slurry) { this.manualRecipeResult = null; this.manualRecipeOpsPhases = []; return; }
-    const fac    = this.manualFacGpc;
-    const fam    = this.manualFamGpc;
-    const yield3 = this.manualYieldFt3 ?? this.recipe?.baseRecipe?.yieldFt3PerFt3Cement ?? null;
+    const useManual = this.pastaParametrosSource === 'manual';
+    const fac    = useManual ? this.manualFacGpc : this.recipe?.baseRecipe?.facGpc ?? null;
+    const fam    = useManual ? this.manualFamGpc : this.recipe?.baseRecipe?.famGpc ?? null;
+    const yield3 = useManual ? this.manualYieldFt3 : this.recipe?.baseRecipe?.yieldFt3PerFt3Cement ?? null;
 
-    if (fac !== null && fac > 0 && yield3 !== null && yield3 > 0) {
+    if (useManual && this.isPositive(fac) && this.isPositive(fam) && this.isPositive(yield3)) {
       this.manualRecipeResult = this.slurryCalc.buildSlurryRecipeByFacFam(
         this.slurry,
         this.manualVolumeBbl,
-        fac,
-        fam ?? fac,
-        yield3,
+        fac!,
+        fam!,
+        yield3!,
+      );
+    } else if (useManual) {
+      this.manualRecipeResult = this.emptyManualRecipeError(
+        'Preencha rendimento, FAC e FAM manuais válidos para calcular.',
       );
     } else {
-      const rec = this.slurryCalc.buildSlurryRecipe(this.manualVolumeBbl, this.slurry, this.manualYieldFt3);
+      const rec = this.slurryCalc.buildSlurryRecipe(this.manualVolumeBbl, this.slurry);
       this.manualRecipeResult = rec.volumeRecipe ?? null;
     }
+  }
+
+  protected buildRelatorioPastaResumo(tipo: RelatorioCapaData['tipoReceitaRelatorio']): RelatorioCapaData['pastaResumo'] {
+    const base = this.recipe?.baseRecipe;
+    const useManual = this.pastaParametrosSource === 'manual';
+
+    return {
+      tipo: tipo === 'volume' ? 'Receita por volume' : 'Receita da pasta',
+      origem: useManual ? 'Manual' : 'Simulador',
+      rendimentoFt3PerFt3Cement: useManual ? this.manualYieldFt3 ?? undefined : base?.yieldFt3PerFt3Cement,
+      facGpc: useManual ? this.manualFacGpc ?? undefined : base?.facGpc,
+      famGpc: useManual ? this.manualFamGpc ?? undefined : base?.famGpc,
+    };
+  }
+
+  protected buildRelatorioReceitaRowsPorVolume(volumeBbl: number | string): RelatorioCapaData['receitaRows'] {
+    if (!this.slurry) return [];
+
+    const volume = Math.max(0, this.toNumber(volumeBbl, 0));
+    if (volume <= 0) return [];
+
+    const rows = this.buildReceitaRowsPorVolume(volume);
+    return rows.map(row => ({
+      aditivo: this.recipeItemLabel(row),
+      codigo: this.recipeCode(row),
+      concentracao: this.recipeConcentrationText(row),
+      quantidade: this.recipeReportQuantityText(row, true),
+    }));
+  }
+
+  private buildReceitaRowsPorVolume(volumeBbl: number): CementSlurryRecipeRow[] {
+    if (!this.slurry) return [];
+
+    const useManual = this.pastaParametrosSource === 'manual';
+    const base = this.recipe?.baseRecipe;
+
+    if (useManual) {
+      const fac = this.manualFacGpc ?? base?.facGpc ?? null;
+      const fam = this.manualFamGpc ?? base?.famGpc ?? null;
+      const yield3 = this.manualYieldFt3 ?? base?.yieldFt3PerFt3Cement ?? null;
+      if (!this.isPositive(fac) || !this.isPositive(fam) || !this.isPositive(yield3)) return [];
+      return this.slurryCalc.buildSlurryRecipeByFacFam(this.slurry!, volumeBbl, fac!, fam!, yield3!).rows;
+    }
+
+    return this.slurryCalc.buildSlurryRecipe(volumeBbl, this.slurry).volumeRecipe?.rows ?? [];
+  }
+
+  private isPositive(value: number | null | undefined): boolean {
+    return value != null && Number.isFinite(value) && value > 0;
+  }
+
+  setPastaParametrosSource(source: 'simulador' | 'manual'): void {
+    this.pastaParametrosSource = source === 'manual' ? 'manual' : 'simulador';
+    if (this.pastaParametrosSource === 'manual') this.prefillManualPastaParametros();
+    this.calcManualRecipe();
+  }
+
+  pastaParametrosManual(): boolean {
+    return this.pastaParametrosSource === 'manual';
+  }
+
+  pastaYieldInputValue(): number | null {
+    return this.pastaParametrosManual()
+      ? this.manualYieldFt3
+      : this.recipe?.baseRecipe?.yieldFt3PerFt3Cement ?? null;
+  }
+
+  pastaFacInputValue(): number | null {
+    return this.pastaParametrosManual()
+      ? this.manualFacGpc
+      : this.recipe?.baseRecipe?.facGpc ?? null;
+  }
+
+  pastaFamInputValue(): number | null {
+    return this.pastaParametrosManual()
+      ? this.manualFamGpc
+      : this.recipe?.baseRecipe?.famGpc ?? null;
+  }
+
+  private prefillManualPastaParametros(): void {
+    const base = this.recipe?.baseRecipe;
+    if (!base) return;
+    if (!this.isPositive(this.manualYieldFt3)) this.manualYieldFt3 = base.yieldFt3PerFt3Cement;
+    if (!this.isPositive(this.manualFacGpc)) this.manualFacGpc = base.facGpc;
+    if (!this.isPositive(this.manualFamGpc)) this.manualFamGpc = base.famGpc;
+  }
+
+  private emptyManualRecipeError(error: string): SlurryRecipeByVolume {
+    return {
+      targetSlurryVolumeBbl: this.manualVolumeBbl,
+      targetSlurryVolumeFt3: this.manualVolumeBbl * 5.6146,
+      yieldFt3PerFt3Cement: this.manualYieldFt3 ?? 0,
+      cementVolumeFt3: 0,
+      sacks94lb: 0,
+      scaleFactor: 0,
+      totalCementLb: 0,
+      totalCementKg: 0,
+      totalMixWaterGal: 0,
+      totalMixWaterBbl: 0,
+      facGpc: this.manualFacGpc ?? undefined,
+      famGpc: this.manualFamGpc ?? undefined,
+      rows: [],
+      error,
+    };
   }
 
   onCementVolumeSourceChange(source: 'simulador' | 'receita'): void {
@@ -286,9 +428,45 @@ export abstract class SimuladorBaseComponent {
     this.simulate();
   }
 
+  setReportTemperatureMode(mode: 'automatica' | 'manual'): void {
+    this.reportTemperatureMode = mode === 'automatica' ? 'automatica' : 'manual';
+  }
+
   // ── Dados do relatório / vazões ──
   saveDadosRelatorio(): void {
     this.stateStore.saveDadosRelatorio(this.operacaoKey, this.dadosRelatorio);
+  }
+
+  onClienteLogoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Selecione um arquivo de imagem.');
+      input.value = '';
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Selecione uma imagem de logo com no maximo 2 MB.');
+      input.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.dadosRelatorio.clienteLogoNome = file.name;
+      this.dadosRelatorio.clienteLogoImagem = String(reader.result || '');
+      this.saveDadosRelatorio();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  clearClienteLogo(): void {
+    this.dadosRelatorio.clienteLogoNome = '';
+    this.dadosRelatorio.clienteLogoImagem = '';
+    this.saveDadosRelatorio();
   }
 
   setVazaoBombeio(campo: keyof NonNullable<DadosRelatorio['vazoesBombeio']>, valor: string | number): void {
@@ -367,6 +545,8 @@ export abstract class SimuladorBaseComponent {
     this.dadosRelatorio = {
       ...this.dadosRelatorio,
       cliente: data.cliente,
+      clienteLogoNome: data.clienteLogoNome ?? this.dadosRelatorio.clienteLogoNome,
+      clienteLogoImagem: data.clienteLogoImagem ?? this.dadosRelatorio.clienteLogoImagem,
       preparadoPara: data.preparadoPara,
       documento: data.documento,
       preparadoPor: data.preparadoPor,

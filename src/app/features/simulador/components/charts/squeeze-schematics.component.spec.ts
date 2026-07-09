@@ -90,22 +90,20 @@ describe('createSqueezeSchematicModel', () => {
     expect(model.annulusSegments.at(-1)?.key).toBe('cementAnnulus');
   });
 
-  it('keeps without tubing stack unchanged', () => {
+  it('merges displacement + front/back spacers into a single displacement fluid (without tubing)', () => {
     const model = createSqueezeSchematicModel('withoutTubing', geom, simulation);
-    expect(model.segments.map(segment => segment.key)).toEqual(['completionFluid', 'displacementFluid', 'frontWater', 'backWater', 'cement']);
+    expect(model.segments.map(segment => segment.key)).toEqual(['completionFluid', 'displacementFluid', 'cement']);
+    const displacement = model.segments.find(segment => segment.key === 'displacementFluid')!;
+    expect(displacement.name).toBe('Deslocamento');
   });
 
   it('keeps without tubing segment boundaries available for height references', () => {
     const model = createSqueezeSchematicModel('withoutTubing', geom, simulation);
     const displacement = model.segments.find(segment => segment.key === 'displacementFluid')!;
-    const frontWater = model.segments.find(segment => segment.key === 'frontWater')!;
-    const backWater = model.segments.find(segment => segment.key === 'backWater')!;
     const cement = model.segments.find(segment => segment.key === 'cement')!;
 
     expect(displacement.top).toBeLessThan(displacement.bottom);
-    expect(frontWater.top).toBe(displacement.bottom);
-    expect(backWater.top).toBe(frontWater.bottom);
-    expect(cement.top).toBe(backWater.bottom);
+    expect(cement.top).toBe(displacement.bottom);
     expect(cement.bottom).toBe(geom.base);
   });
 

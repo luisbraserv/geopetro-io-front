@@ -12,6 +12,8 @@ export interface SimuladorStateSnapshot {
 // Tipos exportados para o modal
 export interface DadosRelatorio {
   cliente?: string;
+  clienteLogoNome?: string;
+  clienteLogoImagem?: string;
   preparadoPara?: string;
   documento?: string;
   preparadoPor?: string;

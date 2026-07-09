@@ -139,6 +139,7 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
   relatorioTitulo = '';
   relatorioConteudo = '';
   capaModalOpen = false;
+  relatorioPrefill: Partial<RelatorioCapaData> | Record<string, any> = {};
   stateModalOpen = false;
 
   @ViewChild('stateModal') stateModal!: SimuladorStateModalComponent;
@@ -194,7 +195,7 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
       surfaceTemp: [80.6], geoGradient: [1.50],
       bhst: [{ value: null, disabled: true }],
       bhct: [{ value: null, disabled: true }],
-      completionWeight: [8.4], mudWeightBack: [8.4], mudWeightFront: [8.4],
+      completionWeight: [8.4], displacementWeight: [8.4], mudWeightBack: [8.4], mudWeightFront: [8.4],
       fracGrad: [16.0], poreGrad: [9.0], pumpRate: [3.0], pressaoOperacao: [2000],
       pause1: [0], pause2: [0], pause3: [0],
       density: [15.8], cementClass: ['G'],
@@ -359,11 +360,20 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
     return this.retiradaReport.buildCalculation(v, topoCimentoRetiradaM, sequencia).openEndDepthM;
   }
 
-  private getReportTemperature(v: any, tipoReceita: RelatorioCapaData['tipoReceitaRelatorio']): SqtTemperatureResult {
-    const automaticBhst = this.coreCalc.calcBHT(v.surfaceTemp, v.geoGradient, v.sectionEndTVD).bhst;
-    return tipoReceita === 'volume'
-      ? this.resolveTemperatureResult(v, automaticBhst)
-      : this.coreCalc.calcSqtFromBhst(automaticBhst, 'F', Number(v.sectionEndTVD), 'automatica');
+  private getReportTemperature(v: any): SqtTemperatureResult {
+    const depthTVD = Number(v.sectionEndTVD);
+    const automaticBhst = this.coreCalc.calcBHT(v.surfaceTemp, v.geoGradient, depthTVD).bhst;
+    const manualOk = this.manualBhstValue != null && Number.isFinite(this.manualBhstValue) && this.manualBhstValue > 0;
+    // A fonte da temperatura no relatório segue o seletor da sidebar:
+    // 'manual' usa a BHST informada (cai no automático se não houver).
+    return this.reportTemperatureMode === 'manual' && manualOk
+      ? this.coreCalc.calcSqtFromBhst(this.manualBhstValue!, this.manualBhstUnit, depthTVD, 'manual')
+      : this.coreCalc.calcSqtFromBhst(automaticBhst, 'F', depthTVD, 'automatica');
+  }
+
+  pastaBombeioVolumeBbl(): number {
+    const plug = this.schematicPlug ?? this.plug;
+    return Number(plug?.workVolumeBbl ?? plug?.volCementTotal) || 0;
   }
 
   private buildOpsPhases(): void {
@@ -377,7 +387,7 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
     this.opsPhases = [
       { label: 'Água Frente', durationMin: bbl2min(this.plug.volWashTotal, this.vazaoFluido('fluidoFrenteBpm')), color: '#bae6fd' },
       ...(pause1 > 0 ? [{ label: 'Pausa 1', durationMin: pause1, color: '#cbd5e1' }] : []),
-      { label: 'Pasta', durationMin: bbl2min(this.plug.volCementTotal, this.vazaoFluido('pastaBpm')), color: '#bbf7d0' },
+      { label: 'Pasta', durationMin: bbl2min(this.pastaBombeioVolumeBbl(), this.vazaoFluido('pastaBpm')), color: '#bbf7d0' },
       ...(pause2 > 0 ? [{ label: 'Pausa 2', durationMin: pause2, color: '#94a3b8' }] : []),
       { label: 'Água Atrás', durationMin: bbl2min(this.plug.volBackSpacer, this.vazaoFluido('fluidoAtrasBpm')), color: '#e9d5ff' },
       ...(pause3 > 0 ? [{ label: 'Pausa 3', durationMin: pause3, color: '#64748b' }] : []),
@@ -464,9 +474,11 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
       _manualYieldFt3: this.manualYieldFt3,
       _manualFacGpc: this.manualFacGpc,
       _manualFamGpc: this.manualFamGpc,
+      _pastaParametrosSource: this.pastaParametrosSource,
       _manualBhstValue: this.manualBhstValue,
       _manualBhstUnit: this.manualBhstUnit,
       _cementVolumeSource: this.cementVolumeSource,
+      _reportTemperatureMode: this.reportTemperatureMode,
     });
     this.stateModalOpen = true;
   }
@@ -478,10 +490,12 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
     // seja restaurada ao carregar o cenário.
     const { additivos,
             _dadosRelatorio, _manualVolumeBbl, _manualYieldFt3, _manualFacGpc, _manualFamGpc,
-            _manualBhstValue, _manualBhstUnit, _cementVolumeSource,
+            _pastaParametrosSource, _manualBhstValue, _manualBhstUnit, _cementVolumeSource, _reportTemperatureMode,
             ...rest } = formValue as any;
     // Padrões primeiro: campos que não existiam quando o cenário foi salvo
     // não herdam o valor da tela — voltam ao padrão do simulador.
+    // Cenários antigos usavam completionWeight também como fluido de deslocamento.
+    if (rest.displacementWeight == null && rest.completionWeight != null) rest.displacementWeight = rest.completionWeight;
     this.form.patchValue(this.formDefaults, { emitEvent: false });
     this.form.patchValue(rest, { emitEvent: false });
     if (_dadosRelatorio) {
@@ -493,9 +507,11 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
     this.manualYieldFt3 = _manualYieldFt3 != null ? +_manualYieldFt3 : null;
     this.manualFacGpc = _manualFacGpc != null ? +_manualFacGpc : null;
     this.manualFamGpc = _manualFamGpc != null ? +_manualFamGpc : null;
+    this.pastaParametrosSource = _pastaParametrosSource === 'manual' ? 'manual' : 'simulador';
     this.manualBhstValue = _manualBhstValue != null ? +_manualBhstValue : null;
     this.manualBhstUnit = _manualBhstUnit === 'C' ? 'C' : 'F';
     this.cementVolumeSource = _cementVolumeSource === 'receita' ? 'receita' : 'simulador';
+    this.reportTemperatureMode = _reportTemperatureMode === 'automatica' ? 'automatica' : 'manual';
     while (this.additivos.length) this.additivos.removeAt(0);
     if (Array.isArray(additivos)) {
       additivos.forEach((d: any) => this.additivos.push(this.createAditivoGroup(d)));
@@ -517,12 +533,37 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
     this.form.patchValue({ pipeOD: t.odIn, pipeID: t.idIn });
   }
 
+  openCapaModal(): void {
+    const v = this.form.getRawValue();
+    const tipoReceita = this.dadosRelatorio.tipoReceitaRelatorio ?? 'volume';
+    const vazoesBombeio = this.mergeVazoesBombeio(this.dadosRelatorio.vazoesBombeio as RelatorioCapaData['vazoesBombeio']);
+    const reportTemperature = this.getReportTemperature(v);
+    const reportPlug = this.schematicPlug ?? this.plug;
+    this.relatorioPrefill = {
+      ...this.dadosRelatorio,
+      tipoReceitaRelatorio: tipoReceita,
+      vazoesBombeio,
+      calculoTampaoPor: this.cementVolumeSource === 'receita' ? 'volume' : 'altura',
+      inicioTampao: String(v.sectionStartMD ?? ''),
+      fimTampao: String(v.sectionEndMD ?? ''),
+      topoCimento: String(reportPlug?.topCementWithoutTubing ?? v.sectionStartMD ?? ''),
+      baseTampao: String(reportPlug?.pBase ?? v.sectionEndMD ?? ''),
+      geoGradient: v.geoGradient,
+      bhst: reportTemperature.bhstF,
+      bhct: reportTemperature.sqtF,
+      bombeioRows: this.buildRelatorioBombeioRows(v, tipoReceita, vazoesBombeio),
+      receitaRows: this.buildRelatorioReceitaRows(),
+      pastaResumo: this.buildRelatorioPastaResumo(tipoReceita),
+    };
+    this.capaModalOpen = true;
+  }
+
   onCapaGerada(data: RelatorioCapaData): void {
     const v = this.form.getRawValue();
     const tipoReceita = data.tipoReceitaRelatorio ?? 'volume';
-    const reportTemperature = this.getReportTemperature(v, tipoReceita);
+    const reportTemperature = this.getReportTemperature(v);
     const vazoesBombeio = this.mergeVazoesBombeio(data.vazoesBombeio);
-    const pipeODFormatted = v.pipeOD ? `${this.fmt(v.pipeOD, 3)}"` : '';
+    const pipeODFormatted = v.pipeOD ? this.fmtInches(v.pipeOD) : '';
     const topoCimentoRetiradaM = this.plug?.topCementWithoutTubing ?? v.sectionStartMD;
     const reverseCircBbl = this.buildReverseCirculationAfterPullingResult(
       v,
@@ -541,20 +582,25 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
     this.persistDadosRelatorioFromCapa(data, vazoesBombeio, sequenciaOperacional);
     this.saveDadosRelatorio();
     this.captureGraficosImages(data.graficosOperacionaisSelecionados ?? []).then(graficosImages => {
+      const reportPlug = this.schematicPlug ?? this.plug;
       const reportHtml = this.relatorioBuilder.buildCapa({
         ...data,
         vazoesBombeio,
         zonaIsolarNome: data.zonaIsolarNome || this.dadosRelatorio.zonaIsolarNome,
         zonaIsolarTopo: String(v.sectionStartTVD ?? ''),
         zonaIsolarBase: String(v.sectionEndTVD ?? ''),
-        topoCimento: String(v.sectionStartMD ?? ''),
-        baseTampao: String(v.sectionEndMD ?? ''),
+        calculoTampaoPor: this.cementVolumeSource === 'receita' ? 'volume' : 'altura',
+        inicioTampao: String(v.sectionStartMD ?? ''),
+        fimTampao: String(v.sectionEndMD ?? ''),
+        topoCimento: String(reportPlug?.topCementWithoutTubing ?? v.sectionStartMD ?? ''),
+        baseTampao: String(reportPlug?.pBase ?? v.sectionEndMD ?? ''),
         revestimento: this.formatCasing(v.holeID),
         geoGradient: v.geoGradient,
         bhst: reportTemperature.bhstF,
         bhct: reportTemperature.sqtF,
         bombeioRows: this.buildRelatorioBombeioRows(v, tipoReceita, vazoesBombeio),
-        receitaRows: this.buildRelatorioReceitaRows(tipoReceita),
+        receitaRows: this.buildRelatorioReceitaRows(),
+        pastaResumo: this.buildRelatorioPastaResumo(tipoReceita),
         esquematicoImages: this.reportSchematics?.getReportImages(data.esquematicosSelecionados),
         graficosOperacionaisImages: graficosImages,
         sequenciaOperacional,
@@ -563,20 +609,13 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
     });
   }
 
-  private buildRelatorioReceitaRows(tipo: RelatorioCapaData['tipoReceitaRelatorio']): RelatorioCapaData['receitaRows'] {
-    const useVolume = tipo === 'volume' && !!this.manualRecipeResult?.rows?.length;
-    const rows = useVolume ? this.manualRecipeResult!.rows : (this.recipe?.baseRecipe?.rows || []);
-    return rows.map(row => ({
-      aditivo: this.recipeItemLabel(row),
-      codigo: this.recipeCode(row),
-      concentracao: this.recipeConcentrationText(row),
-      quantidade: this.recipeReportQuantityText(row, useVolume),
-    }));
+  private buildRelatorioReceitaRows(): RelatorioCapaData['receitaRows'] {
+    return this.buildRelatorioReceitaRowsPorVolume(this.pastaBombeioVolumeBbl());
   }
 
   private buildRelatorioBombeioRows(
     v: any,
-    tipoReceita?: string,
+    _tipoReceita?: string,
     vazoes?: RelatorioCapaData['vazoesBombeio'],
   ): RelatorioCapaData['bombeioRows'] {
     const pumpRate = Number(v.pumpRate) || 0;
@@ -586,13 +625,13 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
     };
     const slurryDensity = Number(this.slurry?.density ?? v.density);
     const pastaLabel = Number.isFinite(slurryDensity) ? `Pasta ${this.fmt(slurryDensity, 1)} ppg` : 'Pasta';
-    const useManual = tipoReceita === 'volume' && !!this.manualRecipeResult?.targetSlurryVolumeBbl;
-    const slurryVolBbl = useManual ? this.manualRecipeResult!.targetSlurryVolumeBbl : (this.plug?.volCementTotal ?? 0);
+    const plug = this.schematicPlug ?? this.plug;
+    const slurryVolBbl = this.pastaBombeioVolumeBbl();
     return [
-      { fluido: 'Água a frente', volumeBbl: this.plug?.volWashTotal ?? 0, vazaoBpm: vazao(vazoes?.fluidoFrenteBpm), densidadePpg: v.mudWeightFront },
+      { fluido: 'Água a frente', volumeBbl: plug?.volWashTotal ?? 0, vazaoBpm: vazao(vazoes?.fluidoFrenteBpm), densidadePpg: v.mudWeightFront },
       { fluido: pastaLabel, volumeBbl: slurryVolBbl, vazaoBpm: vazao(vazoes?.pastaBpm), densidadePpg: slurryDensity },
-      { fluido: 'Água atrás', volumeBbl: this.plug?.volBackSpacer ?? 0, vazaoBpm: vazao(vazoes?.fluidoAtrasBpm), densidadePpg: v.mudWeightBack },
-      { fluido: 'Deslocamento', volumeBbl: this.plug?.volDisplacement ?? 0, vazaoBpm: vazao(vazoes?.deslocamentoBpm), densidadePpg: v.completionWeight },
+      { fluido: 'Água atrás', volumeBbl: plug?.volBackSpacer ?? 0, vazaoBpm: vazao(vazoes?.fluidoAtrasBpm), densidadePpg: v.mudWeightBack },
+      { fluido: 'Deslocamento', volumeBbl: plug?.volDisplacement ?? 0, vazaoBpm: vazao(vazoes?.deslocamentoBpm), densidadePpg: v.displacementWeight ?? v.completionWeight },
     ];
   }
 
@@ -613,7 +652,7 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
     const n = Number(id);
     if (!Number.isFinite(n)) return '';
     const casing = this.findCasingOption(id);
-    const odText = casing ? `OD ${this.fmt(casing.odIn, 3)} in` : '';
+    const odText = casing ? `OD ${this.fmtInches(casing.odIn, ' in')}` : '';
     const weightText = casing ? `Peso ${this.fmt(casing.weightLbFt, 2)} lb/pé` : '';
     return [odText, weightText, `ID ${this.fmt(n, 3)} in`].filter(Boolean).join(' | ');
   }
@@ -649,7 +688,7 @@ export class SimuladorTampaoComponent extends SimuladorBaseComponent implements 
       sectionStartMD: 1400, sectionEndMD: 1500, sectionStartTVD: 1400, sectionEndTVD: 1500,
       wellFinalMD: 1500, wellFinalTVD: 1500, holeID: 8.535, pipeOD: 3.500, pipeID: 2.764,
       backSpacerHeight: 100, surfaceTemp: 80.6, geoGradient: 1.50,
-      completionWeight: 8.4, mudWeightBack: 8.4, mudWeightFront: 8.4,
+      completionWeight: 8.4, displacementWeight: 8.4, mudWeightBack: 8.4, mudWeightFront: 8.4,
       fracGrad: 16.0, poreGrad: 9.0, pumpRate: 3.0, density: 15.8, cementClass: 'G',
       waterSplitFresh: 100, waterSplitSea: 0, silica: 35, nacl: 0,
       theta300: 181, theta200: 132, theta100: 79, theta60: 53, theta30: 31, theta20: 23,

@@ -11,7 +11,10 @@ export interface TampaoInputs {
   backSpacerHeight: number;
   mudWeightFront: number;
   mudWeightBack: number;
+  /** Fluido de completação (ppg): preenche o poço (coluna e anular) antes/abaixo do trem bombeado. */
   completionWeight: number;
+  /** Fluido de deslocamento (ppg): bombeado para deslocar o trem. Ausente, cai no fluido de completação. */
+  displacementWeight?: number;
   fracGrad: number;
   poreGrad: number;
   pumpRate: number;

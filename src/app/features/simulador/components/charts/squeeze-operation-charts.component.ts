@@ -4,7 +4,7 @@ import { Chart, ChartConfiguration, registerables } from 'chart.js';
 import { SqueezeHydraulicSimulation } from '../../models/squeeze.model';
 import { ChartZoomModalComponent } from './chart-zoom-modal.component';
 
-type ChartKey = 'envelope' | 'pressureTime' | 'bhpEcd' | 'freeFall';
+type ChartKey = 'envelope' | 'pressureTime' | 'bhpEcd' | 'freeFall' | 'hydroWindow';
 
 Chart.register(...registerables);
 
@@ -91,10 +91,24 @@ Chart.register(...registerables);
           </div>
           <div class="sq-chart-box"><canvas #freeFall></canvas></div>
         </div>
-        <div class="sq-block sq-block--index">
-          <div class="sq-title">Índice Operacional Estimado — {{ operationTitle }}</div>
-          <div class="op-index">{{ data.summary.operationalIndex }}%</div>
-          <div class="sq-sub">Índice heurístico operacional; não representa CFD nem eficiência física real.</div>
+        <div class="sq-block">
+          <div class="sq-block-head">
+            <div>
+              <div class="sq-title">Hidrostática × Fratura — {{ operationTitle }}</div>
+              <div class="sq-sub">Hidrostática de fundo e BHP no deslocamento{{ operation === 'squeeze' ? ' e na injeção' : '' }} contra a janela poro × fratura</div>
+            </div>
+            <div class="head-actions">
+              <button class="save-btn" type="button" (click)="openZoom('hydroWindow')" title="Ampliar gráfico">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                Ampliar
+              </button>
+              <button class="save-btn" type="button" (click)="saveChart(hydroWindow, filePrefix + '-hidrostatica-fratura')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Salvar
+              </button>
+            </div>
+          </div>
+          <div class="sq-chart-box"><canvas #hydroWindow></canvas></div>
         </div>
       </div>
       @if (zoom) {
@@ -110,7 +124,6 @@ Chart.register(...registerables);
       align-items: stretch;
     }
     .sq-block--wide { grid-column: 1 / -1; }
-    .sq-block--index { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
     @media (max-width: 960px) {
       .sq-charts { grid-template-columns: 1fr; }
     }
@@ -121,7 +134,6 @@ Chart.register(...registerables);
     .sq-sub { margin: 3px 0 0; color: var(--color-text-body); font-size: .74rem; }
     .sq-chart-box { position: relative; height: clamp(240px, 38vh, 340px); min-height: 0; overflow: hidden; }
     .sq-chart-box canvas { display: block; width: 100% !important; height: 100% !important; }
-    .op-index { color: var(--color-primary); font-size: 42px; font-weight: 900; line-height: 1; }
     .save-btn { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 5px 10px; border: 1px solid var(--color-card-border, #e2e8f0); border-radius: 6px; background: #f8fafc; color: var(--color-text-body, #64748b); font: inherit; font-size: .72rem; font-weight: 650; cursor: pointer; transition: background .15s, color .15s; }
     .save-btn:hover { background: #eef6ff; color: var(--color-primary, #4291e1); border-color: rgba(66,145,225,.3); }
   `],
@@ -139,6 +151,7 @@ export class SqueezeOperationChartsComponent implements AfterViewInit, OnChanges
   @ViewChild('pressureTime') pressureTime!: ElementRef<HTMLCanvasElement>;
   @ViewChild('bhpEcd') bhpEcd!: ElementRef<HTMLCanvasElement>;
   @ViewChild('freeFall') freeFall!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('hydroWindow') hydroWindow!: ElementRef<HTMLCanvasElement>;
   private charts: Chart[] = [];
   private configs: Partial<Record<ChartKey, ChartConfiguration>> = {};
 
@@ -156,6 +169,7 @@ export class SqueezeOperationChartsComponent implements AfterViewInit, OnChanges
       pressureTime: `Pressão e Deslocamento x Tempo — ${this.operationTitle}`,
       bhpEcd: `BHP e ECD — ${this.operationTitle}`,
       freeFall: `Free Fall / Tubo em U — ${this.operationTitle}`,
+      hydroWindow: `Hidrostática × Fratura — ${this.operationTitle}`,
     };
     this.zoom = { title: titles[key], config };
   }
@@ -174,6 +188,7 @@ export class SqueezeOperationChartsComponent implements AfterViewInit, OnChanges
       { ref: this.pressureTime, label: 'Pressão × Tempo' },
       { ref: this.bhpEcd,       label: 'BHP e ECD' },
       { ref: this.freeFall,     label: 'Free Fall' },
+      { ref: this.hydroWindow,  label: 'Hidrostática × Fratura' },
     ];
     return canvases
       .map(c => ({ label: c.label, imagem: c.ref?.nativeElement?.toDataURL('image/png') ?? '' }))
@@ -187,10 +202,24 @@ export class SqueezeOperationChartsComponent implements AfterViewInit, OnChanges
   }
 
   private build(): void {
-    if (!this.data || !this.envelope || !this.pressureTime || !this.bhpEcd || !this.freeFall) return;
+    if (!this.data || !this.envelope || !this.pressureTime || !this.bhpEcd || !this.freeFall || !this.hydroWindow) return;
     const pts = this.data.points;
     const labels = pts.map(p => p.timeMin.toFixed(1));
     const bhpLabel = this.operation === 'tampao' ? 'BHP tampão' : 'BHP squeeze';
+    // Séries segmentadas por fase: BHP só no deslocamento / só na injeção (null fora)
+    const isInj = (phase: string) => /Inje/i.test(phase);
+    const isDesloc = (phase: string) => phase === 'Deslocamento';
+    const hasInjection = pts.some(p => isInj(p.phase));
+    const hydroWindowSeries: Array<[string, Array<number | null>, string, string?]> = [
+      ['Fratura (psi)', pts.map(p => p.fracturePsi), '#ef4444'],
+      ['Poro (psi)', pts.map(p => p.porePsi), '#10b981'],
+      ['Hidrostática de fundo (psi)', pts.map(p => p.hydrostaticPsi), '#8b7857'],
+      ['BHP demais fases (psi)', pts.map(p => isDesloc(p.phase) || isInj(p.phase) ? null : p.bhpPsi), '#94a3b8'],
+      ['BHP — Deslocamento (psi)', pts.map(p => isDesloc(p.phase) ? p.bhpPsi : null), '#f97316'],
+      ...(hasInjection
+        ? [['BHP — Injeção/pressurização (psi)', pts.map(p => isInj(p.phase) ? p.bhpPsi : null), '#9333ea'] as [string, Array<number | null>, string]]
+        : []),
+    ];
     this.configs = {
       envelope: this.lineConfig(labels, [
         ['Poro', pts.map(p => p.porePsi), '#10b981'],
@@ -225,12 +254,14 @@ export class SqueezeOperationChartsComponent implements AfterViewInit, OnChanges
         ['Perda hidráulica (psi)', pts.map(p => p.hydraulicLossPsi), '#8b7857'],
         ['Volume free fall (bbl)', pts.map(p => p.freeFallAccumBbl), '#9333ea', 'y1'],
       ], 'Pressão (psi)', true),
+      hydroWindow: this.lineConfig(labels, hydroWindowSeries, 'Pressão (psi)', false, 'Tempo (min)'),
     };
     this.charts.push(
       new Chart(this.envelope.nativeElement.getContext('2d')!, this.configs.envelope!),
       new Chart(this.pressureTime.nativeElement.getContext('2d')!, this.configs.pressureTime!),
       new Chart(this.bhpEcd.nativeElement.getContext('2d')!, this.configs.bhpEcd!),
       new Chart(this.freeFall.nativeElement.getContext('2d')!, this.configs.freeFall!),
+      new Chart(this.hydroWindow.nativeElement.getContext('2d')!, this.configs.hydroWindow!),
     );
   }
 

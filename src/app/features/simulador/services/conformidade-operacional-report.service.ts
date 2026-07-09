@@ -5,7 +5,7 @@ import { DadosRelatorio } from './simulador-state-store.service';
 
 export type FatorConformidade =
   | 'ecd' | 'bhp' | 'freefall' | 'injetividade'
-  | 'risco' | 'interfaces' | 'subdeslocamento';
+  | 'risco' | 'interfaces' | 'subdeslocamento' | 'hidrostatica';
 
 /** Sobreposições aplicadas na re-simulação (varredura de otimização/sensibilidade). */
 export interface VarreduraOverride {
@@ -72,6 +72,8 @@ interface FatorRisco {
   /** Reprovação dura (fora dos limites físicos). */
   hardFail: boolean;
   detalhe: string;
+  /** Instrução objetiva de correção do fator (usada em "Possíveis ajustes"). */
+  correcao: string;
 }
 
 /** Tabela auxiliar (varredura de otimização/sensibilidade). */
@@ -129,6 +131,7 @@ export class ConformidadeOperacionalReportService {
       case 'risco': return this.avaliarRisco(p);
       case 'interfaces': return this.avaliarInterfaces(p);
       case 'subdeslocamento': return this.avaliarSubdeslocamento(p);
+      case 'hidrostatica': return this.avaliarHidrostatica(p);
     }
   }
 
@@ -298,6 +301,141 @@ export class ConformidadeOperacionalReportService {
     };
   }
 
+  // ── Hidrostática × Fratura (deslocamento e injeção) ────────────────────────
+  private avaliarHidrostatica(p: ConformidadeParams): Avaliacao {
+    const s = p.sim.summary;
+    const pts = p.sim.points;
+    const tvd = s.referenceTVD;
+    const toPpg = (psi: number) => tvd > 0 ? psi / (HYDRO_K * tvd) : 0;
+    const isInj = (phase: string) => /Inje/i.test(phase);
+    const janela = Math.max(1, s.fracturePsi - s.porePsi);
+
+    const hydroMaxPt = pts.reduce((a, b) => (b.hydrostaticPsi > a.hydrostaticPsi ? b : a), pts[0]);
+    const hydroMinPt = pts.reduce((a, b) => (b.hydrostaticPsi < a.hydrostaticPsi ? b : a), pts[0]);
+    const desloc = pts.filter(pt => pt.phase === 'Deslocamento');
+    const inj = pts.filter(pt => isInj(pt.phase));
+    const bhpDeslocMax = desloc.length ? Math.max(...desloc.map(pt => pt.bhpPsi)) : null;
+    const bhpDeslocMin = desloc.length ? Math.min(...desloc.map(pt => pt.bhpPsi)) : null;
+    const bhpInjMax = inj.length ? Math.max(...inj.map(pt => pt.bhpPsi)) : null;
+    const pressaoOperacao = this.toNumber(p.v.pressaoOperacao, 0);
+
+    const atendeHydroFrat = hydroMaxPt.hydrostaticPsi < s.fracturePsi;
+    const atendeHydroPoro = hydroMinPt.hydrostaticPsi > s.porePsi;
+    const atendeDeslocFrat = bhpDeslocMax == null || bhpDeslocMax < s.fracturePsi;
+    const atendeDeslocPoro = bhpDeslocMin == null || bhpDeslocMin > s.porePsi;
+    const atendeInjFrat = bhpInjMax == null || bhpInjMax < s.fracturePsi;
+
+    // Tabela por fase, na ordem de bombeio
+    const fases: string[] = [];
+    for (const pt of pts) if (!fases.includes(pt.phase)) fases.push(pt.phase);
+    const linhasFase = fases.map(fase => {
+      const fpts = pts.filter(pt => pt.phase === fase);
+      const hMax = Math.max(...fpts.map(pt => pt.hydrostaticPsi));
+      const bMax = Math.max(...fpts.map(pt => pt.bhpPsi));
+      return [
+        fase,
+        `${this.fmt(hMax, 0)} psi`,
+        `${this.fmt(bMax, 0)} psi`,
+        `${this.fmt(toPpg(bMax), 2)} ppg`,
+        `${this.fmt(s.fracturePsi - bMax, 0)} psi`,
+        `${this.fmt((bMax - s.porePsi) / janela * 100, 0)}%`,
+        bMax < s.fracturePsi ? 'OK' : 'FRATURA',
+      ];
+    });
+
+    const criterios: CriterioRow[] = [
+      { criterio: 'Hidrostática máx. abaixo da fratura', valor: `${this.fmt(hydroMaxPt.hydrostaticPsi, 0)} psi (${hydroMaxPt.phase})`, limite: `< ${this.fmt(s.fracturePsi, 0)} psi`, atende: atendeHydroFrat },
+      { criterio: 'Hidrostática mín. acima do poro', valor: `${this.fmt(hydroMinPt.hydrostaticPsi, 0)} psi (${hydroMinPt.phase})`, limite: `> ${this.fmt(s.porePsi, 0)} psi`, atende: atendeHydroPoro },
+      ...(bhpDeslocMax != null ? [
+        { criterio: 'BHP máx. no deslocamento abaixo da fratura', valor: `${this.fmt(bhpDeslocMax, 0)} psi`, limite: `< ${this.fmt(s.fracturePsi, 0)} psi`, atende: atendeDeslocFrat },
+        { criterio: 'BHP mín. no deslocamento acima do poro', valor: `${this.fmt(bhpDeslocMin, 0)} psi`, limite: `> ${this.fmt(s.porePsi, 0)} psi`, atende: atendeDeslocPoro },
+      ] : []),
+      ...(bhpInjMax != null ? [
+        { criterio: 'BHP máx. na injeção/pressurização abaixo da fratura', valor: `${this.fmt(bhpInjMax, 0)} psi`, limite: `< ${this.fmt(s.fracturePsi, 0)} psi`, atende: atendeInjFrat },
+      ] : []),
+    ];
+
+    return {
+      titulo: `Relatório de conformidade — Hidrostática × Fratura (${p.operacao === 'TAMPÃO' ? 'Tampão' : 'Squeeze'})`,
+      subtitulo: 'Pressão hidrostática de fundo ao longo do bombeio e pressão total exercida no deslocamento' + (inj.length ? ' e na injeção do squeeze' : '') + ', comparadas ao peso de fratura e à pressão de poros.',
+      estado: p.operacao === 'SQUEEZE' && !inj.length
+        ? { rotulo: 'Sem fase de injeção simulada — preencha Pressão de Operação, Volume injetado e Tempo de pressurização.', ok: false }
+        : undefined,
+      resultados: [
+        { label: 'Pressão de fratura na referência', value: `${this.fmt(s.fracturePsi, 0)} psi (${this.fmt(toPpg(s.fracturePsi), 2)} ppg equiv.)` },
+        { label: 'Pressão de poros na referência', value: `${this.fmt(s.porePsi, 0)} psi (${this.fmt(toPpg(s.porePsi), 2)} ppg equiv.)` },
+        { label: 'TVD de referência', value: `${this.fmt(tvd, 1)} m` },
+        { label: 'Hidrostática de fundo máx.', value: `${this.fmt(hydroMaxPt.hydrostaticPsi, 0)} psi (${this.fmt(toPpg(hydroMaxPt.hydrostaticPsi), 2)} ppg equiv., fase ${hydroMaxPt.phase})` },
+        { label: 'Hidrostática de fundo mín.', value: `${this.fmt(hydroMinPt.hydrostaticPsi, 0)} psi (${this.fmt(toPpg(hydroMinPt.hydrostaticPsi), 2)} ppg equiv., fase ${hydroMinPt.phase})` },
+        ...(bhpDeslocMax != null ? [{ label: 'BHP máx. no deslocamento', value: `${this.fmt(bhpDeslocMax, 0)} psi — folga à fratura ${this.fmt(s.fracturePsi - bhpDeslocMax, 0)} psi` }] : []),
+        ...(bhpInjMax != null ? [
+          { label: 'BHP máx. na injeção/pressurização', value: `${this.fmt(bhpInjMax, 0)} psi — folga à fratura ${this.fmt(s.fracturePsi - bhpInjMax, 0)} psi` },
+          { label: 'Pressão de operação aplicada na superfície', value: `${this.fmt(pressaoOperacao, 0)} psi` },
+        ] : []),
+      ],
+      criterios,
+      tabelas: [{
+        titulo: 'Pressões por fase de bombeio',
+        colunas: ['Fase', 'Hidrostática máx.', 'BHP máx.', 'BHP máx. (ppg equiv.)', 'Folga à fratura', 'Posição na janela', 'Situação'],
+        linhas: linhasFase,
+        legenda: 'BHP = hidrostática + pressão aplicada − fricção da coluna + fricção do retorno anular. Posição na janela: 0% = pressão de poros, 100% = pressão de fratura.',
+      }],
+      memoria: [
+        {
+          title: 'Hidrostática de fundo (coluna)',
+          formulas: [
+            'P_hidro = Σ 0,1706 × ρᵢ (ppg) × hᵢ (m TVD) — soma dos fluidos dentro da coluna na referência.',
+            'O trem bombeado (água frente → pasta → água atrás → deslocamento) muda a composição da coluna no tempo — a hidrostática varia a cada fase.',
+            'Abaixo/fora do trem bombeado o poço está preenchido pelo fluido de completação.',
+          ],
+        },
+        {
+          title: 'Pressão exercida no deslocamento',
+          formulas: [
+            'BHP_desloc = P_hidro − fricção da coluna + fricção do retorno anular (poço aberto, sem pressão aplicada).',
+            bhpDeslocMax != null ? `BHP_desloc máx = ${this.fmt(bhpDeslocMax, 0)} psi = ${this.fmt(toPpg(bhpDeslocMax), 2)} ppg equivalente.` : 'Sem fase de deslocamento na simulação.',
+          ],
+        },
+        ...(inj.length ? [{
+          title: 'Pressão na injeção do squeeze',
+          formulas: [
+            'BHP_inj = P_operação (superfície) + P_hidro − fricção da coluna (anular estático, poço fechado).',
+            `BHP_inj máx = ${this.fmt(pressaoOperacao, 0)} + hidrostática = ${this.fmt(bhpInjMax, 0)} psi = ${this.fmt(toPpg(bhpInjMax ?? 0), 2)} ppg equivalente.`,
+          ],
+        }] : []),
+        {
+          title: 'Janela operacional (poro × fratura)',
+          formulas: [
+            `P_fratura = 0,1706 × ${this.fmt(this.toNumber(p.v.fracGrad, 16), 2)} ppg × ${this.fmt(tvd, 1)} m = ${this.fmt(s.fracturePsi, 0)} psi.`,
+            `P_poros = 0,1706 × ${this.fmt(this.toNumber(p.v.poreGrad, 9), 2)} ppg × ${this.fmt(tvd, 1)} m = ${this.fmt(s.porePsi, 0)} psi.`,
+          ],
+        },
+      ],
+      explicacao: [
+        atendeHydroFrat && atendeHydroPoro
+          ? `A hidrostática de fundo permanece dentro da janela poro × fratura durante todo o bombeio (${this.fmt(hydroMinPt.hydrostaticPsi, 0)}–${this.fmt(hydroMaxPt.hydrostaticPsi, 0)} psi para uma janela de ${this.fmt(s.porePsi, 0)}–${this.fmt(s.fracturePsi, 0)} psi).`
+          : `A hidrostática de fundo SAI da janela poro × fratura (${this.fmt(hydroMinPt.hydrostaticPsi, 0)}–${this.fmt(hydroMaxPt.hydrostaticPsi, 0)} psi contra ${this.fmt(s.porePsi, 0)}–${this.fmt(s.fracturePsi, 0)} psi) — o peso dos fluidos, por si só, já viola o limite.`,
+        bhpDeslocMax != null
+          ? (atendeDeslocFrat && atendeDeslocPoro
+            ? `Durante o deslocamento, a pressão total exercida no fundo fica entre ${this.fmt(bhpDeslocMin, 0)} e ${this.fmt(bhpDeslocMax, 0)} psi — abaixo da fratura (folga ${this.fmt(s.fracturePsi - (bhpDeslocMax ?? 0), 0)} psi) e acima do poro (folga ${this.fmt((bhpDeslocMin ?? 0) - s.porePsi, 0)} psi).`
+            : `Durante o deslocamento, a pressão total exercida no fundo (${this.fmt(bhpDeslocMin, 0)}–${this.fmt(bhpDeslocMax, 0)} psi) VIOLA a janela poro × fratura — rever densidade do fluido de deslocamento e vazões.`)
+          : '',
+        bhpInjMax != null
+          ? (atendeInjFrat
+            ? `Na injeção/pressurização final, a pressão de operação de ${this.fmt(pressaoOperacao, 0)} psi somada à hidrostática leva o fundo a ${this.fmt(bhpInjMax, 0)} psi — ${this.fmt((bhpInjMax - s.porePsi) / janela * 100, 0)}% da janela, com folga de ${this.fmt(s.fracturePsi - bhpInjMax, 0)} psi à fratura.`
+            : `Na injeção/pressurização final o fundo atinge ${this.fmt(bhpInjMax, 0)} psi e ULTRAPASSA a pressão de fratura (${this.fmt(s.fracturePsi, 0)} psi) — reduzir a pressão de operação ou a densidade do fluido de deslocamento.`)
+          : '',
+      ].filter(Boolean),
+      ajustes: this.dedupe([
+        ...(atendeHydroFrat ? [] : ['Reduzir a densidade da pasta e/ou dos fluidos anulares — a hidrostática estática já excede a fratura.']),
+        ...(atendeHydroPoro ? [] : ['Aumentar a densidade dos fluidos (completação/deslocamento) para manter a hidrostática acima da pressão de poros.']),
+        ...(atendeDeslocFrat ? [] : ['Reduzir a vazão de deslocamento (menos fricção anular) e/ou a densidade do fluido de deslocamento.']),
+        ...(atendeDeslocPoro ? [] : ['Aumentar a densidade do fluido de deslocamento ou aplicar contrapressão na superfície durante o deslocamento.']),
+        ...(atendeInjFrat ? [] : ['Reduzir a pressão de operação da injeção mantendo ΔP suficiente para injetar (ver relatório de Injetividade).']),
+      ]),
+    };
+  }
+
   // ── Free Fall ──────────────────────────────────────────────────────────────
   private avaliarFreeFall(p: ConformidadeParams): Avaliacao {
     const s = p.sim.summary;
@@ -389,15 +527,16 @@ export class ConformidadeOperacionalReportService {
     // Ponto de injeção da simulação: BHP no canhoneado durante a pressurização final.
     const injPts = p.sim.points.filter(pt => /Inje/i.test(pt.phase));
     const injPoint = injPts.length ? injPts[injPts.length - 1] : null;
-    const bhpCan = injPoint ? injPoint.bhpPsi : (pressaoOperacao + HYDRO_K * this.toNumber(p.v.completionWeight, 9.5) * tvd);
+    const bhpCan = injPoint ? injPoint.bhpPsi : (pressaoOperacao + HYDRO_K * this.toNumber(p.v.displacementWeight, this.toNumber(p.v.completionWeight, 9.5)) * tvd);
     const porePsi = s.porePsi;
     const fracPsi = s.fracturePsi;
     const deltaP = bhpCan - porePsi;
     const qInj = tempoPress > 0 ? volInjetado / tempoPress : 0;
 
     // Índice de injetividade II = Q / ΔP  (bpm/psi). Limiar de "baixa injetividade"
-    // é critério de engenharia ajustável (padrão conservador; validar em campo).
-    const LIMIAR_II = 0.001; // bpm/psi
+    // é critério de engenharia ajustável no menu lateral (4.5 Injeção).
+    const LIMIAR_II = this.toNumber(p.v.limiarInjetividadeBpmPsi, 0.001); // bpm/psi
+    const limiarSugerido = this.limiarInjetividadeSugerido(p.sim, p.v);
     const iiValido = deltaP > 0 && qInj > 0 && Number.isFinite(qInj / deltaP);
     const ii = iiValido ? qInj / deltaP : NaN;
 
@@ -512,8 +651,11 @@ export class ConformidadeOperacionalReportService {
               ? `II = Q / ΔP = ${this.fmt(qInj, 3)} / ${this.fmt(deltaP, 0)} = ${this.fmt(ii, 5)} bpm/psi`
               : 'II = Q / ΔP — inválido (ΔP ≤ 0 ou entradas ausentes)',
             `Limiar de baixa injetividade (ajustável) = ${LIMIAR_II} bpm/psi`,
+            limiarSugerido != null
+              ? `Limiar sugerido p/ o cenário = 2 × Q ÷ janela = 2 × ${this.fmt(qInj, 3)} ÷ ${this.fmt(fracPsi - porePsi, 0)} = ${this.fmt(limiarSugerido, 5)} bpm/psi`
+              : 'Limiar sugerido — indisponível (informe volume e tempo de pressurização).',
           ],
-          notes: ['O limiar de "baixa injetividade" é um critério de engenharia ajustável e específico do campo; ajuste conforme o teste de injetividade real.'],
+          notes: ['O limiar de "baixa injetividade" é um critério de engenharia específico do campo — ajustável no menu lateral ("4.5 Injeção") conforme o teste de injetividade real. O limiar sugerido usa FS 2 (a operação ocupa no máximo metade da janela poro→fratura).'],
         },
       ],
       explicacao,
@@ -528,12 +670,14 @@ export class ConformidadeOperacionalReportService {
    * na janela poro × fratura, controle de free fall, limites do equipamento e
    * (no squeeze) a injetividade. `hardFail` marca reprovações duras (BHP fora
    * da janela, free fall descontrolado, equipamento excedido, sem injeção).
+   * Dados de injeção incompletos NÃO são risco físico: o fator sai do score
+   * (a soma dos pesos renormaliza) e `injNaoAvaliada` sinaliza o aviso.
    */
   private computeRiskFactors(
     sim: SqueezeHydraulicSimulation,
     v: any,
     operacao: 'SQUEEZE' | 'TAMPÃO',
-  ): { fatores: FatorRisco[]; score: number; hardFail: boolean } {
+  ): { fatores: FatorRisco[]; score: number; hardFail: boolean; injNaoAvaliada: boolean } {
     const s = sim.summary;
     const window = Math.max(1, s.fracturePsi - s.porePsi);
     const posMax = (s.bhpMaxPsi - s.porePsi) / window;
@@ -558,6 +702,7 @@ export class ConformidadeOperacionalReportService {
       peso: operacao === 'SQUEEZE' ? 0.25 : 0.30,
       hardFail: fratHard,
       detalhe: `BHP máx ${this.fmt(s.bhpMaxPsi, 0)} psi ocupa ${this.fmt(posMax * 100, 0)}% da janela poro→fratura (folga ${this.fmt(s.marginToFracturePsi, 0)} psi).`,
+      correcao: 'reduzir a vazão de bombeio e/ou a pressão de operação; se persistir, aliviar a densidade da pasta ou dividir a cimentação em estágios (ver relatório de BHP/ECD).',
     });
     // 2. Controle de poço (BHP mín)
     const poreHard = s.bhpMinPsi <= s.porePsi;
@@ -567,6 +712,7 @@ export class ConformidadeOperacionalReportService {
       peso: operacao === 'SQUEEZE' ? 0.22 : 0.27,
       hardFail: poreHard,
       detalhe: `BHP mín ${this.fmt(s.bhpMinPsi, 0)} psi a ${this.fmt(posMin * 100, 0)}% da janela (folga sobre o poro ${this.fmt(s.marginAbovePorePsi, 0)} psi).`,
+      correcao: 'aumentar a densidade dos fluidos de deslocamento ou aplicar contrapressão na superfície; revisar coluna parcialmente preenchida e a pressão de poros (ver relatório de BHP/ECD).',
     });
     // 3. Free fall / tubo em U
     const ffHard = rateRatio > 0.5 || volRatio > 0.10;
@@ -576,6 +722,7 @@ export class ConformidadeOperacionalReportService {
       peso: operacao === 'SQUEEZE' ? 0.18 : 0.25,
       hardFail: ffHard,
       detalhe: `Vazão de queda livre ${this.fmt(rateRatio * 100, 0)}% (lim. 50%); volume ${this.fmt(volRatio * 100, 0)}% (lim. 10%).`,
+      correcao: 'reduzir o contraste de densidade pasta × fluido do anular, aplicar contrapressão (back-pressure) na superfície e/ou sub-deslocar o volume de queda livre (ver relatórios de Free Fall e Sub-deslocamento).',
     });
     // 4. Equipamento
     const equipHard = (s.equipmentAlerts?.length ?? 0) > 0;
@@ -588,22 +735,34 @@ export class ConformidadeOperacionalReportService {
       detalhe: s.hhpUsePct != null
         ? `Uso de HHP ${this.fmt(s.hhpUsePct, 0)}%${equipHard ? ` — ${s.equipmentAlerts.length} alerta(s)` : ''}.`
         : (equipHard ? `${s.equipmentAlerts.length} alerta(s) de equipamento.` : 'Sem limites informados / dentro do disponível.'),
+      correcao: 'reduzir a vazão programada e/ou a pressão de superfície, ou disponibilizar unidade com mais HHP (motor × eficiência); revisar os limites informados em Equipamento.',
     });
     // 5. Injetividade (só squeeze)
+    let injNaoAvaliada = false;
     if (operacao === 'SQUEEZE') {
       const inj = this.injetividadeSnapshot(sim, v);
-      const injHard = !inj.haInjecao || !inj.naoFratura || !inj.dadosOk;
-      fatores.push({
-        nome: 'Injetividade da formação',
-        risco: injHard ? 1 : (inj.baixa ? 0.6 : 0.15),
-        peso: 0.23,
-        hardFail: injHard,
-        detalhe: !inj.dadosOk ? 'Dados de injeção incompletos.'
-          : !inj.haInjecao ? `Sem injeção (ΔP = ${this.fmt(inj.deltaP, 0)} psi ≤ 0).`
+      if (!inj.dadosOk) {
+        injNaoAvaliada = true;
+      } else {
+        const injHard = !inj.haInjecao || !inj.naoFratura;
+        fatores.push({
+          nome: 'Injetividade da formação',
+          risco: injHard ? 1 : (inj.baixa ? 0.6 : 0.15),
+          peso: 0.23,
+          hardFail: injHard,
+          detalhe: !inj.haInjecao ? `Sem injeção (ΔP = ${this.fmt(inj.deltaP, 0)} psi ≤ 0).`
             : !inj.naoFratura ? `Injeção fraturaria (BHP ${this.fmt(inj.bhpCan, 0)} ≥ fratura ${this.fmt(inj.fracPsi, 0)} psi).`
               : inj.baixa ? `Baixa injetividade (II ${this.fmt(inj.ii, 5)} bpm/psi).`
                 : `Injeção possível (ΔP ${this.fmt(inj.deltaP, 0)} psi; II ${this.fmt(inj.ii, 5)} bpm/psi).`,
-      });
+          correcao: !inj.haInjecao
+            ? 'aumentar a pressão de operação mantendo o BHP abaixo da fratura e revisar pressão de poros/TVD dos canhoneados (ver relatório de Injetividade).'
+            : !inj.naoFratura
+              ? 'reduzir a pressão de operação e/ou a vazão para manter o BHP no canhoneado abaixo da pressão de fratura (ver relatório de Injetividade).'
+              : inj.baixa
+                ? 'reduzir a vazão e subir a pressão gradualmente dentro da janela; revisar o teste de injetividade (volume ÷ tempo) e possível obstrução/dano nos canhoneados (ver relatório de Injetividade).'
+                : 'manter os parâmetros de injeção do programa.',
+        });
+      }
     }
 
     const somaPeso = fatores.reduce((a, f) => a + f.peso, 0) || 1;
@@ -611,7 +770,22 @@ export class ConformidadeOperacionalReportService {
     const hardFail = fatores.some(f => f.hardFail);
     let score = Math.round(100 * (1 - riscoPonderado));
     if (hardFail) score = Math.min(score, 45); // reprovação dura nunca lê como “baixo risco”
-    return { fatores, score: this.clamp(score, 0, 100), hardFail };
+    return { fatores, score: this.clamp(score, 0, 100), hardFail, injNaoAvaliada };
+  }
+
+  /**
+   * Limiar de injetividade sugerido p/ o cenário: FS × Q_necessária ÷ janela.
+   * Q = volume a injetar ÷ tempo de pressurização; janela = fratura − poro na
+   * TVD de referência; FS = 2 (a operação usa no máximo metade da janela).
+   * Ponto de partida — o valor do teste de injetividade real prevalece.
+   */
+  limiarInjetividadeSugerido(sim: SqueezeHydraulicSimulation, v: any): number | null {
+    const s = sim.summary;
+    const vol = this.toNumber(v.volMaxInjetadoBbl, 0);
+    const tempo = this.toNumber(v.tempoPressurizacaoMin, 0);
+    const janela = s.fracturePsi - s.porePsi;
+    if (vol <= 0 || tempo <= 0 || janela <= 0) return null;
+    return 2 * (vol / tempo) / janela;
   }
 
   /** Snapshot de injetividade (reaproveitado pelo score, sem montar o relatório). */
@@ -623,15 +797,16 @@ export class ConformidadeOperacionalReportService {
     const injPts = sim.points.filter(pt => /Inje/i.test(pt.phase));
     const injPoint = injPts.length ? injPts[injPts.length - 1] : null;
     const bhpCan = injPoint ? injPoint.bhpPsi
-      : (pressaoOperacao + HYDRO_K * this.toNumber(v.completionWeight, 9.5) * s.referenceTVD);
+      : (pressaoOperacao + HYDRO_K * this.toNumber(v.displacementWeight, this.toNumber(v.completionWeight, 9.5)) * s.referenceTVD);
     const deltaP = bhpCan - s.porePsi;
     const qInj = tempoPress > 0 ? volInjetado / tempoPress : 0;
     const ii = deltaP > 0 && qInj > 0 ? qInj / deltaP : NaN;
+    const limiarII = this.toNumber(v.limiarInjetividadeBpmPsi, 0.001);
     return {
       dadosOk: pressaoOperacao > 0 && volInjetado > 0 && tempoPress > 0,
       haInjecao: deltaP > 0,
       naoFratura: bhpCan < s.fracturePsi,
-      baixa: Number.isFinite(ii) && ii < 0.001,
+      baixa: Number.isFinite(ii) && ii < limiarII,
       bhpCan, deltaP, ii, fracPsi: s.fracturePsi,
     };
   }
@@ -656,6 +831,7 @@ export class ConformidadeOperacionalReportService {
       const rateFactors = [0.5, 0.7, 0.85, 1.0];
       const standoffs = this.uniqNum([stoAtual, 70, 85, 100]);
       const densidades = this.uniqNum([densAtual, densAtual - 0.5, densAtual + 0.5]).filter(d => d >= 12 && d <= 19);
+      if (!densidades.length) densidades.push(densAtual); // densidade fora da faixa típica: varre só vazão × standoff
       for (const rateF of rateFactors) {
         for (const sto of standoffs) {
           for (const dens of densidades) {
@@ -680,6 +856,12 @@ export class ConformidadeOperacionalReportService {
         limite: 'sem reprovação dura',
         atende: !f.hardFail,
       })),
+      ...(base.injNaoAvaliada ? [{
+        criterio: 'Injetividade avaliada (dados de injeção completos)',
+        valor: 'dados incompletos',
+        limite: 'pressão, volume e tempo > 0',
+        atende: false,
+      }] : []),
     ];
 
     const resultados: Array<{ label: string; value: string }> = [
@@ -725,23 +907,32 @@ export class ConformidadeOperacionalReportService {
         ? `Há pelo menos um fator em reprovação dura: ${base.fatores.filter(f => f.hardFail).map(f => f.nome).join('; ')}. Enquanto existir reprovação dura o score é limitado e a operação não deve ser executada como está.`
         : `Nenhum fator está em reprovação dura — todos permanecem dentro dos limites físicos, com folga variável.`,
     ];
+    if (base.injNaoAvaliada) {
+      explicacao.push('A injetividade da formação NÃO entrou no score: os dados de injeção estão incompletos (Pressão de Operação, Volume injetado p/ formação e Tempo de pressurização devem ser > 0). O score acima é PARCIAL — consolida apenas os fatores hidráulicos — e o cenário permanece não operacional até completar os dados e reavaliar.');
+    }
     if (melhor && ganho > 0) {
       explicacao.push(`A varredura de otimização encontrou uma combinação que eleva o score para ${melhor.score}/100 (ganho de ${ganho} pontos): vazão ${this.fmt(rateBaseBpm * melhor.rateF, 2)} bpm, standoff ${this.fmt(melhor.sto, 0)}% e densidade ${this.fmt(melhor.dens, 1)} ppg. Trate como ponto de partida para a engenharia, não como ajuste automático.`);
     } else if (melhor) {
       explicacao.push(`A varredura não encontrou combinação melhor que a atual dentro do espaço avaliado — o cenário atual já é o melhor ponto na grade de vazão × standoff × densidade testada.`);
     }
 
-    const ajustes = this.dedupe(
-      base.fatores
+    const ajustes = this.dedupe([
+      ...(base.injNaoAvaliada ? [
+        'Preencher os dados de injeção (Pressão de Operação, Volume injetado p/ formação e Tempo de pressurização) para incluir a injetividade no score.',
+      ] : []),
+      ...base.fatores
         .filter(f => f.hardFail || f.risco >= 0.6)
         .sort((a, b) => b.risco - a.risco)
-        .map(f => `${f.nome}: ${f.detalhe} → priorizar correção deste fator (maior contribuição para o risco).`),
-    );
+        .map(f => `${f.nome}: ${f.detalhe} Como corrigir: ${f.correcao}`),
+    ]);
 
     return {
       titulo: `Score de risco e otimização — ${p.operacao === 'TAMPÃO' ? 'Tampão' : 'Squeeze'}`,
       subtitulo: 'Consolida ECD/BHP, free fall, equipamento' + (p.operacao === 'SQUEEZE' ? ' e injetividade' : '') + ' em um único score de sucesso, e varre vazão × standoff × densidade em busca do melhor conjunto.',
-      scoreBanner: { valor: base.score, rotulo: cls.rotulo, classe: cls.classe },
+      scoreBanner: { valor: base.score, rotulo: base.injNaoAvaliada ? `${cls.rotulo} (score parcial)` : cls.rotulo, classe: cls.classe },
+      estado: base.injNaoAvaliada
+        ? { rotulo: 'Score parcial — injetividade não avaliada (dados de injeção incompletos)', ok: false }
+        : undefined,
       resultados,
       criterios,
       tabelas,
@@ -751,6 +942,7 @@ export class ConformidadeOperacionalReportService {
           formulas: [
             'Score = 100 × (1 − Σ riscoᵢ × pesoᵢ / Σ pesoᵢ)',
             ...base.fatores.map(f => `${f.nome}: risco ${this.fmt(f.risco, 2)} × peso ${this.fmt(f.peso, 2)}  →  ${f.detalhe}`),
+            ...(base.injNaoAvaliada ? ['Injetividade da formação: NÃO AVALIADA (dados de injeção incompletos) — fator excluído do score; pesos renormalizados.'] : []),
             base.hardFail ? 'Reprovação dura ativa → score limitado a 45.' : 'Sem reprovação dura.',
           ],
           notes: [
@@ -758,6 +950,26 @@ export class ConformidadeOperacionalReportService {
             'Os pesos são critérios de engenharia (a soma normaliza para 1); ajuste conforme a criticidade do poço.',
           ],
         },
+        ...(p.operacao === 'SQUEEZE' ? [{
+          title: 'Índice de injetividade (II) — o que significa o bpm/psi',
+          formulas: [
+            'II = Q ÷ ΔP  (bpm/psi) — volume que a formação aceita por unidade de pressão aplicada',
+            'Q (bpm) = Vol. injetado p/ formação (bbl) ÷ Tempo de pressurização (min)',
+            'ΔP (psi) = BHP no canhoneado durante a injeção − Pressão de poros',
+            `Limiar de baixa injetividade = ${this.fmt(this.toNumber(p.v.limiarInjetividadeBpmPsi, 0.001), 5)} bpm/psi (ajustável em "4.5 Injeção")`,
+            (() => {
+              const sug = this.limiarInjetividadeSugerido(p.sim, p.v);
+              return sug != null
+                ? `Limiar sugerido p/ o cenário = 2 × Q ÷ janela poro→fratura = ${this.fmt(sug, 5)} bpm/psi`
+                : 'Limiar sugerido — indisponível (informe volume e tempo de pressurização).';
+            })(),
+          ],
+          notes: [
+            'O BHP no canhoneado vem da simulação (pressão de operação + hidrostática − fricção da coluna, sem retorno anular); a pressão de poros = K × gradiente de poros × TVD.',
+            'II abaixo do limiar indica formação que aceita pouco volume por psi: injeção lenta ou incompleta no tempo previsto.',
+            'O limiar sugerido usa FS 2 (a operação ocupa no máximo metade da janela); o valor do teste de injetividade real do poço prevalece.',
+          ],
+        }] : []),
         ...(combos.length ? [{
           title: 'Varredura de otimização',
           formulas: [
@@ -888,7 +1100,13 @@ export class ConformidadeOperacionalReportService {
     // Sensibilidade: variar o deslocamento e ver onde o topo da pasta assenta.
     // Sub-deslocar ΔV deixa o topo Δh = ΔV/cap mais raso (compensa a queda livre).
     // Topo assentado ≈ topo planejado + (Vff − subDesloc)/cap.
-    const deltas = [-3, -2, -1, 0, 1, 2, 3]; // bbl em torno do planejado
+    // Varredura centrada no deslocamento ótimo (Δ = −Vff), garantindo a linha do
+    // planejado (Δ = 0): se a queda livre exceder a faixa fixa de ±3 bbl, o ótimo
+    // ainda aparece (e é destacado) na tabela.
+    const offsets = [-3, -2, -1, 0, 1, 2, 3];
+    const deltas = this.uniqNum([0, ...offsets.map(o => -Vff + o)])
+      .filter(dv => deslocPlanejado + dv >= 0)
+      .sort((a, b) => a - b);
     const subRecomendado = Vff; // sub-deslocar o volume esperado de queda livre
     const linhas: string[][] = [];
     let destaqueIdx = -1;
@@ -1165,7 +1383,8 @@ export class ConformidadeOperacionalReportService {
   }
 
   private toNumber(value: unknown, fallback = 0): number {
-    const n = Number(String(value ?? '').replace(',', '.'));
+    if (value == null || String(value).trim() === '') return fallback;
+    const n = Number(String(value).replace(',', '.'));
     return Number.isFinite(n) ? n : fallback;
   }
 }

@@ -8,7 +8,7 @@
       <p class="subtitle">Cálculo de volumes, pasta, reologia e pressão para tampão de cimento.</p>
     </div>
     <div class="head-actions">
-      <button tuiButton class="btn btn--ghost" type="button" (click)="abrirRelatorioReceita()">
+      <button tuiButton class="btn btn--ghost" type="button" (click)="openCapaModal()">
         <tui-icon icon="@tui.file-text"></tui-icon>
         Gerar Relatório
       </button>
@@ -42,6 +42,19 @@
           <div class="acc-body">
             <div class="g2">
               <div class="col-span-2"><label>Cliente</label><input type="text" [ngModel]="dadosRelatorio.cliente" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.cliente=$event;saveDadosRelatorio()" placeholder="Nome do cliente"></div>
+              <div class="col-span-2">
+                <label>Logo do cliente</label>
+                <input type="file" accept="image/*" (change)="onClienteLogoSelected($event)">
+                @if (dadosRelatorio.clienteLogoImagem) {
+                  <div class="logo-preview">
+                    <img [src]="dadosRelatorio.clienteLogoImagem" alt="Logo do cliente">
+                    <div>
+                      <small class="file-name">{{ dadosRelatorio.clienteLogoNome }}</small>
+                      <button tuiButton class="btn btn--ghost btn--sm" type="button" (click)="clearClienteLogo()">Remover logo</button>
+                    </div>
+                  </div>
+                }
+              </div>
               <div class="col-span-2"><label>Preparado para</label><input type="text" [ngModel]="dadosRelatorio.preparadoPara" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.preparadoPara=$event;saveDadosRelatorio()" placeholder="Destinatário"></div>
               <div class="col-span-2"><label>Preparado por</label><input type="text" [ngModel]="dadosRelatorio.preparadoPor" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.preparadoPor=$event;saveDadosRelatorio()" placeholder="Autor"></div>
               <div class="col-span-2"><label>Revisado por</label><input type="text" [ngModel]="dadosRelatorio.revisadoPor" [ngModelOptions]="{standalone:true}" (ngModelChange)="dadosRelatorio.revisadoPor=$event;saveDadosRelatorio()" placeholder="Revisor"></div>
@@ -214,7 +227,8 @@
             <div class="g2">
               <div><label>Água frente (ppg)</label><input type="number" step="0.1" formControlName="mudWeightFront"></div>
               <div><label>Água atrás (ppg)</label><input type="number" step="0.1" formControlName="mudWeightBack"></div>
-              <div class="col-span-2"><label>Fl. deslocamento (ppg)</label><input type="number" step="0.1" formControlName="completionWeight"></div>
+              <div><label>Fl. deslocamento (ppg)</label><input type="number" step="0.1" formControlName="displacementWeight"></div>
+              <div><label>Fl. completação (ppg)</label><input type="number" step="0.1" formControlName="completionWeight" title="Fluido que preenche o poço (coluna e anular) antes da operação"></div>
             </div>
           </div>
         </tui-expand>
@@ -274,6 +288,14 @@
               </div>
               <div><label>BHST (°F)</label><input type="number" formControlName="bhst" class="field-readonly"></div>
               <div><label>SQT (°F)</label><input type="number" formControlName="bhct" class="field-readonly"></div>
+              <div style="grid-column:1/-1">
+                <label>Temperatura no relatório</label>
+                <select [ngModel]="reportTemperatureMode" [ngModelOptions]="{standalone:true}"
+                  (ngModelChange)="setReportTemperatureMode($event)">
+                  <option value="manual">Manual (BHST informada)</option>
+                  <option value="automatica">Automática (simulada)</option>
+                </select>
+              </div>
             </div>
           </div>
         </tui-expand>
@@ -316,24 +338,49 @@
               <div><label>Rendimento (L/sk)</label><input type="text" class="field-readonly" [value]="slurry ? fmt(slurry.yieldLPerSk, 2) : '-'" readonly></div>
               <div><label>FAC (gpc)</label><input type="text" class="field-readonly" [value]="slurry ? fmt(slurry.facGpc, 2) : '-'" readonly></div>
               <div class="col-span-2">
+                <label class="calc-mode-label">Fonte dos parâmetros da pasta</label>
+                <div class="vol-source">
+                  <label class="vol-source-opt" [class.active]="pastaParametrosSource === 'simulador'">
+                    <input type="radio" name="pastaParametrosSource" value="simulador"
+                      [checked]="pastaParametrosSource === 'simulador'"
+                      (change)="setPastaParametrosSource('simulador')">
+                    <span class="vol-source-title">Simulador</span>
+                    <span class="vol-source-val">Rendimento/FAC/FAM calculados</span>
+                  </label>
+                  <label class="vol-source-opt" [class.active]="pastaParametrosSource === 'manual'">
+                    <input type="radio" name="pastaParametrosSource" value="manual"
+                      [checked]="pastaParametrosSource === 'manual'"
+                      (change)="setPastaParametrosSource('manual')">
+                    <span class="vol-source-title">Manual</span>
+                    <span class="vol-source-val">Inseridos na sidebar</span>
+                  </label>
+                </div>
+              </div>
+              <div class="col-span-2">
                 <label>Rendimento da pasta (ft³/ft³)</label>
                 <input type="number" step="0.0001"
-                  [value]="manualYieldFt3 ?? recipe?.baseRecipe?.yieldFt3PerFt3Cement ?? ''"
+                  [value]="pastaYieldInputValue() ?? ''"
+                  [readonly]="!pastaParametrosManual()"
+                  [class.field-readonly]="!pastaParametrosManual()"
                   (input)="manualYieldFt3 = +$any($event.target).value || null; calcManualRecipe()">
               </div>
               <div>
-                <label>FAC manual (gpc)</label>
+                <label>FAC (gpc)</label>
                 <input type="number" step="0.01" min="0"
-                  [value]="manualFacGpc ?? ''"
+                  [value]="pastaFacInputValue() ?? ''"
+                  [readonly]="!pastaParametrosManual()"
+                  [class.field-readonly]="!pastaParametrosManual()"
                   (input)="manualFacGpc = +$any($event.target).value || null; calcManualRecipe()"
-                  [placeholder]="fmt(recipe?.baseRecipe?.facGpc) + ' auto'">
+                  [placeholder]="pastaParametrosManual() ? fmt(recipe?.baseRecipe?.facGpc) + ' simulador' : ''">
               </div>
               <div>
-                <label>FAM manual (gpc)</label>
+                <label>FAM (gpc)</label>
                 <input type="number" step="0.01" min="0"
-                  [value]="manualFamGpc ?? ''"
+                  [value]="pastaFamInputValue() ?? ''"
+                  [readonly]="!pastaParametrosManual()"
+                  [class.field-readonly]="!pastaParametrosManual()"
                   (input)="manualFamGpc = +$any($event.target).value || null; calcManualRecipe()"
-                  [placeholder]="fmt(recipe?.baseRecipe?.famGpc) + ' auto'">
+                  [placeholder]="pastaParametrosManual() ? fmt(recipe?.baseRecipe?.famGpc) + ' simulador' : ''">
               </div>
               <div class="col-span-2">
                 <button tuiButton class="btn btn--ghost btn--sm" type="button" (click)="calcManualRecipe(); setTab('manualRecipe')">Calcular receita por volume</button>
@@ -482,7 +529,7 @@
               <tr><td>Água Frente</td><td>{{ fmt(plug?.volWashTotal) }}</td><td>{{ fmt(vazaoFluido('fluidoFrenteBpm'), 1) }}</td><td>{{ fmt(form.value.mudWeightFront, 1) }}</td></tr>
               <tr><td>Pasta de cimento</td><td>{{ fmt(plug?.volCementTotal) }}</td><td>{{ fmt(vazaoFluido('pastaBpm'), 1) }}</td><td>{{ fmt(slurry?.density) }}</td></tr>
               <tr><td>Água Atrás</td><td>{{ fmt(plug?.volBackSpacer) }}</td><td>{{ fmt(vazaoFluido('fluidoAtrasBpm'), 1) }}</td><td>{{ fmt(form.value.mudWeightBack, 1) }}</td></tr>
-              <tr><td>Deslocamento</td><td>{{ fmt(plug?.volDisplacement) }}</td><td>{{ fmt(vazaoFluido('deslocamentoBpm'), 1) }}</td><td>{{ fmt(form.value.completionWeight, 1) }}</td></tr>
+              <tr><td>Deslocamento</td><td>{{ fmt(plug?.volDisplacement) }}</td><td>{{ fmt(vazaoFluido('deslocamentoBpm'), 1) }}</td><td>{{ fmt(form.value.displacementWeight, 1) }}</td></tr>
             </tbody>
           </table>
         </section>
@@ -635,6 +682,14 @@
       <!-- ══ Simulação ══ -->
       @if (activeTab === 'pressure') {
 
+        @if (hydraulicSim) {
+          <section class="card">
+            <div class="card-head"><h3>Índice Operacional Estimado — Tampão</h3></div>
+            <div class="op-index">{{ hydraulicSim.summary.operationalIndex }}%</div>
+            <p class="op-index-note">Índice heurístico operacional; não representa CFD nem eficiência física real.</p>
+          </section>
+        }
+
         <!-- 1) Utilitários do relatório -->
         <section class="card">
           <div class="card-head">
@@ -653,6 +708,9 @@
             </button>
             <button tuiButton class="btn btn--ghost" type="button" [disabled]="!hydraulicSim" (click)="gerarRelatorioConformidade('bhp')">
               Confirmar BHP
+            </button>
+            <button tuiButton class="btn btn--ghost" type="button" [disabled]="!hydraulicSim" (click)="gerarRelatorioConformidade('hidrostatica')">
+              Hidrostática × Fratura
             </button>
             <button tuiButton class="btn btn--ghost" type="button" [disabled]="!hydraulicSim" (click)="gerarRelatorioConformidade('freefall')">
               Confirmar Free Fall
@@ -782,7 +840,7 @@
       <tui-icon icon="@tui.bookmark"></tui-icon>
       <span>Cenários</span>
     </button>
-    <button class="sidebar-dock-btn sidebar-dock-btn--report" type="button" (click)="capaModalOpen = true">
+    <button class="sidebar-dock-btn sidebar-dock-btn--report" type="button" (click)="openCapaModal()">
       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       <span>Relatório</span>
     </button>
@@ -800,7 +858,7 @@
 <app-relatorio-capa-modal
   [open]="capaModalOpen"
   operacaoLabel="TAMPÃO"
-  [prefill]="dadosRelatorio"
+  [prefill]="relatorioPrefill"
   (closed)="capaModalOpen = false"
   (gerado)="onCapaGerada($event)">
 </app-relatorio-capa-modal>

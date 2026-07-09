@@ -157,7 +157,7 @@ function rotaInicial(user: AuthenticatedUser): string {
   const roles = new Set((user.roles ?? []).map((role) => role.replace(/^ROLE_/i, '').toUpperCase()));
 
   if (roles.has('ADMIN')) return '/app/dashboard';
-  if (roles.has('INTERNO')) return '/app/gerenciamento/processos';
+  if (roles.has('INTERNO')) return '/app/meu-usuario';
   if (roles.has('CIMENTACAO')) return '/app/simulador';
   if (roles.has('SONDA')) return '/app/monitoramento-sondas';
 

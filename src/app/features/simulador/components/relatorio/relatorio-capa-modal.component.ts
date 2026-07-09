@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 
 export interface RelatorioCapaData {
   cliente: string;
+  clienteLogoNome?: string;
+  clienteLogoImagem?: string;
   preparadoPara: string;
   documento: string;
   preparadoPor: string;
@@ -19,8 +21,11 @@ export interface RelatorioCapaData {
   revestimento?: string;
   zonaIsolarNome?: string;
   tipoReceitaRelatorio?: 'pasta' | 'volume';
+  calculoTampaoPor?: 'altura' | 'volume';
   zonaIsolarTopo?: string;
   zonaIsolarBase?: string;
+  inicioTampao?: string;
+  fimTampao?: string;
   baseTampao?: string;
   topoCimento?: string;
   esquemaMecanicoNome?: string;
@@ -30,6 +35,7 @@ export interface RelatorioCapaData {
   bhct?: number | string;
   bombeioRows?: RelatorioBombeioRow[];
   receitaRows?: RelatorioReceitaRow[];
+  pastaResumo?: RelatorioPastaResumoData;
   esquematicosSelecionados?: RelatorioEsquematicoTipo[];
   esquematicoImages?: RelatorioEsquematicoImage[];
   graficosOperacionaisSelecionados?: GraficoOperacionalTipo[];
@@ -52,6 +58,14 @@ export interface RelatorioReceitaRow {
   codigo: string;
   concentracao: string;
   quantidade: string;
+}
+
+export interface RelatorioPastaResumoData {
+  tipo: string;
+  origem: string;
+  rendimentoFt3PerFt3Cement?: number | string;
+  facGpc?: number | string;
+  famGpc?: number | string;
 }
 
 export interface RelatorioVazoesBombeioData {
@@ -144,10 +158,6 @@ export interface RelatorioSequenciaOperacionalData {
                     <span>Esquemático de bombeio</span>
                   </label>
                   <label class="check-item">
-                    <input type="checkbox" [checked]="isSchematicSelected('comTubing')" (change)="toggleSchematic('comTubing', $event)" />
-                    <span>Com tubing</span>
-                  </label>
-                  <label class="check-item">
                     <input type="checkbox" [checked]="isSchematicSelected('semTubing')" (change)="toggleSchematic('semTubing', $event)" />
                     <span>Sem tubing / final</span>
                   </label>
@@ -187,6 +197,74 @@ export interface RelatorioSequenciaOperacionalData {
                 <input type="number" step="0.1" [(ngModel)]="form.vazoesBombeio.deslocamentoBpm" placeholder="Vazao geral" />
               </div>
             </div>
+
+            @if (hasReviewData()) {
+              <div class="section section--review">
+                <div class="section-title">Revis&atilde;o do Relat&oacute;rio</div>
+
+                <div class="review-block">
+                  <h3>Temperatura</h3>
+                  <table class="review-table">
+                    <tbody>
+                      <tr><td>Gradiente geot&eacute;rmico</td><td>{{ formatReviewMetric(form.geoGradient, 2, '°F/100ft') }}</td></tr>
+                      <tr><td>BHST</td><td>{{ formatReviewMetric(form.bhst, 0, '°F') }}</td></tr>
+                      <tr><td>SQT</td><td>{{ formatReviewMetric(form.bhct, 0, '°F') }}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="review-block review-block--wide">
+                  <h3>Bombeio</h3>
+                  <table class="review-table">
+                    <thead>
+                      <tr><th>Fluido</th><th>Volume</th><th>Vaz&atilde;o</th><th>Dens.</th></tr>
+                    </thead>
+                    <tbody>
+                      @for (row of form.bombeioRows ?? []; track $index) {
+                        <tr>
+                          <td>{{ row.fluido }}</td>
+                          <td>{{ formatReviewMetric(row.volumeBbl, 2, 'bbl') }}</td>
+                          <td>{{ formatReviewMetric(row.vazaoBpm, 2, 'bpm') }}</td>
+                          <td>{{ formatReviewMetric(row.densidadePpg, 2, 'ppg') }}</td>
+                        </tr>
+                      } @empty {
+                        <tr><td colspan="4">Sem dados de bombeio calculados.</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="review-block">
+                  <h3>Receita da pasta</h3>
+                  <table class="review-table">
+                    <tbody>
+                      <tr><td>Fonte</td><td>{{ form.pastaResumo?.origem || '-' }}</td></tr>
+                      <tr><td>Rendimento</td><td>{{ formatReviewMetric(form.pastaResumo?.rendimentoFt3PerFt3Cement, 4, 'ft³/ft³') }}</td></tr>
+                      <tr><td>FAC</td><td>{{ formatReviewMetric(form.pastaResumo?.facGpc, 2, 'gpc') }}</td></tr>
+                      <tr><td>FAM</td><td>{{ formatReviewMetric(form.pastaResumo?.famGpc, 2, 'gpc') }}</td></tr>
+                    </tbody>
+                  </table>
+
+                  <table class="review-table review-table--recipe">
+                    <thead>
+                      <tr><th>Aditivo</th><th>C&oacute;digo</th><th>Concentra&ccedil;&atilde;o</th><th>Qtd.</th></tr>
+                    </thead>
+                    <tbody>
+                      @for (row of form.receitaRows ?? []; track $index) {
+                        <tr>
+                          <td>{{ row.aditivo }}</td>
+                          <td>{{ row.codigo }}</td>
+                          <td>{{ row.concentracao }}</td>
+                          <td>{{ row.quantidade }}</td>
+                        </tr>
+                      } @empty {
+                        <tr><td colspan="4">Sem receita calculada.</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
 
             <!-- Coluna esquerda: dados do documento -->
             <div class="section">
@@ -407,6 +485,58 @@ export interface RelatorioSequenciaOperacionalData {
       background: #fff;
     }
     .section--bpm .section-title { grid-column: 1 / -1; }
+    .section--review {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(220px, .8fr) minmax(360px, 1.35fr) minmax(260px, 1fr);
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid #dbe3ef;
+      border-radius: 10px;
+      background: #fff;
+    }
+    .section--review .section-title { grid-column: 1 / -1; }
+    .review-block {
+      min-width: 0;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+    .review-block h3 {
+      margin: 0;
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #1e293b;
+      font-size: .82rem;
+      font-weight: 700;
+    }
+    .review-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      font-size: .76rem;
+    }
+    .review-table th,
+    .review-table td {
+      padding: 7px 9px;
+      border-bottom: 1px solid #edf2f7;
+      text-align: left;
+      color: #334155;
+      vertical-align: middle;
+    }
+    .review-table th {
+      background: #f8fafc;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .review-table td:last-child,
+    .review-table th:last-child {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .review-table tr:last-child td { border-bottom: none; }
+    .review-table--recipe { border-top: 1px solid #e2e8f0; }
     .section--sequence {
       grid-column: 1 / -1;
       display: grid;
@@ -506,6 +636,10 @@ export interface RelatorioSequenciaOperacionalData {
       font-size: .82rem; font-weight: 600; cursor: pointer; transition: background .15s;
     }
     .btn-add-secao:hover { background: #eff6ff; }
+
+    @media (max-width: 900px) {
+      .section--review { grid-template-columns: 1fr; }
+    }
   `],
 })
 export class RelatorioCapaModalComponent implements OnChanges {
@@ -555,6 +689,34 @@ export class RelatorioCapaModalComponent implements OnChanges {
   }
 
   fechar(): void { this.closed.emit(); }
+
+  hasReviewData(): boolean {
+    return this.hasValue(this.form.geoGradient)
+      || this.hasValue(this.form.bhst)
+      || this.hasValue(this.form.bhct)
+      || !!this.form.bombeioRows?.length
+      || !!this.form.receitaRows?.length
+      || !!this.form.pastaResumo;
+  }
+
+  formatReviewNumber(value: unknown, decimals = 1): string {
+    if (!this.hasValue(value)) return '-';
+    const n = Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(n)) return String(value);
+    return n.toLocaleString('pt-BR', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  }
+
+  formatReviewMetric(value: unknown, decimals = 1, unit = ''): string {
+    const formatted = this.formatReviewNumber(value, decimals);
+    return formatted === '-' || !unit ? formatted : `${formatted} ${unit}`;
+  }
+
+  private hasValue(value: unknown): boolean {
+    return value != null && String(value).trim() !== '';
+  }
 
   async gerar(): Promise<void> {
     if (this.isGenerating) return;
@@ -649,6 +811,8 @@ export class RelatorioCapaModalComponent implements OnChanges {
     const today = new Date().toISOString().split('T')[0];
     return {
       cliente: '',
+      clienteLogoNome: '',
+      clienteLogoImagem: '',
       preparadoPara: '',
       documento: `Programa de Cimentação para ${this.operacaoLabel}`,
       preparadoPor: '',
@@ -661,7 +825,7 @@ export class RelatorioCapaModalComponent implements OnChanges {
       sonda: '',
       jobNum: '',
       tipoReceitaRelatorio: 'volume',
-      esquematicosSelecionados: ['bombeio', 'comTubing', 'semTubing'],
+      esquematicosSelecionados: ['bombeio', 'semTubing'],
       graficosOperacionaisSelecionados: [],
       secoesPersonalizadas: [],
       vazoesBombeio: {

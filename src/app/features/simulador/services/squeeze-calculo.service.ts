@@ -124,7 +124,7 @@ export class SqueezeCalculoService {
     // Pressão de fundo na injeção = pressão de operação aplicada na superfície
     // + hidrostática da coluna no estado final do deslocamento
     // (deslocamento → água atrás → pasta, até a TVD do canhoneado mais profundo).
-    const mwDesloc = Math.max(0, inputs.completionWeight || 9.5);
+    const mwDesloc = Math.max(0, inputs.displacementWeight || inputs.completionWeight || 9.5);
     const mwBack = Math.max(0, inputs.mudWeightBack || 9.5);
     const cementDen = Math.max(0, inputs.density || 15.8);
     const topCemTVD = this.core.clamp(section.tvdAt(geom.topCementImmersedMD), 0, deepTVD);

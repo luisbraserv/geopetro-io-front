@@ -76,6 +76,7 @@ ${this.extractBodyContent(html)}
     const logoUrl = `${base}/logo.png`;
     const indiceRows = this.buildIndiceRows(reportData, op);
     const technicalPages = this.buildTechnicalPages(reportData, op, logoUrl, dataFmt);
+    const clienteLogo = this.buildClienteLogoImg(reportData);
 
     const fichaRows = [
       { label: 'Cliente',        value: `<span class="v-cliente">${d.cliente || '—'}</span>` },
@@ -314,6 +315,12 @@ body{
   color:#94a3b8;
 }
 
+/* Fonte de todas as páginas após a capa (ficha, índice, técnicas). A capa
+   mantém a fonte do body (Inter). */
+.ficha-page,.indice-page,.tech-page{
+  font-family:'Arial Condensed Light','Arial Narrow',Arial,sans-serif;
+}
+
 /* ═══════════════ FICHA ═══════════════ */
 .ficha-page{
   padding:24mm 20mm 20mm;
@@ -322,12 +329,27 @@ body{
   display:flex;
   align-items:center;
   justify-content:space-between;
+  gap:8mm;
   padding-bottom:5mm;
   border-bottom:2px solid #2d5a8e;
   margin-bottom:8mm;
 }
 .ficha-header img{height:28px;object-fit:contain}
-.ficha-header-right{text-align:right;font-size:8.5pt}
+.ficha-header-right{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8mm;
+  text-align:right;
+  font-size:8.5pt;
+}
+.ficha-header-text{min-width:0}
+.report-client-logo{
+  display:block;
+  max-width:34mm;
+  max-height:14mm;
+  object-fit:contain;
+}
 .fh-label{font-size:7.5pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#4291e1}
 .fh-value{color:#334155;margin-top:2px}
 
@@ -360,11 +382,19 @@ td.fv{
   display:flex;
   align-items:center;
   justify-content:space-between;
+  gap:8mm;
   padding-bottom:5mm;
   border-bottom:2px solid #2d5a8e;
   margin-bottom:10mm;
 }
 .indice-header img{height:28px;object-fit:contain}
+.indice-header-right{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8mm;
+  text-align:right;
+}
 .indice-kicker{
   font-size:7.5pt;
   font-weight:700;
@@ -437,7 +467,18 @@ td.fv{
 .tech-page{
   padding:16mm 18mm;
   color:#111827;
-  font-family:'Inter','Segoe UI',Arial,sans-serif;
+  font-family:'Arial Condensed Light','Arial Narrow',Arial,sans-serif;
+}
+.tech-page--client-logo .tech-section-title{
+  padding-right:42mm;
+}
+.tech-client-logo{
+  position:absolute;
+  top:10mm;
+  right:18mm;
+  max-width:34mm;
+  max-height:14mm;
+  object-fit:contain;
 }
 .tech-section-title{
   display:flex;
@@ -904,8 +945,11 @@ async function _downloadDocx(){
   <div class="ficha-header">
     <img src="${logoUrl}" alt="BRASERV" />
     <div class="ficha-header-right">
+      <div class="ficha-header-text">
       <div class="fh-label">Cimentação ${op}</div>
       <div class="fh-value">${d.origem || ''}</div>
+      </div>
+      ${clienteLogo}
     </div>
   </div>
 
@@ -919,16 +963,19 @@ async function _downloadDocx(){
 
 </div>
 
-<!-- INDICE -->
+<!-- SUMARIO -->
 <div class="page indice-page">
   <div class="indice-header">
     <img src="${logoUrl}" alt="BRASERV" />
-    <div class="indice-kicker">CimentaÃ§Ã£o ${op}</div>
+    <div class="indice-header-right">
+    <div class="indice-kicker">Cimenta&ccedil;&atilde;o ${op}</div>
+      ${clienteLogo}
+    </div>
   </div>
 
-  <div class="indice-title">Indice</div>
+  <div class="indice-title">Sum&aacute;rio</div>
   <div class="indice-subtitle">
-    Sumario das secoes que compoem o programa de cimentacao.
+    Se&ccedil;&otilde;es e p&aacute;ginas que comp&otilde;em o programa de cimenta&ccedil;&atilde;o.
   </div>
 
   <div class="indice-list">
@@ -936,7 +983,7 @@ async function _downloadDocx(){
   </div>
 
   <div class="indice-note">
-    A numeracao sera consolidada conforme as secoes tecnicas forem adicionadas ao relatorio.
+    Numera&ccedil;&atilde;o calculada automaticamente conforme as se&ccedil;&otilde;es inclu&iacute;das no relat&oacute;rio.
   </div>
 </div>
 
@@ -949,14 +996,13 @@ ${technicalPages}
   private buildTechnicalPages(d: RelatorioCapaData, op: string, logoUrl: string, dataFmt: string): string {
     const titleOp = op.toUpperCase();
     const zoneText = this.buildZoneText(d);
-    const baseTampao = this.formatMeters(d.baseTampao);
-    const topoCimento = this.formatMeters(d.topoCimento);
+    const objetivosTampao = this.buildObjetivosTampaoRows(d);
     const job = this.escape(d.jobNum || (d.baseTampao ? `${titleOp} @ ${this.formatMeters(d.baseTampao)}` : titleOp));
     const esquema = d.esquemaMecanicoImagem
       ? `<img class="mechanical-img" src="${d.esquemaMecanicoImagem}" alt="Esquema mecanico" />`
       : `<div class="mechanical-empty">Selecione uma imagem de esquema mecanico no modal do relatorio.</div>`;
 
-    const mechanicalPage = this.buildMechanicalSchematicPage(esquema);
+    const mechanicalPage = this.buildMechanicalSchematicPage(esquema, d);
     const operationPage = this.buildOperationPage(d);
     const schematicPage = this.buildPumpSchematicPage(d);
     const sequencePage = this.buildOperationalSequencePages(d);
@@ -964,7 +1010,8 @@ ${technicalPages}
     const graficosPages = this.buildGraficosOperacionais(d);
 
     return `
-<div class="page tech-page">
+<div class="${this.techPageClass(d)}">
+  ${this.buildTechClienteLogo(d)}
   <section class="tech-subsection">
     <div class="tech-section-title">
       <span class="num">1.</span>
@@ -977,8 +1024,7 @@ ${technicalPages}
     </div>
     <ul class="tech-list">
       <li>Isolar zonas intervalo: ${zoneText}</li>
-      <li>Base do tampao: ${baseTampao}</li>
-      <li>Topo de cimento: ${topoCimento}</li>
+      ${objetivosTampao}
     </ul>
   </section>
 
@@ -1030,9 +1076,10 @@ ${sequencePage}
 ${secoesPages}`;
   }
 
-  private buildMechanicalSchematicPage(esquema: string): string {
+  private buildMechanicalSchematicPage(esquema: string, d: RelatorioCapaData): string {
     return `
-<div class="page tech-page mechanical-page">
+<div class="${this.techPageClass(d, 'mechanical-page')}">
+  ${this.buildTechClienteLogo(d)}
   <section class="tech-subsection">
     <div class="tech-section-title schematic-title-line">
       <span class="num">2.2</span>
@@ -1054,9 +1101,11 @@ ${secoesPages}`;
         </tr>
       `)
       .join('');
+    const pastaResumoTable = this.buildPastaResumoTable(d);
 
     return `
-<div class="page tech-page">
+<div class="${this.techPageClass(d)}">
+  ${this.buildTechClienteLogo(d)}
   <section class="tech-subsection">
     <div class="tech-section-title">
       <span class="num">3.</span>
@@ -1072,7 +1121,7 @@ ${secoesPages}`;
         <tr><th colspan="2">Temperatura</th></tr>
       </thead>
       <tbody>
-        <tr><td>Gradiente Geotermico</td><td>${this.formatNumber(d.geoGradient)} °F/100ft</td></tr>
+        <tr><td>Gradiente Geotermico</td><td>${this.formatNumber(d.geoGradient, 2)} °F/100ft</td></tr>
         <tr><td>BHST</td><td>${this.formatNumber(d.bhst, 0)} °F</td></tr>
         <tr><td>SQT</td><td>${this.formatNumber(d.bhct, 0)} °F</td></tr>
       </tbody>
@@ -1095,8 +1144,38 @@ ${secoesPages}`;
         ${bombeioRows || '<tr><td colspan="4">Sem dados de bombeio calculados.</td></tr>'}
       </tbody>
     </table>
+    ${pastaResumoTable}
   </section>
 </div>`;
+  }
+
+  private buildPastaResumoTable(d: RelatorioCapaData): string {
+    const resumo = d.pastaResumo;
+    if (!resumo) return '';
+
+    return `
+    <div class="tech-subtitle" style="margin-top:12mm">
+      <span class="num">3.3</span>
+      <h2>Receita da pasta</h2>
+    </div>
+    <table class="operation-table">
+      <thead>
+        <tr>
+          <th>Fonte</th>
+          <th>Rendimento</th>
+          <th>FAC</th>
+          <th>FAM</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>${this.escape(resumo.tipo || '')} - ${this.escape(resumo.origem || '')}</td>
+          <td>${this.formatMetric(resumo.rendimentoFt3PerFt3Cement, 4, 'ft&sup3;/ft&sup3;')}</td>
+          <td>${this.formatMetric(resumo.facGpc, 2, 'gpc')}</td>
+          <td>${this.formatMetric(resumo.famGpc, 2, 'gpc')}</td>
+        </tr>
+      </tbody>
+    </table>`;
   }
 
   private buildPumpSchematicPage(d: RelatorioCapaData): string {
@@ -1106,7 +1185,8 @@ ${secoesPages}`;
     return images.map((item, i) => {
       const continuation = i > 0 ? '<span class="section-continuation">continuação</span>' : '';
       return `
-<div class="page tech-page pump-schematic-page">
+<div class="${this.techPageClass(d, 'pump-schematic-page')}">
+    ${this.buildTechClienteLogo(d)}
   <section class="tech-subsection">
     <div class="tech-section-title schematic-title-line">
       <span class="num">4.</span>
@@ -1167,7 +1247,8 @@ ${secoesPages}`;
     const bhst = this.formatNumber(d.bhst, 1);
 
     return `
-<div class="page tech-page sequence-page">
+<div class="${this.techPageClass(d, 'sequence-page')}">
+  ${this.buildTechClienteLogo(d)}
   <section class="tech-subsection">
     <div class="tech-section-title schematic-title-line">
       <span class="num">5.</span>
@@ -1192,7 +1273,8 @@ ${secoesPages}`;
     </ol>
   </section>
 </div>
-<div class="page tech-page sequence-page">
+<div class="${this.techPageClass(d, 'sequence-page')}">
+  ${this.buildTechClienteLogo(d)}
   <section class="tech-subsection">
     <div class="tech-section-title schematic-title-line">
       <span class="num">5.</span>
@@ -1303,7 +1385,7 @@ ${secoesPages}`;
 
     // Seções personalizadas (condicional)
     for (const sec of secoesPersonalizadas) {
-      if (sec.titulo) sections.push([this.escape(sec.titulo), String(pg++)]);
+      sections.push([this.escape(sec.titulo || 'Seção personalizada'), String(pg++)]);
     }
 
     return sections
@@ -1318,6 +1400,18 @@ ${secoesPages}`;
 
   private buildZoneText(d: RelatorioCapaData): string {
     return this.escape(d.zonaIsolarNome || '-');
+  }
+
+  private buildObjetivosTampaoRows(d: RelatorioCapaData): string {
+    if (d.calculoTampaoPor === 'altura') {
+      return `
+      <li>In&iacute;cio do tamp&atilde;o: ${this.formatMeters(d.inicioTampao)}</li>
+      <li>Fim do tamp&atilde;o: ${this.formatMeters(d.fimTampao)}</li>`;
+    }
+
+    return `
+      <li>Base do tamp&atilde;o: ${this.formatMeters(d.baseTampao)}</li>
+      <li>Topo de cimento: ${this.formatMeters(d.topoCimento)}</li>`;
   }
 
   private extractDensity(d: RelatorioCapaData): string {
@@ -1374,6 +1468,26 @@ ${secoesPages}`;
     return n.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   }
 
+  private formatMetric(value: string | number | undefined, decimals: number, unit: string): string {
+    const formatted = this.formatNumber(value, decimals);
+    return formatted ? `${formatted} ${unit}` : '-';
+  }
+
+  private buildClienteLogoImg(d: RelatorioCapaData, className = 'report-client-logo'): string {
+    if (!d.clienteLogoImagem) return '';
+    return `<img class="${className}" src="${this.escape(d.clienteLogoImagem)}" alt="${this.escape(d.clienteLogoNome || 'Logo do cliente')}" />`;
+  }
+
+  private buildTechClienteLogo(d: RelatorioCapaData): string {
+    return this.buildClienteLogoImg(d, 'tech-client-logo');
+  }
+
+  private techPageClass(d: RelatorioCapaData, extraClass = ''): string {
+    return ['page', 'tech-page', extraClass, d.clienteLogoImagem ? 'tech-page--client-logo' : '']
+      .filter(Boolean)
+      .join(' ');
+  }
+
   private escape(value: string): string {
     return String(value ?? '')
       .replace(/&/g, '&amp;')
@@ -1387,7 +1501,8 @@ ${secoesPages}`;
     const imgs = d.graficosOperacionaisImages;
     if (!imgs || imgs.length === 0) return '';
     return imgs.map((img: GraficoOperacionalImage) => `
-<div class="page tech-page grafico-operacional-page">
+<div class="${this.techPageClass(d, 'grafico-operacional-page')}">
+  ${this.buildTechClienteLogo(d)}
   <section class="tech-subsection">
     <div class="tech-section-title schematic-title-line">
       <h1>${this.escape(img.label)}</h1>
@@ -1408,10 +1523,10 @@ ${secoesPages}`;
       const imagens = (sec.imagens || []).map(img => `
         <figure class="secao-figura">
           <img src="${img.data}" alt="${this.escape(img.nome)}" class="secao-img" />
-          <figcaption>${this.escape(img.nome)}</figcaption>
         </figure>`).join('');
       return `
-<div class="page tech-page secao-personalizada-page">
+<div class="${this.techPageClass(d, 'secao-personalizada-page')}">
+  ${this.buildTechClienteLogo(d)}
   <section class="tech-subsection">
     <div class="tech-section-title">
       <h1>${titulo}</h1>

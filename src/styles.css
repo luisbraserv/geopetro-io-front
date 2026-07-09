@@ -284,28 +284,6 @@ button.danger {
   }
 }
 
-.quimicos-notice {
-  position: fixed !important;
-  inset: auto auto 24px 50% !important;
-  transform: translateX(-50%);
-  z-index: 20;
-  display: block;
-  box-sizing: border-box;
-  inline-size: max-content !important;
-  block-size: auto !important;
-  min-block-size: 0 !important;
-  max-inline-size: calc(100vw - 32px);
-  max-block-size: none !important;
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: var(--color-accent);
-  color: #fff;
-  box-shadow: 0 12px 28px rgba(156, 102, 78, 0.24);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
 .operation-row {
   cursor: pointer;
 }

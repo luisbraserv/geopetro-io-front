@@ -8,7 +8,6 @@ import { authGuard } from './features/auth/guards/auth.guard';
 import { SimuladorIndexComponent } from './features/simulador/pages/simulador-index/simulador-index.component';
 import { SimuladorSqueezeComponent } from './features/simulador/pages/simulador-squeeze/simulador-squeeze.component';
 import { SimuladorTampaoComponent } from './features/simulador/pages/simulador-tampao/simulador-tampao.component';
-import { QuimicosPageComponent } from './features/quimicos/pages/quimicos-page/quimicos-page.component';
 import { UsuariosAdminPageComponent } from './features/usuarios/pages/usuarios-admin-page/usuarios-admin-page.component';
 import { MeuUsuarioPageComponent } from './features/usuarios/pages/meu-usuario-page/meu-usuario-page.component';
 import { PaginaNaoEncontradaComponent } from './shared/pages/pagina-nao-encontrada/pagina-nao-encontrada.component';
@@ -18,10 +17,6 @@ import { SetoresPageComponent } from './features/cadastros/pages/setores-page/se
 import { UnidadesSondasPageComponent } from './features/cadastros/pages/unidades-sondas-page/unidades-sondas-page.component';
 import { ProjetosPageComponent } from './features/cadastros/pages/projetos-page/projetos-page.component';
 import { RegionaisPageComponent } from './features/cadastros/pages/regionais-page/regionais-page.component';
-import { ProcessosPageComponent } from './features/gerenciamento/pages/processos-page/processos-page.component';
-import { ProcessoDetailPageComponent } from './features/gerenciamento/pages/processo-detail-page/processo-detail-page.component';
-import { ProcessosArquivadosPageComponent } from './features/gerenciamento/pages/processos-arquivados-page/processos-arquivados-page.component';
-import { ProcessosResumoPageComponent } from './features/gerenciamento/pages/processos-resumo-page/processos-resumo-page.component';
 
 
 export const routes: Routes = [
@@ -66,12 +61,6 @@ export const routes: Routes = [
           { path: 'squeeze', component: SimuladorSqueezeComponent },
           { path: 'tampao', component: SimuladorTampaoComponent },
         ],
-      },
-      {
-        path: 'quimicos',
-        component: QuimicosPageComponent,
-        canActivate: [authGuard],
-        data: { roles: ['CIMENTACAO', 'ADMIN'] },
       },
       {
         path: 'administracao/usuarios',
@@ -128,24 +117,6 @@ export const routes: Routes = [
         ],
       },
       {
-        path: 'gerenciamento/processos',
-        component: ProcessosPageComponent,
-        canActivate: [authGuard],
-        data: { roles: ['INTERNO', 'CIMENTACAO', 'ADMIN'] },
-      },
-      {
-        path: 'gerenciamento/processos/arquivados',
-        component: ProcessosArquivadosPageComponent,
-        canActivate: [authGuard],
-        data: { roles: ['INTERNO', 'CIMENTACAO', 'ADMIN'] },
-      },
-      {
-        path: 'gerenciamento/processos/:id',
-        component: ProcessoDetailPageComponent,
-        canActivate: [authGuard],
-        data: { roles: ['INTERNO', 'CIMENTACAO', 'ADMIN'] },
-      },
-      {
         path: 'monitoramento-sondas',
         loadComponent: () =>
           import('./features/monitoramento/pages/monitoramento-sonda-page/monitoramento-sonda-page.component').then(
@@ -159,27 +130,12 @@ export const routes: Routes = [
         component: MeuUsuarioPageComponent,
       },
       {
-        path: 'configuracoes',
-        loadComponent: () =>
-          import('./features/configuracoes/pages/configuracoes-page/configuracoes-page.component').then(
-            (m) => m.ConfiguracoesPageComponent,
-          ),
-        canActivate: [authGuard],
-        data: { roles: ['ADMIN'] },
-      },
-      {
         path: '**',
         component: PaginaNaoEncontradaComponent,
       },
     ],
   },
 
-  {
-    path: 'resumo-processos',
-    component: ProcessosResumoPageComponent,
-    canActivate: [authGuard],
-    data: { roles: ['INTERNO', 'CIMENTACAO', 'ADMIN'] },
-  },
   {
     path: '404',
     component: PaginaNaoEncontradaComponent,

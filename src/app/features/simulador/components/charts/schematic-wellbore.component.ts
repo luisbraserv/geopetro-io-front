@@ -112,8 +112,13 @@ export class SchematicWellboreComponent implements AfterViewInit, OnChanges, OnD
 
     const H = 740;
     const W = Math.max(420, (canvas.parentElement?.clientWidth || 520) - 24);
-    canvas.width = W; canvas.height = H;
+    // Super-amostragem: backing store 3× maior (mesmo layout lógico W×H) para
+    // exportar/imprimir o esquemático nítido no relatório/PDF.
+    const scale = 3;
+    canvas.width = Math.round(W * scale);
+    canvas.height = Math.round(H * scale);
     const cx = canvas.getContext('2d')!;
+    cx.setTransform(scale, 0, 0, scale, 0, 0);
     cx.clearRect(0, 0, W, H);
 
     const totalDepth = Math.max(cfg.workZoneBaseM + 60, cfg.wellFinalMD || cfg.workZoneBaseM + 60);

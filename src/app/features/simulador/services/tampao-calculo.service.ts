@@ -122,6 +122,7 @@ export class TampaoCalculoService {
     const poreGrad = inputs.poreGrad || 9.0;
     const K = HYDRO_M;
     const mwComp = inputs.completionWeight || 9.5;
+    const mwDesloc = inputs.displacementWeight || mwComp;
     const mwFront = inputs.mudWeightFront || 9.5;
     const mwBack = inputs.mudWeightBack || 9.5;
     const cementDen = slurry.density || 15.8;
@@ -167,7 +168,7 @@ export class TampaoCalculoService {
     ];
     // Coluna (dentro do tubing), de cima para baixo: deslocamento → água atrás → pasta
     const insideLayers = [
-      { from: 0, to: topBackTVD, den: mwComp },
+      { from: 0, to: topBackTVD, den: mwDesloc },
       { from: topBackTVD, to: topCemAnnTVD, den: mwBack },
       { from: topCemAnnTVD, to: baseTVD, den: cementDen },
       { from: baseTVD, to: Number.POSITIVE_INFINITY, den: mwComp },

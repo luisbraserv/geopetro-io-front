@@ -94,6 +94,8 @@ export class SqueezeHydraulicSimulationService {
     const poreGrad = inputs.gradientePoroPpg ?? inputs.poreGrad ?? 9;
     const fracGrad = inputs.gradienteFraturaPpg ?? inputs.fracGrad ?? 16;
     const completion = inputs.densidadeFluidoCompletaçãoPpg ?? inputs.completionWeight ?? 9.5;
+    // Fluido de deslocamento (bombeado) ≠ fluido de completação (preenche o poço).
+    const displacement = inputs.densidadeFluidoDeslocamentoPpg ?? inputs.displacementWeight ?? completion;
     const front = inputs.densidadeAguaFrentePpg ?? inputs.mudWeightFront ?? 9.5;
     const back = inputs.densidadeAguaAtrasPpg ?? inputs.mudWeightBack ?? 9.5;
     const cement = inputs.densidadePastaPpg ?? slurry.density ?? 15.8;
@@ -120,14 +122,14 @@ export class SqueezeHydraulicSimulationService {
       { label: 'Água frente', volumeBbl: inputs.volumeAguaFrenteBbl ?? geom.frontPhysicalVolumeBbl, densityPpg: front, rateBpm: rateFrente, pauseMin: pause1Min, rheo: waterRheo },
       { label: 'Pasta de cimento', volumeBbl: inputs.volumePastaBbl ?? geom.slurryTotal, densityPpg: cement, rateBpm: ratePasta, pauseMin: pause2Min, rheo: slurryRheo },
       { label: 'Água atrás', volumeBbl: inputs.volumeAguaAtrasBbl ?? geom.volBackSpacer, densityPpg: back, rateBpm: rateAtras, pauseMin: pause3Min, rheo: waterRheo },
-      { label: 'Deslocamento', volumeBbl: inputs.volumeDeslocamentoBbl ?? geom.operationalDisplacementVolumeBbl, densityPpg: completion, rateBpm: rateDesloc, rheo: waterRheo },
+      { label: 'Deslocamento', volumeBbl: inputs.volumeDeslocamentoBbl ?? geom.operationalDisplacementVolumeBbl, densityPpg: displacement, rateBpm: rateDesloc, rheo: waterRheo },
     ];
     // Tampão: a operação termina no deslocamento (plug balanceado) — não há injeção.
     if (inputs.modoOperacao !== 'tampao') {
       phases.push({
         label: 'Injeção/pressurização final',
         volumeBbl: injectionVolumeBbl,
-        densityPpg: completion,
+        densityPpg: displacement,
         rateBpm: injectionRateBpm,
         pauseMin: injectionRateBpm > 0 ? 0 : pressurizacaoMin,
         rheo: waterRheo,
@@ -170,13 +172,19 @@ export class SqueezeHydraulicSimulationService {
         const drivePsi = Math.max(0, hydrostaticPsi - annularHydrostaticPsi);
         const frictionPsi = programmedRate > 0 ? this.calculateFrictionLoss(programmedRate, referenceMD, phase.densityPpg, geom.tID, phase.rheo, rheologyPressureFactor, roughnessFactor) : 0;
         const appliedSurfacePsi = Math.max(0, phase.appliedSurfacePsi ?? 0);
+        // Poço fechado (pressão aplicada na superfície): o fluido só avança pela
+        // vazão injetada na formação — não há retorno pelo anular nem queda livre,
+        // pois o tubo em U exige caminho aberto para a coluna cair.
+        const openWell = appliedSurfacePsi <= 0;
         // Fricção do retorno pelo anular: só existe bombeando com o poço aberto.
         // Na injeção (pressão aplicada) o fluido vai para a formação — anular estático.
-        const hasAnnularReturn = programmedRate > 0 && appliedSurfacePsi <= 0;
+        const hasAnnularReturn = programmedRate > 0 && openWell;
         const annularFrictionPsi = hasAnnularReturn
           ? this.calculateAnnularFrictionLoss(programmedRate, referenceMD, phase.densityPpg, geom.cID, geom.tOD, phase.rheo, rheologyPressureFactor, roughnessFactor, standoffPct)
           : 0;
-        const naturalRate = this.solveFreeFallRate(drivePsi, programmedRate || rate, referenceMD, phase.densityPpg, geom.tID, phase.rheo, rheologyPressureFactor, roughnessFactor, freeFallMaxFactor);
+        const naturalRate = openWell
+          ? this.solveFreeFallRate(drivePsi, programmedRate || rate, referenceMD, phase.densityPpg, geom.tID, phase.rheo, rheologyPressureFactor, roughnessFactor, freeFallMaxFactor)
+          : 0;
         const realRate = Math.max(programmedRate, naturalRate);
         const freeFallExtraRate = Math.max(0, realRate - programmedRate);
         freeFallAccum += freeFallExtraRate * dt;

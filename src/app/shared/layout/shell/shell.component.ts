@@ -46,20 +46,6 @@ const ALL_NAV_ENTRIES: NavEntry[] = [
     icon: '@tui.layers',
     children: [
       { kind: 'leaf', label: 'Simulador', icon: '@tui.flask-conical', route: '/app/simulador' },
-      { kind: 'leaf', label: 'Químicos', icon: '@tui.package', route: '/app/quimicos' },
-    ],
-  },
-  {
-    kind: 'group',
-    label: 'Gerenciamento',
-    icon: '@tui.folder-kanban',
-    children: [
-      {
-        kind: 'leaf',
-        label: 'Gerenciamento de Processo',
-        icon: '@tui.list-checks',
-        route: '/app/gerenciamento/processos',
-      },
     ],
   },
   {
@@ -88,7 +74,6 @@ export class ShellComponent {
   protected readonly showLabels = computed(
     () => (!this.sidebarCollapsed() && !this.isMobile()) || this.mobileOpen(),
   );
-  protected readonly isAdmin = computed(() => obterRolesUsuario(this.currentUser()).includes('ADMIN'));
 
   protected readonly toggleIcon = computed(() => {
     if (this.isMobile()) return this.mobileOpen() ? '@tui.x' : '@tui.menu';
