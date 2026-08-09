@@ -23,19 +23,14 @@ export interface MonitoramentoSerie {
 @Injectable({ providedIn: 'root' })
 export class MonitoramentoSondaService {
   private readonly http = inject(HttpClient);
-  // Backend-Telemetria (:8081) — endpoint de consulta de séries no InfluxDB
-  private readonly telemetriaUrl = `${environment.telemetriaUrl}/api/monitoramentos`;
+  // Backend-Sonda (API principal): valida JWT/permissões do usuário e faz proxy da
+  // consulta ao InfluxDB (via aplicação de telemetria). O front não fala direto com o
+  // telemetria; sempre passa pelo backend para respeitar o vínculo do usuário às sondas.
+  private readonly sondasUrl = `${environment.apiUrl}/api/sondas`;
 
   listarMinhas(): Observable<SondaDisponivel[]> {
-    // Retorna lista estática enquanto não existe endpoint de sondas no backend-telemetria.
-    // Estas unidades correspondem ao seed de telemetria no InfluxDB e ao cadastro em unidades_sondas.
-    return new Observable(obs => {
-      obs.next([
-        { idSondaUnidade: 'SPT-144', nome: 'SPT-144', apelido: 'SPT-144' },
-        { idSondaUnidade: 'SPT-145', nome: 'SPT-145', apelido: 'SPT-145' },
-      ]);
-      obs.complete();
-    });
+    // Apenas as sondas vinculadas ao setor/empresa do usuário autenticado.
+    return this.http.get<SondaDisponivel[]>(`${this.sondasUrl}/minhas`);
   }
 
   consultarSerie(
@@ -49,7 +44,7 @@ export class MonitoramentoSondaService {
       .set('inicio', inicio)
       .set('fim', fim);
     return this.http.get<MonitoramentoSerie>(
-      `${this.telemetriaUrl}/sondas/${encodeURIComponent(idSondaUnidade)}/series`,
+      `${this.sondasUrl}/${encodeURIComponent(idSondaUnidade)}/monitoramentos/series`,
       { params }
     );
   }
