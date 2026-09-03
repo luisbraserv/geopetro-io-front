@@ -1,39 +1,112 @@
 :root {
   color-scheme: light;
-  font-family: Inter, 'Segoe UI', sans-serif;
-  --color-primary: #528c9c;
-  --color-primary-hover: #3f7786;
-  --color-primary-soft: #eef6f8;
-  --color-primary-muted: #9c8153;
-  --color-secondary: #9c8153;
-  --color-accent: #9c664e;
-  --color-background: #ffffff;
+  font-family: 'Coco Gothic', 'Century Gothic', 'Trebuchet MS', sans-serif;
+
+  /* Braserv Design System — fonte normativa: /specs/index.html */
+  --brand-navy-950: #010e22;
+  --brand-navy-900: #051833;
+  --brand-navy-800: #061c39;
+  --brand-navy-700: #0b2b52;
+  --brand-blue-600: #154a7a;
+  --brand-blue-100: #dce6f0;
+
+  /* Acento da marca: destaque e seleção. Não é cor de ação. */
+  --brand-orange-800: #8d551f;
+  --brand-orange-700: #a96525;
+  --brand-orange-600: #d4852f;
+  --brand-orange-500: #e59a4c;
+  --brand-orange-200: #f4d6b8;
+
+  /* Vermelho passou a ser exclusivamente semântico: erro e ação destrutiva. */
+  --danger-700: #b42318;
+  --danger-600: #d92d20;
+  --danger-200: #fda29b;
+  --success-700: #2e8b3a;
+  --success-500: #5fbf61;
+  --warning-500: #e5bd02;
+
+  --surface-canvas: #f7f9fc;
+  --surface-subtle: #edf1f8;
+  --surface-soft: #eaf1f8;
+  --surface-raised: #ffffff;
+  --border-default: #d6deeb;
+  --border-strong: #b7c3d5;
+  --text-primary: #051833;
+  --text-secondary: #5a667a;
+  --text-tertiary: #757b86;
+  --focus-ring: #154a7a;
+  --font-brand: 'Coco Gothic', 'Century Gothic', 'Trebuchet MS', sans-serif;
+  --font-mono: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 7px;
+  --radius-xl: 9px;
+  --radius-pill: 6px;
+
+  /* Compatibilidade com os componentes existentes. */
+  --color-primary: var(--brand-navy-900);
+  --color-primary-hover: var(--brand-navy-700);
+  --color-primary-soft: var(--surface-soft);
+  --color-primary-muted: var(--brand-blue-600);
+  --color-secondary: var(--brand-blue-600);
+  --color-accent: var(--brand-orange-600);
+  --color-background: var(--surface-canvas);
   --color-surface: #ffffff;
-  --color-border: rgba(33, 47, 51, 0.16);
-  --color-text-primary: #332f28;
-  --color-text-secondary: #5f6765;
-  --color-success: #16a34a;
+  --color-border: var(--border-default);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-success: var(--success-700);
   --color-success-soft: #ecfdf3;
-  --color-error: #9c664e;
-  --color-error-soft: #fbf2ef;
-  --color-warning: #9c8153;
+  --color-error: var(--danger-600);
+  --color-error-soft: #fff0f1;
+  --color-warning: var(--warning-500);
   --color-warning-soft: #faf6ec;
-  --color-info: #528c9c;
-  --color-info-soft: #eef6f8;
-  --color-surface-dark: #212f33;
-  --color-surface-warm: #9c8153;
-  --color-surface-deep: #332f28;
-  --color-surface-muted: #f5f7f7;
+  --color-info: var(--brand-blue-600);
+  --color-info-soft: var(--surface-soft);
+  --color-surface-dark: var(--brand-navy-900);
+  --color-surface-warm: var(--brand-blue-600);
+  --color-surface-deep: var(--brand-navy-950);
+  --color-surface-muted: var(--surface-subtle);
   --color-card: #ffffff;
   --color-card-border: var(--color-border);
   --color-text-strong: var(--color-text-primary);
   --color-text-body: var(--color-text-secondary);
-  --color-text-on-dark: #f7f4ee;
-  --color-text-on-dark-muted: rgba(247, 244, 238, 0.76);
-  --color-focus: #4291e1;
-  --shadow-card: 0 10px 28px rgba(33, 47, 51, 0.08);
-  --shadow-card-hover: 0 16px 36px rgba(82, 140, 156, 0.14);
-  --app-background: #ffffff;
+  --color-text-on-dark: #ffffff;
+  --color-text-on-dark-muted: rgba(255, 255, 255, 0.72);
+  --color-focus: var(--focus-ring);
+  --shadow-card: 0 6px 18px rgba(0, 12, 75, 0.08);
+  --shadow-card-hover: 0 16px 36px rgba(0, 12, 75, 0.12);
+  --app-background: var(--surface-canvas);
+
+  /* O Taiga permanece como biblioteca de componentes; estes tokens aplicam a marca. */
+  --tui-typography-family-text: var(--font-brand);
+  --tui-typography-family-display: var(--font-brand);
+  --tui-font-family-text: var(--font-brand);
+  --tui-font-family-display: var(--font-brand);
+  --tui-background-base: var(--surface-canvas);
+  --tui-background-base-alt: var(--surface-subtle);
+  --tui-background-elevation-1: var(--surface-raised);
+  --tui-background-elevation-2: var(--surface-raised);
+  --tui-background-accent-1: var(--brand-navy-900);
+  --tui-background-accent-1-hover: var(--brand-navy-700);
+  --tui-background-accent-1-pressed: var(--brand-navy-950);
+  --tui-background-accent-2: var(--brand-blue-600);
+  --tui-background-accent-2-hover: var(--brand-navy-700);
+  --tui-background-accent-2-pressed: var(--brand-navy-800);
+  --tui-text-primary: var(--text-primary);
+  --tui-text-secondary: var(--text-secondary);
+  --tui-text-tertiary: var(--text-tertiary);
+  --tui-text-action: var(--brand-blue-600);
+  --tui-text-action-hover: var(--brand-navy-700);
+  --tui-text-primary-on-accent-1: #ffffff;
+  --tui-text-primary-on-accent-2: #ffffff;
+  --tui-border-normal: var(--border-default);
+  --tui-border-hover: var(--border-strong);
+  --tui-radius-xs: var(--radius-sm);
+  --tui-radius-s: var(--radius-md);
+  --tui-radius-m: var(--radius-lg);
+  --tui-radius-l: var(--radius-xl);
+  --tui-radius-xl: var(--radius-xl);
 }
 
 html,
@@ -46,6 +119,7 @@ body {
 
 body {
   min-height: 100dvh;
+  font-family: var(--font-brand);
 }
 
 input,
@@ -59,30 +133,30 @@ input,
 select,
 textarea {
   box-sizing: border-box;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
   background: #ffffff;
-  color: #1f2937;
+  color: var(--text-primary);
   caret-color: var(--color-focus);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #94a3b8;
+  color: var(--text-tertiary);
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: rgba(82, 140, 156, 0.72);
-  outline: 3px solid rgba(82, 140, 156, 0.16);
+  border-color: var(--brand-blue-600);
+  outline: 3px solid rgba(21, 74, 122, 0.18);
 }
 
 input:disabled,
 select:disabled,
 textarea:disabled {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--surface-subtle);
+  color: var(--text-tertiary);
 }
 
 app-root {
@@ -135,7 +209,7 @@ app-root {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: var(--color-secondary);
+  color: var(--brand-orange-800);
   font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -149,7 +223,7 @@ app-root {
 .unit-block,
 .process-card {
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
@@ -164,7 +238,7 @@ app-root {
 .panel:hover,
 .card:hover,
 .process-card:hover {
-  border-color: rgba(82, 140, 156, 0.34);
+  border-color: var(--border-strong);
 }
 
 .form-grid,
@@ -180,7 +254,7 @@ app-root {
   width: 100%;
   overflow-x: auto;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: #ffffff;
 }
 
@@ -197,8 +271,8 @@ td {
 }
 
 th {
-  background: var(--color-primary-soft);
-  color: var(--color-secondary);
+  background: var(--surface-subtle);
+  color: var(--brand-navy-700);
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -216,7 +290,7 @@ tbody tr:hover td {
   min-height: 24px;
   width: fit-content;
   padding: 0 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-size: 0.72rem;
   font-weight: 800;
   white-space: nowrap;
@@ -237,7 +311,7 @@ button.primary-button,
 button:not([tuiButton]):not(.app-toast__close):not(.sidebar__toggle):not(.nav-item):not(.acc-group-label) {
   min-height: 36px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--color-primary);
   color: #ffffff;
   font-weight: 750;
@@ -259,12 +333,6 @@ button.ghost {
 button.danger {
   background: var(--color-error) !important;
   color: #ffffff !important;
-}
-
-.alert,
-.feedback,
-.error {
-  display: none !important;
 }
 
 @media (max-width: 760px) {

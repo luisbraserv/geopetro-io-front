@@ -55,25 +55,3 @@ export interface UnidadeSondaPayload {
   apelido?: string | null;
   setorId: number;
 }
-
-export interface Projeto {
-  id: number;
-  nome: string;
-  descricao?: string | null;
-  centroCusto?: string | null;
-  regionalId: number;
-  regionalNome: string;
-  criadoPorUsername?: string | null;
-  responsavelUsername?: string | null;
-  responsavelNome?: string | null;
-  criadoEm?: string | null;
-  atualizadoEm?: string | null;
-}
-
-export interface ProjetoPayload {
-  nome: string;
-  descricao?: string | null;
-  centroCusto?: string | null;
-  regionalId: number;
-  responsavelUsername?: string | null;
-}

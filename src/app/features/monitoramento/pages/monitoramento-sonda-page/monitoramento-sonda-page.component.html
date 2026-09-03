@@ -8,6 +8,13 @@
   </header>
 
   <section class="filtros-panel">
+    @if (demonstracaoAtiva()) {
+      <div class="demo-notice" role="status">
+        <strong>Dados sinteticos de desenvolvimento</strong>
+        <span>A SPT-145 foi preenchida automaticamente para validar a leitura do InfluxDB.</span>
+      </div>
+    }
+
     <div class="filtros-grid">
       <label class="field">
         <span>Sonda / Unidade</span>

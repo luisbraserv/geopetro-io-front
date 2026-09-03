@@ -9,10 +9,11 @@ import { SearchBoxComponent } from '../../../../shared/ui/search-box/search-box.
 import { CepService } from '../../../../shared/services/cep.service';
 import { ToastService } from '../../../../shared/toast/toast.service';
 import { UserRole } from '../../../auth/models/user.model';
-import { Empresa, Regional, Setor } from '../../../cadastros/models/cadastros.model';
+import { Empresa, Regional, Setor, UnidadeSonda } from '../../../cadastros/models/cadastros.model';
 import { EmpresaService } from '../../../cadastros/services/empresa.service';
 import { RegionalService } from '../../../cadastros/services/regional.service';
 import { SetorService } from '../../../cadastros/services/setor.service';
+import { UnidadeSondaService } from '../../../cadastros/services/unidade-sonda.service';
 import {
   AtualizarUsuarioPayload,
   CriarUsuarioClientePayload,
@@ -34,6 +35,7 @@ export class UsuariosAdminPageComponent {
   private readonly empresaService = inject(EmpresaService);
   private readonly regionalService = inject(RegionalService);
   private readonly setorService = inject(SetorService);
+  private readonly unidadeSondaService = inject(UnidadeSondaService);
   private readonly cepService = inject(CepService);
   private readonly toast = inject(ToastService);
 
@@ -52,27 +54,26 @@ export class UsuariosAdminPageComponent {
   protected readonly empresas = signal<Empresa[]>([]);
   protected readonly regionais = signal<Regional[]>([]);
   protected readonly setores = signal<Setor[]>([]);
+  protected readonly unidades = signal<UnidadeSonda[]>([]);
   // Regional principal fica em form.regionalId; abaixo as N regionais e N setores vinculados
   protected readonly regionaisSelecionadas = signal<number[]>([]);
   protected readonly setoresSelecionados = signal<number[]>([]);
+  // Unidades/Sondas concedidas ao CLIENTE
+  protected readonly unidadesSelecionadas = signal<number[]>([]);
   protected readonly rolesSel = signal<UserRole[]>([]);
 
+  /**
+   * Roles atribuíveis além da role base (CLIENTE/INTERNO, aplicada automaticamente pelo backend).
+   *
+   * Espelha o enum `Role` do backend. Não faz sentido oferecer aqui uma role que o servidor não
+   * conhece — ela seria rejeitada ou simplesmente não teria efeito.
+   */
   protected readonly rolesAdicionais: UserRole[] = [
     'ADMIN',
     'CIMENTACAO',
     'SONDA',
     'GERENCIA',
     'DIRETORIA',
-    'RECURSOS_HUMANOS',
-    'DEPARTAMENTO_PESSOAL',
-    'TREINAMENTO',
-    'SISTEMA_GESTAO_INTEGRADA',
-    'TRANSPORTE',
-    'ELETRICA',
-    'AUTOMACAO',
-    'INTEGRIDADE',
-    'SAUDE',
-    'MANUTENCAO',
   ];
 
   protected readonly form = {
@@ -186,27 +187,47 @@ export class UsuariosAdminPageComponent {
   protected roleLabel(role: UserRole): string {
     const labels: Record<UserRole, string> = {
       ADMIN: 'Administrador',
-      USER: 'Usuário',
-      OPERADOR: 'Operador',
-      ENGENHARIA: 'Engenharia',
       CLIENTE: 'Cliente',
       INTERNO: 'Interno',
       CIMENTACAO: 'Cimentação',
       SONDA: 'Sonda',
       GERENCIA: 'Gerência',
       DIRETORIA: 'Diretoria',
-      RECURSOS_HUMANOS: 'Recursos Humanos',
-      DEPARTAMENTO_PESSOAL: 'Departamento Pessoal',
-      TREINAMENTO: 'Treinamento',
-      SISTEMA_GESTAO_INTEGRADA: 'Sistema Gestão Integrada',
-      TRANSPORTE: 'Transporte',
-      ELETRICA: 'Elétrica',
-      AUTOMACAO: 'Automação',
-      INTEGRIDADE: 'Integridade',
-      SAUDE: 'Saúde',
-      MANUTENCAO: 'Manutenção',
     };
     return labels[role] ?? role;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Unidades/Sondas concedidas ao CLIENTE
+  //
+  // Diferente dos perfis internos, o cliente não enxerga a frota inteira: seu
+  // acesso ao monitoramento é concedido unidade a unidade, aqui.
+  // ---------------------------------------------------------------------------
+
+  protected unidadeSelecionada(id: number): boolean {
+    return this.unidadesSelecionadas().includes(id);
+  }
+
+  protected alternarUnidade(id: number, checked: boolean): void {
+    if (checked) {
+      if (!this.unidadesSelecionadas().includes(id)) {
+        this.unidadesSelecionadas.update((ids) => [...ids, id]);
+      }
+      return;
+    }
+    this.unidadesSelecionadas.update((ids) => ids.filter((item) => item !== id));
+  }
+
+  protected marcarTodasUnidades(): void {
+    this.unidadesSelecionadas.set(this.unidades().map((u) => u.id));
+  }
+
+  protected desmarcarTodasUnidades(): void {
+    this.unidadesSelecionadas.set([]);
+  }
+
+  protected rotuloUnidade(unidade: UnidadeSonda): string {
+    return unidade.apelido ? `${unidade.nome} — ${unidade.apelido}` : unidade.nome;
   }
 
   protected buscarCep(): void {
@@ -350,6 +371,7 @@ export class UsuariosAdminPageComponent {
 
     this.regionaisSelecionadas.set((usuario.regionais ?? []).map((r) => r.id));
     this.setoresSelecionados.set((usuario.setores ?? []).map((s) => s.id));
+    this.unidadesSelecionadas.set((usuario.unidadesSondas ?? []).map((u) => u.id));
     this.modalAberto.set(true);
   }
 
@@ -366,6 +388,7 @@ export class UsuariosAdminPageComponent {
       username: this.form.username,
       password: this.form.password,
       roles: this.rolesSelecionadas(),
+      unidadeSondaIds: this.unidadesSelecionadas(),
     };
   }
 
@@ -387,7 +410,12 @@ export class UsuariosAdminPageComponent {
       ...this.payloadComum(),
       roles: this.rolesSelecionadas(),
       ...(this.tipo() === 'CLIENTE'
-        ? { id: Number(this.form.id), empresaId: Number(this.form.empresaId), empresa: this.form.empresa }
+        ? {
+            id: Number(this.form.id),
+            empresaId: Number(this.form.empresaId),
+            empresa: this.form.empresa,
+            unidadeSondaIds: this.unidadesSelecionadas(),
+          }
         : {
             matricula: Number(this.form.matricula),
             regionalId: Number(this.form.regionalId),
@@ -441,6 +469,7 @@ export class UsuariosAdminPageComponent {
     this.rolesSel.set([]);
     this.regionaisSelecionadas.set([]);
     this.setoresSelecionados.set([]);
+    this.unidadesSelecionadas.set([]);
   }
 
   private carregarRelacionamentos(): void {
@@ -454,6 +483,11 @@ export class UsuariosAdminPageComponent {
     });
     this.setorService.listar().subscribe({
       next: (setores) => this.setores.set(setores),
+      error: (error: Error) => this.notificarErro(error),
+    });
+    // Necessário para conceder acesso ao monitoramento no cadastro de CLIENTE.
+    this.unidadeSondaService.listar().subscribe({
+      next: (unidades) => this.unidades.set(unidades),
       error: (error: Error) => this.notificarErro(error),
     });
   }

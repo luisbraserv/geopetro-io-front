@@ -43,7 +43,9 @@ export class AuthService {
       .pipe(
         map((response) => ({
           ...response,
-          role: response.roles[0] ?? 'USER',
+          // Fallback para INTERNO: a role base de qualquer funcionário, e a que menos
+          // concede acesso. 'USER' não existe no enum do backend.
+          role: response.roles[0] ?? 'INTERNO',
           roles: response.roles ?? [],
           regionalId: response.regionalId ?? null,
           regionalNome: response.regionalNome ?? null,

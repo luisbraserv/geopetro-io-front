@@ -1,4 +1,4 @@
-import { Component, Input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MonitoramentoSerie } from '../../services/monitoramento-sonda.service';
 
@@ -6,6 +6,7 @@ import { MonitoramentoSerie } from '../../services/monitoramento-sonda.service';
   selector: 'app-grafico-monitoramento',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <article class="grafico-card">
       <header class="grafico-header">
@@ -122,9 +123,26 @@ import { MonitoramentoSerie } from '../../services/monitoramento-sonda.service';
   `],
 })
 export class GraficoMonitoramentoComponent {
-  @Input({ required: true }) serie!: MonitoramentoSerie;
+  @Input({ required: true }) set serie(valor: MonitoramentoSerie) {
+    this.serieSig.set(valor);
+  }
+  get serie(): MonitoramentoSerie {
+    return this.serieSig();
+  }
+
   @Input() titulo = '';
   @Input() unidade = '';
+
+  /**
+   * A serie como signal, para que os `computed` abaixo reajam a troca de consulta.
+   *
+   * <p>Setter em vez de `input()` apenas para manter a API `[serie]` que a pagina ja usa.
+   */
+  private readonly serieSig = signal<MonitoramentoSerie>({
+    idSondaUnidade: '',
+    dispositivoId: '',
+    pontos: [],
+  });
 
   readonly mostrarOriginal = signal(true);
   readonly mostrarSuavizada = signal(true);
@@ -133,56 +151,104 @@ export class GraficoMonitoramentoComponent {
   readonly H = 300;
   readonly pad = 48;
 
-  get valores(): number[] { return this.serie.pontos.map((p) => Number(p.valor ?? 0)); }
-  get minV(): number { return Math.min(...this.valores); }
-  get maxV(): number { return Math.max(...this.valores); }
-  get rangeV(): number { return this.maxV - this.minV || 1; }
+  /** Janela da media movel, em pontos. */
+  private static readonly JANELA_SUAVIZACAO = 8;
+
+  private readonly valoresSig = computed(() =>
+    this.serieSig().pontos.map((p) => Number(p.valor ?? 0)),
+  );
+
+  /**
+   * Minimo e amplitude calculados numa passada so.
+   *
+   * <p><b>Era aqui o travamento.</b> `minV`/`maxV` eram getters que refaziam `.map()` sobre a serie
+   * inteira e aplicavam `Math.min(...)` com spread. Como `toY()` os consultava, e `originalSvg()`
+   * chamava `toY()` por ponto, montar uma unica polyline custava O(n²): com 2000 pontos e seis
+   * graficos, cerca de 1 segundo de thread principal bloqueada — repetido a cada ciclo de deteccao,
+   * porque tudo eram metodos chamados do template.
+   *
+   * <p>O spread tambem era um risco a parte: `Math.min(...array)` estoura a pilha em series grandes.
+   */
+  private readonly escala = computed(() => {
+    const valores = this.valoresSig();
+    let min = Infinity;
+    let max = -Infinity;
+    for (const valor of valores) {
+      if (valor < min) min = valor;
+      if (valor > max) max = valor;
+    }
+    if (!Number.isFinite(min)) {
+      return { min: 0, range: 1 };
+    }
+    return { min, range: max - min || 1 };
+  });
+
+  get minV(): number { return this.escala().min; }
+  get rangeV(): number { return this.escala().range; }
+  get maxV(): number { return this.escala().min + this.escala().range; }
 
   toX(i: number): number {
-    const n = this.serie.pontos.length;
+    const n = this.serieSig().pontos.length;
     if (n < 2) return this.pad;
     return this.pad + (i / (n - 1)) * (this.W - this.pad * 2);
   }
 
   toY(v: number): number {
-    return this.H - this.pad - ((v - this.minV) / this.rangeV) * (this.H - this.pad * 2);
+    const { min, range } = this.escala();
+    return this.H - this.pad - ((v - min) / range) * (this.H - this.pad * 2);
   }
 
-  originalSvg(): string {
-    return this.serie.pontos.map((p, i) => `${this.toX(i)},${this.toY(Number(p.valor ?? 0))}`).join(' ');
-  }
+  /**
+   * Coordenadas da curva bruta.
+   *
+   * <p>`computed` e nao metodo: o template le isto a cada ciclo de deteccao, e sem memoizacao a
+   * string inteira era remontada toda vez, mesmo sem os dados terem mudado.
+   */
+  readonly originalSvg = computed(() => {
+    const valores = this.valoresSig();
+    const partes = new Array<string>(valores.length);
+    for (let i = 0; i < valores.length; i++) {
+      partes[i] = `${this.toX(i)},${this.toY(valores[i])}`;
+    }
+    return partes.join(' ');
+  });
 
-  suavizadaSvg(): string {
-    return this.mediaMovel(this.valores, 8).map((valor, i) => `${this.toX(i)},${this.toY(valor)}`).join(' ');
-  }
+  readonly suavizadaSvg = computed(() => {
+    const suavizados = this.mediaMovel(this.valoresSig(), GraficoMonitoramentoComponent.JANELA_SUAVIZACAO);
+    const partes = new Array<string>(suavizados.length);
+    for (let i = 0; i < suavizados.length; i++) {
+      partes[i] = `${this.toX(i)},${this.toY(suavizados[i])}`;
+    }
+    return partes.join(' ');
+  });
 
-  areaOriginalSvg(): string {
-    const linha = this.originalSvg();
-    const n = this.serie.pontos.length - 1;
-    return `${this.pad},${this.H - this.pad} ${linha} ${this.toX(n)},${this.H - this.pad}`;
-  }
+  readonly areaOriginalSvg = computed(() => {
+    const n = this.serieSig().pontos.length - 1;
+    if (n < 1) return '';
+    return `${this.pad},${this.H - this.pad} ${this.originalSvg()} ${this.toX(n)},${this.H - this.pad}`;
+  });
 
-  gridLinhas(): { y: number; label: string }[] {
-    const steps = 5;
-    return Array.from({ length: steps + 1 }, (_, i) => {
-      const v = this.minV + (this.rangeV * i) / steps;
+  readonly gridLinhas = computed(() => {
+    const { min, range } = this.escala();
+    const passos = 5;
+    return Array.from({ length: passos + 1 }, (_, i) => {
+      const v = min + (range * i) / passos;
       return { y: this.toY(v), label: this.formatarValor(v) };
     });
-  }
+  });
 
-  gridX(): { x: number }[] {
-    return this.indicesLabelsX().map((i) => ({ x: this.toX(i) }));
-  }
+  readonly gridX = computed(() => this.indicesLabelsX().map((i) => ({ x: this.toX(i) })));
 
-  labelsX(): string[] {
+  readonly labelsX = computed(() => {
+    const pontos = this.serieSig().pontos;
     return this.indicesLabelsX().map((i) => {
-      const d = new Date(this.serie.pontos[i].dataHora);
+      const d = new Date(pontos[i].dataHora);
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     });
-  }
+  });
 
   private indicesLabelsX(): number[] {
-    const pts = this.serie.pontos;
+    const pts = this.serieSig().pontos;
     if (pts.length < 2) return [];
     return [
       0,
@@ -193,12 +259,21 @@ export class GraficoMonitoramentoComponent {
     ];
   }
 
+  /**
+   * Media movel por janela deslizante: uma passada, soma incremental.
+   *
+   * <p>A versao anterior fazia `slice()` e `reduce()` a cada ponto, alocando um array por iteracao.
+   * O resultado numerico e identico — ha teste cobrindo isso.
+   */
   private mediaMovel(values: number[], window: number): number[] {
-    return values.map((_, i) => {
-      const start = Math.max(0, i - window + 1);
-      const slice = values.slice(start, i + 1);
-      return slice.reduce((sum, value) => sum + value, 0) / slice.length;
-    });
+    const saida = new Array<number>(values.length);
+    let soma = 0;
+    for (let i = 0; i < values.length; i++) {
+      soma += values[i];
+      if (i >= window) soma -= values[i - window];
+      saida[i] = soma / Math.min(i + 1, window);
+    }
+    return saida;
   }
 
   private formatarValor(value: number): string {

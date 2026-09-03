@@ -24,16 +24,16 @@ import { Component, computed, input, output } from '@angular/core';
   `,
   styles: [`
     .paginator { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-top: 0.75rem; }
-    .paginator__info { font-size: 0.8rem; color: #64748b; }
+    .paginator__info { font-size: 0.8rem; color: var(--text-secondary); }
     .paginator__nav { display: flex; gap: 0.3rem; }
     .pg-btn {
       min-width: 36px; min-height: 36px; padding: 0 0.5rem !important;
-      border: 1px solid #d8e0ea !important; border-radius: 8px !important;
-      background: #fff !important; color: #475569 !important;
+      border: 1px solid var(--border-default) !important; border-radius: var(--radius-md) !important;
+      background: #fff !important; color: var(--text-primary) !important;
       font: inherit; font-weight: 600; cursor: pointer;
     }
-    .pg-btn:hover:not(:disabled) { border-color: #93c5fd !important; background: #f8fbff !important; }
-    .pg-btn--active { background: #1f6feb !important; border-color: #1f6feb !important; color: #fff !important; }
+    .pg-btn:hover:not(:disabled) { border-color: var(--border-strong) !important; background: var(--surface-subtle) !important; }
+    .pg-btn--active { background: var(--brand-blue-600) !important; border-color: var(--brand-blue-600) !important; color: #fff !important; }
     .pg-btn:disabled { opacity: 0.5; cursor: default; }
   `],
 })

@@ -137,6 +137,35 @@
             }
           </select>
         </label>
+
+        <div class="vinculos-field wide">
+          <span class="field-title">Unidades/Sondas que este cliente pode visualizar</span>
+          <p class="field-hint">
+            O cliente só enxerga no monitoramento as sondas marcadas aqui. Sem nenhuma marcada, ele
+            acessa a tela mas não vê sonda alguma.
+          </p>
+
+          <div class="unidades-actions">
+            <button type="button" class="link-btn" (click)="marcarTodasUnidades()">Marcar todas</button>
+            <button type="button" class="link-btn" (click)="desmarcarTodasUnidades()">Desmarcar todas</button>
+            <span class="unidades-contador">{{ unidadesSelecionadas().length }} de {{ unidades().length }}</span>
+          </div>
+
+          <div class="chips">
+            @for (unidade of unidades(); track unidade.id) {
+              <button
+                type="button"
+                class="chip"
+                [class.chip--on]="unidadeSelecionada(unidade.id)"
+                (click)="alternarUnidade(unidade.id, !unidadeSelecionada(unidade.id))"
+              >
+                {{ rotuloUnidade(unidade) }}
+              </button>
+            } @empty {
+              <span class="setores-chips__empty">Nenhuma unidade/sonda cadastrada.</span>
+            }
+          </div>
+        </div>
       }
 
       <div class="roles-field wide">

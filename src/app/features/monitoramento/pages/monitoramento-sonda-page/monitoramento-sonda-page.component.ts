@@ -6,6 +6,7 @@ import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { MonitoramentoSondaService, MonitoramentoSerie, SondaDisponivel } from '../../services/monitoramento-sonda.service';
 import { GraficoMonitoramentoComponent } from '../../components/grafico-monitoramento/grafico-monitoramento.component';
+import { environment } from '../../../../../environments/environment';
 
 interface DispositivoMonitoramento {
   id: string;
@@ -33,6 +34,11 @@ export class MonitoramentoSondaPageComponent implements OnInit {
   readonly series = signal<MonitoramentoSerie[]>([]);
   readonly semDados = signal(false);
   readonly erro = signal<string | null>(null);
+
+  readonly demonstracaoAtiva = computed(() => {
+    const demoId = environment.telemetriaDemoSondaId;
+    return !!demoId && this.sondaSelecionada()?.idSondaUnidade === demoId;
+  });
 
   readonly dispositivos = signal<DispositivoMonitoramento[]>([
     { id: 'PESO_COLUNA_01',  label: 'Peso da Coluna',          unidade: 'lbf',    visivel: true },
@@ -73,7 +79,15 @@ export class MonitoramentoSondaPageComponent implements OnInit {
 
   ngOnInit() {
     this.service.listarMinhas().subscribe({
-      next: (sondas) => this.sondas.set(sondas),
+      next: (sondas) => {
+        this.sondas.set(sondas);
+        const demoId = environment.telemetriaDemoSondaId;
+        const sondaDemo = demoId ? sondas.find((sonda) => sonda.idSondaUnidade === demoId) : undefined;
+        if (sondaDemo) {
+          this.sondaSelecionada.set(sondaDemo);
+          this.consultar();
+        }
+      },
       error: () => this.erro.set('Erro ao carregar sondas disponiveis.'),
     });
   }

@@ -15,7 +15,7 @@ import { AuthState } from '../state/auth.state';
  *
  * Uso nas rotas:
  *   canActivate: [authGuard]
- *   data: { roles: ['ADMIN', 'ENGENHARIA'] }  // opcional — omitir para qualquer autenticado
+ *   data: { roles: ['ADMIN', 'CIMENTACAO'] }  // opcional — omitir para qualquer autenticado
  */
 export const authGuard: CanActivateFn = (
   route: ActivatedRouteSnapshot,

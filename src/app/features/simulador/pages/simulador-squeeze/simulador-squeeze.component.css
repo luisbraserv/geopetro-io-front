@@ -231,7 +231,7 @@
   background: var(--color-surface-muted, #f5f7f7);
 }
 .acc-group-label--open {
-  color: var(--color-primary, #528c9c);
+  color: var(--color-primary, #051833);
 }
 .acc-group-chevron {
   margin-left: auto;
@@ -514,7 +514,7 @@ select:focus {
   min-height: 24px;
   padding: 4px 10px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-size: 0.72rem;
   font-weight: 750;
   line-height: 1.2;
@@ -753,7 +753,7 @@ tr:hover td {
   gap: 8px;
   padding: 10px 22px;
   border: 1px solid rgba(77, 87, 97, 0.18);
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.92);
   color: var(--color-text-strong);
   font: inherit;

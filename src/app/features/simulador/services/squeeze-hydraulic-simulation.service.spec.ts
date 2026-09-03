@@ -15,6 +15,8 @@ const geom: SqueezeGeometry = {
   backOperationalHeight: 50, frontPhysicalVolumeBbl: 6, frontPhysicalHeight: 100, volBackSpacer: 1.25,
   backPhysicalVolumeBbl: 1.25, backPhysicalHeight: 50, displacementHydroBalance: null,
   operationalDisplacementVolumeBbl: 36, oh: 8.535, cOD: 5.5, cID: 4.778, tOD: 2.875, tID: 2.441,
+  topCementImmersedMD: 0, topCementAfterPullMD: 0,
+  topCementImmersedAfterInjectionMD: 0, topCementAfterInjectionMD: 0,
 };
 
 const inputs: SqueezeInputs = {

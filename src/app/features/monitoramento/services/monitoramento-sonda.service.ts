@@ -4,6 +4,9 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 
 export interface SondaDisponivel {
+  /** Id numérico no cadastro — endereça o tópico de tempo real. Estável a renomeações. */
+  id: number;
+  /** Nome cadastrado (ex.: SPT-144) — chave de correlação do histórico no InfluxDB. */
   idSondaUnidade: string;
   nome: string;
   apelido: string;

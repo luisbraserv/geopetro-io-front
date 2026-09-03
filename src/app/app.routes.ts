@@ -1,22 +1,16 @@
+import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
+import { Store } from '@ngxs/store';
 
-import { LoginPageComponent } from './pages/login/login-page.component';
-import { ShellComponent } from './shared/layout/shell/shell.component';
-import { DashboardPageComponent } from './features/dashboard/pages/dashboard-page.component';
-import { AcessoNegadoComponent } from './shared/pages/acesso-negado/acesso-negado.component';
 import { authGuard } from './features/auth/guards/auth.guard';
-import { SimuladorIndexComponent } from './features/simulador/pages/simulador-index/simulador-index.component';
-import { SimuladorSqueezeComponent } from './features/simulador/pages/simulador-squeeze/simulador-squeeze.component';
-import { SimuladorTampaoComponent } from './features/simulador/pages/simulador-tampao/simulador-tampao.component';
-import { UsuariosAdminPageComponent } from './features/usuarios/pages/usuarios-admin-page/usuarios-admin-page.component';
-import { MeuUsuarioPageComponent } from './features/usuarios/pages/meu-usuario-page/meu-usuario-page.component';
-import { PaginaNaoEncontradaComponent } from './shared/pages/pagina-nao-encontrada/pagina-nao-encontrada.component';
-import { CadastrosPageComponent } from './features/cadastros/pages/cadastros-page/cadastros-page.component';
-import { EmpresasPageComponent } from './features/cadastros/pages/empresas-page/empresas-page.component';
-import { SetoresPageComponent } from './features/cadastros/pages/setores-page/setores-page.component';
-import { UnidadesSondasPageComponent } from './features/cadastros/pages/unidades-sondas-page/unidades-sondas-page.component';
-import { ProjetosPageComponent } from './features/cadastros/pages/projetos-page/projetos-page.component';
-import { RegionaisPageComponent } from './features/cadastros/pages/regionais-page/regionais-page.component';
+import {
+  normalizarRoles,
+  ROLES_ADMINISTRACAO,
+  ROLES_MONITORAMENTO,
+  ROLES_SIMULADOR,
+  rotaInicialPara,
+} from './features/auth/models/user.model';
+import { AuthState } from './features/auth/state/auth.state';
 
 
 export const routes: Routes = [
@@ -28,38 +22,70 @@ export const routes: Routes = [
   },
   {
     path: 'login',
-    component: LoginPageComponent,
+    loadComponent: () =>
+      import('./pages/login/login-page.component').then((m) => m.LoginPageComponent),
   },
   {
     path: 'acesso-negado',
-    component: AcessoNegadoComponent,
+    loadComponent: () =>
+      import('./shared/pages/acesso-negado/acesso-negado.component').then(
+        (m) => m.AcessoNegadoComponent,
+      ),
   },
 
   // Rotas privadas — protegidas pelo authGuard
   {
     path: 'app',
-    component: ShellComponent,
+    loadComponent: () =>
+      import('./shared/layout/shell/shell.component').then((m) => m.ShellComponent),
     canActivate: [authGuard],
     children: [
       {
+        // Destino depende do papel: mandar todos para 'dashboard' jogaria um CLIENTE
+        // direto em "acesso negado", já que o Dashboard é exclusivo de ADMIN.
         path: '',
-        redirectTo: 'dashboard',
+        redirectTo: () => {
+          const store = inject(Store);
+          const user = store.selectSnapshot(AuthState.currentUser);
+          return rotaInicialPara(normalizarRoles([...(user?.roles ?? []), user?.role]));
+        },
         pathMatch: 'full',
       },
       {
         path: 'dashboard',
-        component: DashboardPageComponent,
+        loadComponent: () =>
+          import('./features/dashboard/pages/dashboard-page.component').then(
+            (m) => m.DashboardPageComponent,
+          ),
         canActivate: [authGuard],
-        data: { roles: ['ADMIN'] },
+        data: { roles: ROLES_ADMINISTRACAO },
       },
       {
         path: 'simulador',
         canActivate: [authGuard],
-        data: { roles: ['CIMENTACAO', 'ADMIN'] },
+        data: { roles: ROLES_SIMULADOR },
         children: [
-          { path: '', component: SimuladorIndexComponent },
-          { path: 'squeeze', component: SimuladorSqueezeComponent },
-          { path: 'tampao', component: SimuladorTampaoComponent },
+          {
+            path: '',
+            loadComponent: () =>
+              import('./features/simulador/pages/simulador-index/simulador-index.component').then(
+                (m) => m.SimuladorIndexComponent,
+              ),
+          },
+          {
+            path: 'squeeze',
+            loadComponent: () =>
+              import('./features/simulador/pages/simulador-squeeze/simulador-squeeze.component').then(
+                (m) => m.SimuladorSqueezeComponent,
+              ),
+          },
+          {
+            path: 'tampao',
+            loadComponent: () =>
+              import('./features/simulador/pages/simulador-tampao/simulador-tampao.component').then(
+                (m) => m.SimuladorTampaoComponent,
+              ),
+          },
         ],
       },
       {
@@ -69,50 +95,62 @@ export const routes: Routes = [
       },
       {
         path: 'cadastros',
-        component: CadastrosPageComponent,
+        loadComponent: () =>
+          import('./features/cadastros/pages/cadastros-page/cadastros-page.component').then(
+            (m) => m.CadastrosPageComponent,
+          ),
         canActivate: [authGuard],
-        data: { roles: ['ADMIN'] },
+        data: { roles: ROLES_ADMINISTRACAO },
         children: [
           {
             path: '',
-            redirectTo: 'projetos',
+            redirectTo: 'usuarios',
             pathMatch: 'full',
           },
           {
             path: 'usuarios',
-            component: UsuariosAdminPageComponent,
+            loadComponent: () =>
+              import('./features/usuarios/pages/usuarios-admin-page/usuarios-admin-page.component').then(
+                (m) => m.UsuariosAdminPageComponent,
+              ),
             canActivate: [authGuard],
-            data: { roles: ['ADMIN'] },
+            data: { roles: ROLES_ADMINISTRACAO },
           },
           {
             path: 'empresas',
-            component: EmpresasPageComponent,
+            loadComponent: () =>
+              import('./features/cadastros/pages/empresas-page/empresas-page.component').then(
+                (m) => m.EmpresasPageComponent,
+              ),
             canActivate: [authGuard],
-            data: { roles: ['ADMIN'] },
+            data: { roles: ROLES_ADMINISTRACAO },
           },
           {
             path: 'regionais',
-            component: RegionaisPageComponent,
+            loadComponent: () =>
+              import('./features/cadastros/pages/regionais-page/regionais-page.component').then(
+                (m) => m.RegionaisPageComponent,
+              ),
             canActivate: [authGuard],
-            data: { roles: ['ADMIN'] },
+            data: { roles: ROLES_ADMINISTRACAO },
           },
           {
             path: 'setores',
-            component: SetoresPageComponent,
+            loadComponent: () =>
+              import('./features/cadastros/pages/setores-page/setores-page.component').then(
+                (m) => m.SetoresPageComponent,
+              ),
             canActivate: [authGuard],
-            data: { roles: ['ADMIN'] },
+            data: { roles: ROLES_ADMINISTRACAO },
           },
           {
             path: 'unidades-sondas',
-            component: UnidadesSondasPageComponent,
+            loadComponent: () =>
+              import(
+                './features/cadastros/pages/unidades-sondas-page/unidades-sondas-page.component'
+              ).then((m) => m.UnidadesSondasPageComponent),
             canActivate: [authGuard],
-            data: { roles: ['ADMIN'] },
-          },
-          {
-            path: 'projetos',
-            component: ProjetosPageComponent,
-            canActivate: [authGuard],
-            data: { roles: ['ADMIN'] },
+            data: { roles: ROLES_ADMINISTRACAO },
           },
         ],
       },
@@ -123,27 +161,48 @@ export const routes: Routes = [
             (m) => m.MonitoramentoSondaPageComponent,
           ),
         canActivate: [authGuard],
-        data: { roles: ['SONDA', 'ADMIN'] },
+        data: { roles: ROLES_MONITORAMENTO },
+      },
+      {
+        path: 'tempo-real',
+        loadComponent: () =>
+          import('./features/monitoramento/pages/tempo-real-page/tempo-real-page.component').then(
+            (m) => m.TempoRealPageComponent,
+          ),
+        canActivate: [authGuard],
+        data: { roles: ROLES_MONITORAMENTO },
       },
       {
         path: 'meu-usuario',
-        component: MeuUsuarioPageComponent,
+        loadComponent: () =>
+          import('./features/usuarios/pages/meu-usuario-page/meu-usuario-page.component').then(
+            (m) => m.MeuUsuarioPageComponent,
+          ),
       },
       {
         path: '**',
-        component: PaginaNaoEncontradaComponent,
+        loadComponent: () =>
+          import('./shared/pages/pagina-nao-encontrada/pagina-nao-encontrada.component').then(
+            (m) => m.PaginaNaoEncontradaComponent,
+          ),
       },
     ],
   },
 
   {
     path: '404',
-    component: PaginaNaoEncontradaComponent,
+    loadComponent: () =>
+      import('./shared/pages/pagina-nao-encontrada/pagina-nao-encontrada.component').then(
+        (m) => m.PaginaNaoEncontradaComponent,
+      ),
   },
 
   // Fallback
   {
     path: '**',
-    component: PaginaNaoEncontradaComponent,
+    loadComponent: () =>
+      import('./shared/pages/pagina-nao-encontrada/pagina-nao-encontrada.component').then(
+        (m) => m.PaginaNaoEncontradaComponent,
+      ),
   },
 ];

@@ -84,7 +84,7 @@ export interface OpsPhase {
     .chart-box { position: relative; height: clamp(140px, 22vh, 170px); min-height: 0; }
     .chart-box canvas { display: block; width: 100% !important; height: 100% !important; }
     .zoom-active { min-height: 260px; }
-    .zoom-badge { display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 999px; background: #eef6ff; color: #2563eb; border: 1px solid rgba(37, 99, 235, .18); font-size: .68rem; font-weight: 750; }
+    .zoom-badge { display: inline-flex; align-items: center; padding: 4px 9px; border-radius: var(--radius-md); background: var(--surface-soft); color: var(--brand-blue-600); border: 1px solid rgba(30, 90, 150, .22); font-size: .68rem; font-weight: 750; }
     .adaptive-timeline { display: flex; flex-direction: column; gap: 14px; padding: 10px 4px 4px; }
     .timeline-section { display: flex; flex-direction: column; gap: 7px; }
     .timeline-head { display: flex; justify-content: space-between; gap: 12px; color: var(--color-text-body, #64748b); font-size: .72rem; }

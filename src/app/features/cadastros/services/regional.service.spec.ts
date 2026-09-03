@@ -27,7 +27,7 @@ describe('RegionalService', () => {
       { id: 2, nome: 'Sergipe', centroCusto: null },
     ];
     service.listar().subscribe((regionais) => {
-      expect(regionais).toHaveSize(2);
+      expect(regionais).toHaveLength(2);
       expect(regionais[0].nome).toBe('Bahia');
     });
     httpMock.expectOne(apiUrl).flush(mock);
@@ -64,7 +64,7 @@ describe('RegionalService', () => {
 
   it('deve emitir erro tratado quando request falha', () => {
     service.listar().subscribe({
-      next: () => fail('esperava erro'),
+      next: () => expect.unreachable('esperava erro'),
       error: (err: Error) => expect(err.message).toBeTruthy(),
     });
     httpMock.expectOne(apiUrl).flush({ message: 'Erro interno' }, { status: 500, statusText: 'Server Error' });

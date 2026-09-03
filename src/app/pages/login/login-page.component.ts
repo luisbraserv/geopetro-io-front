@@ -8,6 +8,7 @@ import { Subject } from 'rxjs';
 
 import { Login, ClearAuthError } from '../../features/auth/state/auth.actions';
 import { AuthState } from '../../features/auth/state/auth.state';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login-page',
@@ -21,6 +22,16 @@ export class LoginPageComponent implements OnDestroy {
 
   protected readonly username = signal('');
   protected readonly password = signal('');
+
+  /**
+   * Versao e ambiente no rodape do login.
+   *
+   * <p>Fixos por ora, espelhando o que o shell ja exibe. Quando houver versionamento de verdade no
+   * build, virao de la — o objetivo aqui e o operador saber qual versao esta acessando antes de
+   * relatar um problema.
+   */
+  protected readonly versao = "1.0.0";
+  protected readonly ambiente = environment.production ? "" : "DESENVOLVIMENTO";
 
   protected readonly isLoading = this.store.selectSignal(AuthState.isLoading);
   protected readonly authError = this.store.selectSignal(AuthState.authError);

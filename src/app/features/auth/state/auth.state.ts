@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { Observable, catchError, map, of } from 'rxjs';
 import { Action, Selector, State, StateContext } from '@ngxs/store';
 
-import { AuthenticatedUser } from '../models/user.model';
+import { AuthenticatedUser, normalizarRoles, rotaInicialPara } from '../models/user.model';
 import { AuthService } from '../services/auth.service';
 import {
   ClearAuthError,
@@ -154,12 +154,5 @@ export class AuthState {
 }
 
 function rotaInicial(user: AuthenticatedUser): string {
-  const roles = new Set((user.roles ?? []).map((role) => role.replace(/^ROLE_/i, '').toUpperCase()));
-
-  if (roles.has('ADMIN')) return '/app/dashboard';
-  if (roles.has('INTERNO')) return '/app/meu-usuario';
-  if (roles.has('CIMENTACAO')) return '/app/simulador';
-  if (roles.has('SONDA')) return '/app/monitoramento-sondas';
-
-  return '/acesso-negado';
+  return rotaInicialPara(normalizarRoles([...(user.roles ?? []), user.role]));
 }

@@ -4,7 +4,15 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { TuiIcon } from '@taiga-ui/core';
 import { Store } from '@ngxs/store';
 
-import { AuthenticatedUser, UserRole } from '../../../features/auth/models/user.model';
+import {
+  AuthenticatedUser,
+  normalizarRoles,
+  possuiAlgumaRole,
+  ROLES_ADMINISTRACAO,
+  ROLES_MONITORAMENTO,
+  ROLES_SIMULADOR,
+  UserRole,
+} from '../../../features/auth/models/user.model';
 import { Logout } from '../../../features/auth/state/auth.actions';
 import { AuthState } from '../../../features/auth/state/auth.state';
 
@@ -13,6 +21,8 @@ interface NavLeaf {
   label: string;
   icon: string;
   route: string;
+  /** Roles que enxergam esta entrada. Precisa espelhar o guard da rota correspondente. */
+  roles: readonly UserRole[];
 }
 
 interface NavGroup {
@@ -31,13 +41,27 @@ const ALL_NAV_ENTRIES: NavEntry[] = [
     label: 'Dashboard',
     icon: '@tui.layout-dashboard',
     route: '/app/dashboard',
+    roles: ROLES_ADMINISTRACAO,
   },
   {
     kind: 'group',
-    label: 'Sonda',
+    label: 'Sonda/Unidade',
     icon: '@tui.activity',
     children: [
-      { kind: 'leaf', label: 'Monitoramento', icon: '@tui.radio-tower', route: '/app/monitoramento-sondas' },
+      {
+        kind: 'leaf',
+        label: 'Monitoramento',
+        icon: '@tui.radio-tower',
+        route: '/app/monitoramento-sondas',
+        roles: ROLES_MONITORAMENTO,
+      },
+      {
+        kind: 'leaf',
+        label: 'Tempo Real',
+        icon: '@tui.zap',
+        route: '/app/tempo-real',
+        roles: ROLES_MONITORAMENTO,
+      },
     ],
   },
   {
@@ -45,7 +69,13 @@ const ALL_NAV_ENTRIES: NavEntry[] = [
     label: 'Cimentação',
     icon: '@tui.layers',
     children: [
-      { kind: 'leaf', label: 'Simulador', icon: '@tui.flask-conical', route: '/app/simulador' },
+      {
+        kind: 'leaf',
+        label: 'Simulador',
+        icon: '@tui.flask-conical',
+        route: '/app/simulador',
+        roles: ROLES_SIMULADOR,
+      },
     ],
   },
   {
@@ -53,7 +83,13 @@ const ALL_NAV_ENTRIES: NavEntry[] = [
     label: 'Administração',
     icon: '@tui.shield',
     children: [
-      { kind: 'leaf', label: 'Cadastros', icon: '@tui.clipboard-list', route: '/app/cadastros' },
+      {
+        kind: 'leaf',
+        label: 'Cadastros',
+        icon: '@tui.clipboard-list',
+        route: '/app/cadastros',
+        roles: ROLES_ADMINISTRACAO,
+      },
     ],
   },
 ];
@@ -80,35 +116,26 @@ export class ShellComponent {
     return this.sidebarCollapsed() ? '@tui.chevron-right' : '@tui.chevron-left';
   });
 
+  /**
+   * Menu filtrado pelas roles do usuário.
+   *
+   * A visibilidade vem da própria entrada (`roles`), não de condicionais por rótulo — assim uma
+   * entrada nova não aparece por engano só porque ninguém lembrou de tratá-la aqui. Um grupo cujos
+   * filhos foram todos filtrados é removido, evitando cabeçalho vazio no menu.
+   *
+   * Isto é conveniência de interface, não controle de acesso: quem decide é o `authGuard` na rota
+   * e, em última instância, o backend.
+   */
   protected readonly navEntries = computed(() => {
     const roles = obterRolesUsuario(this.currentUser());
 
-    return ALL_NAV_ENTRIES.filter((entry) => {
-      if (entry.kind !== 'group') {
-        if (entry.label === 'Dashboard') {
-          return roles.includes('ADMIN');
-        }
-
-        return entry.label === 'Cadastros' ? roles.includes('ADMIN') : true;
+    return ALL_NAV_ENTRIES.flatMap<NavEntry>((entry) => {
+      if (entry.kind === 'leaf') {
+        return possuiAlgumaRole(roles, entry.roles) ? [entry] : [];
       }
 
-      if (entry.label === 'Administração') {
-        return roles.includes('ADMIN');
-      }
-
-      if (entry.label === 'Cimentação') {
-        return roles.includes('CIMENTACAO') || roles.includes('ADMIN');
-      }
-
-      if (entry.label === 'Sonda') {
-        return roles.includes('SONDA') || roles.includes('ADMIN');
-      }
-
-      if (entry.label === 'Gerenciamento') {
-        return roles.includes('INTERNO') || roles.includes('CIMENTACAO') || roles.includes('ADMIN');
-      }
-
-      return true;
+      const children = entry.children.filter((child) => possuiAlgumaRole(roles, child.roles));
+      return children.length > 0 ? [{ ...entry, children }] : [];
     });
   });
 
@@ -142,12 +169,3 @@ function obterRolesUsuario(user: AuthenticatedUser | null): UserRole[] {
   return normalizarRoles([...(user?.roles ?? []), user?.role].filter(Boolean) as string[]);
 }
 
-function normalizarRoles(roles: string[] | undefined): UserRole[] {
-  return Array.from(
-    new Set(
-      (roles ?? [])
-        .map((role) => role.replace(/^ROLE_/i, '').toUpperCase())
-        .filter(Boolean),
-    ),
-  ) as UserRole[];
-}

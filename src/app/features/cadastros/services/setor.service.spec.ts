@@ -24,7 +24,7 @@ describe('SetorService', () => {
   afterEach(() => httpMock.verify());
 
   it('deve listar todos os setores', () => {
-    service.listar().subscribe((s) => expect(s).toHaveSize(1));
+    service.listar().subscribe((s) => expect(s).toHaveLength(1));
     httpMock.expectOne(API).flush([SETOR_MOCK]);
   });
 

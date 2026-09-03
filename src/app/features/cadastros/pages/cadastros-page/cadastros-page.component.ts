@@ -15,7 +15,7 @@ import { AuthState } from '../../../auth/state/auth.state';
         <div>
           <p class="eyebrow">Administracao</p>
           <h1>Cadastros</h1>
-          <p class="page-subtitle">Gerencie projetos e demais cadastros do sistema em uma area unica.</p>
+          <p class="page-subtitle">Gerencie os cadastros do sistema em uma area unica.</p>
         </div>
       </header>
 
@@ -56,7 +56,6 @@ export class CadastrosPageComponent {
     const roles = this.currentUser()?.roles ?? [];
     const isAdmin = roles.includes('ADMIN');
     const tabs = [
-      { label: 'Projetos', icon: '@tui.folder-kanban', route: 'projetos', adminOnly: false },
       { label: 'Usuarios', icon: '@tui.users', route: 'usuarios', adminOnly: true },
       { label: 'Empresas', icon: '@tui.building-2', route: 'empresas', adminOnly: true },
       { label: 'Regionais', icon: '@tui.map-pin', route: 'regionais', adminOnly: true },

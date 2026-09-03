@@ -5,6 +5,12 @@ export interface RegionalVinculo {
   nome: string;
 }
 
+export interface UnidadeSondaVinculo {
+  id: number;
+  nome: string;
+  apelido: string | null;
+}
+
 export interface SetorVinculo {
   id: number;
   nome: string;
@@ -37,6 +43,8 @@ export interface UsuarioResponse {
   regionalNome?: string | null;
   regionais?: RegionalVinculo[] | null;
   setores?: SetorVinculo[] | null;
+  /** Unidades/Sondas que o CLIENTE pode visualizar no monitoramento. */
+  unidadesSondas?: UnidadeSondaVinculo[] | null;
 }
 
 export interface UsuarioPaginadoResponse {
@@ -72,6 +80,8 @@ export interface CriarUsuarioClientePayload extends UsuarioContatoPayload {
   username: string;
   password: string;
   roles: UserRole[];
+  /** Ids das Unidades/Sondas concedidas a este cliente. */
+  unidadeSondaIds: number[];
 }
 
 export interface CriarUsuarioInternoPayload extends UsuarioContatoPayload {
@@ -93,6 +103,8 @@ export interface AtualizarUsuarioPayload extends UsuarioContatoPayload {
   regionalId?: number;
   regionalIds?: number[];
   setorIds?: number[];
+  /** Omitido = mantem o vinculo atual. Array vazio = revoga todas as sondas. */
+  unidadeSondaIds?: number[];
 }
 
 export interface AlterarSenhaPayload {
